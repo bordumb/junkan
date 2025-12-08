@@ -1,0 +1,19 @@
+name: 'Junkan Impact Analysis'
+description: 'Analyze Pull Requests for cross-domain breaking changes (Infra -> Code -> Data)'
+author: 'Junkan'
+inputs:
+  github-token:
+    description: 'GitHub Token for fetching diffs'
+    required: true
+  working-directory:
+    description: 'Root directory to scan'
+    required: false
+    default: '.'
+outputs:
+  risk-score:
+    description: 'Calculated risk score (0-100)'
+  impact-json:
+    description: 'JSON summary of impacted artifacts'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
