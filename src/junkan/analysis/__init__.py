@@ -1,9 +1,16 @@
 """
 Analysis modules for Junkan.
 
-Provides impact analysis capabilities.
+This package contains analysis and explanation capabilities:
+- explain: Match explanation generator
 """
 
-from .blast_radius import BlastRadiusAnalyzer
+from .explain import (
+    ExplanationGenerator, MatchExplanation, NodeInfo, AlternativeMatch,
+    create_explanation_generator
+)
 
-__all__ = ["BlastRadiusAnalyzer"]
+__all__ = [
+    "ExplanationGenerator", "MatchExplanation", "NodeInfo", "AlternativeMatch",
+    "create_explanation_generator",
+]

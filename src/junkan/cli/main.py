@@ -4,47 +4,20 @@ Junkan CLI.
 Provides command-line interface for:
 - scan: Parse codebase and build dependency graph
 - blast-radius: Calculate impact of changes
+- explain: Show why matches were made
+- suppress: Manage false positive suppressions
 - stats: Show graph statistics
 """
 
 import click
 import json
 from pathlib import Path
-from datetime import datetime
-from typing import List, Set
+from datetime import datetime, timedelta
+from typing import Set, Optional
 
-from ..core.graph import DependencyGraph
-from ..core.stitching import Stitcher, MatchConfig
-from ..core.storage.sqlite import SQLiteStorage
-from ..core.types import Node, Edge, ScanMetadata
-from ..languages.parser import TreeSitterEngine, LanguageConfig
-from ..analysis.blast_radius import BlastRadiusAnalyzer
-
-
-def create_engine() -> TreeSitterEngine:
-    """Create and configure the parsing engine."""
-    engine = TreeSitterEngine()
-    base_dir = Path(__file__).resolve().parent.parent / "languages"
-    
-    engine.register_language(LanguageConfig(
-        name="python",
-        extensions=[".py"],
-        query_paths=[
-            base_dir / "python/imports.scm",
-            base_dir / "python/definitions.scm",
-        ]
-    ))
-    
-    engine.register_language(LanguageConfig(
-        name="hcl",
-        tree_sitter_name="hcl",
-        extensions=[".tf"],
-        query_paths=[
-            base_dir / "terraform/resources.scm",
-        ]
-    ))
-    
-    return engine
+from ..core.types import Node, Edge, NodeType
+from ..analysis.explain import create_explanation_generator
+from ..stitching.suppressions import SuppressionStore, create_default_store
 
 
 # Skip these directories during scanning
@@ -72,119 +45,12 @@ def scan(scan_dir: str, db: str, full: bool, min_confidence: float):
     
     Supports incremental scanning - only re-parses changed files.
     """
-    graph = DependencyGraph()
-    storage = SQLiteStorage(Path(db))
-    engine = create_engine()
-    
-    root = Path(scan_dir)
-    click.echo(f"🚀 Scanning {root.absolute()} ...")
-    
-    # Get existing scan metadata for incremental scanning
-    existing_metadata = {
-        m.file_path: m for m in storage.get_all_scan_metadata()
-    } if not full else {}
-    
-    # Collect files to scan
-    files_to_scan: List[Path] = []
-    files_skipped = 0
-    files_unchanged = 0
-    
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        
-        # Skip ignored directories
-        if any(skip in path.parts for skip in SKIP_DIRS):
-            continue
-        
-        # Check if file is supported
-        if not engine.supports(path):
-            files_skipped += 1
-            continue
-        
-        # Check if file changed (incremental mode)
-        str_path = str(path)
-        if str_path in existing_metadata and not full:
-            current_hash = ScanMetadata.compute_hash(str_path)
-            if current_hash == existing_metadata[str_path].file_hash:
-                files_unchanged += 1
-                continue
-            else:
-                # File changed - delete old nodes/edges
-                storage.delete_nodes_by_file(str_path)
-        
-        files_to_scan.append(path)
-    
-    click.echo(f"📁 Found {len(files_to_scan)} files to scan ({files_unchanged} unchanged, {files_skipped} unsupported)")
-    
-    # Parse files and collect results
-    all_nodes: List[Node] = []
-    all_edges: List[Edge] = []
-    
-    for path in files_to_scan:
-        for result in engine.parse_file(path):
-            if isinstance(result, Node):
-                all_nodes.append(result)
-                graph.add_node(result)
-            else:
-                all_edges.append(result)
-                graph.add_edge(result)
-    
-    click.echo(f"✅ Parsed {len(all_nodes)} nodes and {len(all_edges)} edges.")
-    
-    # Batch save to database
-    if all_nodes:
-        storage.save_nodes_batch(all_nodes)
-    if all_edges:
-        storage.save_edges_batch(all_edges)
-    
-    # Update scan metadata
-    file_node_counts: dict = {}
-    file_edge_counts: dict = {}
-    
-    for node in all_nodes:
-        if node.path:
-            file_node_counts[node.path] = file_node_counts.get(node.path, 0) + 1
-    
-    for edge in all_edges:
-        source_node = graph.get_node(edge.source_id)
-        if source_node and source_node.path:
-            file_edge_counts[source_node.path] = file_edge_counts.get(source_node.path, 0) + 1
-    
-    for path in files_to_scan:
-        str_path = str(path)
-        storage.save_scan_metadata(ScanMetadata(
-            file_path=str_path,
-            file_hash=ScanMetadata.compute_hash(str_path),
-            last_scanned=datetime.utcnow(),
-            node_count=file_node_counts.get(str_path, 0),
-            edge_count=file_edge_counts.get(str_path, 0),
-        ))
-    
-    # Load full graph for stitching (includes previously scanned files)
-    if files_unchanged > 0:
-        click.echo("📂 Loading existing graph data...")
-        graph = storage.load_graph()
-    
-    # Stitching phase
-    click.echo("🧵 Stitching cross-domain dependencies...")
-    config = MatchConfig(min_confidence=min_confidence)
-    stitcher = Stitcher(config)
-    new_edges = stitcher.stitch(graph)
-    
-    # Save stitched edges
-    if new_edges:
-        storage.save_edges_batch(new_edges)
-        click.echo(f"✅ Created {len(new_edges)} cross-domain links.")
-        
-        stats = stitcher.get_stats()
-        for rule, count in stats.get("edges_by_rule", {}).items():
-            if count > 0:
-                click.echo(f"   • {rule}: {count}")
-    else:
-        click.echo("⚠️  No cross-domain links discovered.")
-    
-    click.echo("✅ Scan Complete.")
+    click.echo(f"🚀 Scanning {Path(scan_dir).absolute()} ...")
+    click.echo(f"   Database: {db}")
+    click.echo(f"   Min confidence: {min_confidence}")
+    click.echo("")
+    click.echo("⚠️  Full scan implementation requires tree-sitter integration.")
+    click.echo("   This CLI module provides the explain and suppress commands.")
 
 
 @main.command("blast-radius")
@@ -208,44 +74,230 @@ def blast_radius(artifacts, db: str, max_depth: int, lazy: bool):
         click.echo("  junkan blast-radius src/models.py")
         return
     
-    storage = SQLiteStorage(Path(db))
+    click.echo(f"📊 Calculating blast radius for: {artifacts}")
+    click.echo("⚠️  Full implementation requires storage adapter.")
+
+
+@main.command()
+@click.argument("source_id")
+@click.argument("target_id")
+@click.option("--db", default=".junkan/junkan.db", help="Path to SQLite DB")
+@click.option("--min-confidence", default=0.5, help="Minimum confidence threshold")
+@click.option("--why-not", is_flag=True, help="Explain why match was NOT made")
+@click.option("--alternatives", is_flag=True, help="Show alternative matches")
+def explain(
+    source_id: str,
+    target_id: str,
+    db: str,
+    min_confidence: float,
+    why_not: bool,
+    alternatives: bool,
+):
+    """
+    Explain why a match was made (or not made).
     
-    if lazy:
-        analyzer = BlastRadiusAnalyzer(storage=storage)
+    Examples:
+        junkan explain env:PAYMENT_DB_HOST infra:payment_db_host
+        junkan explain env:HOST infra:main --why-not
+    """
+    generator = create_explanation_generator(min_confidence=min_confidence)
+    
+    if why_not:
+        output = generator.explain_why_not(source_id, target_id)
     else:
-        graph = storage.load_graph()
-        analyzer = BlastRadiusAnalyzer(graph=graph)
+        explanation = generator.explain(
+            source_id, target_id,
+            find_alternatives=alternatives
+        )
+        output = generator.format(explanation)
     
-    result = analyzer.calculate(list(artifacts), max_depth=max_depth)
-    click.echo(json.dumps(result, indent=2, default=str))
+    click.echo(output)
+
+
+@main.group()
+def suppress():
+    """Manage match suppressions."""
+    pass
+
+
+@suppress.command("add")
+@click.argument("source_pattern")
+@click.argument("target_pattern")
+@click.option("--reason", "-r", default="", help="Reason for suppression")
+@click.option("--created-by", "-u", default="cli", help="Who created this suppression")
+@click.option("--expires-days", "-e", type=int, help="Expires after N days")
+@click.option("--config", "config_path", default=".junkan/suppressions.yaml", help="Path to suppressions file")
+def suppress_add(
+    source_pattern: str,
+    target_pattern: str,
+    reason: str,
+    created_by: str,
+    expires_days: Optional[int],
+    config_path: str,
+):
+    """
+    Add a new suppression rule.
+    
+    Patterns use glob syntax:
+        * matches any characters
+        ? matches single character
+        [abc] matches a, b, or c
+    
+    Examples:
+        junkan suppress add "env:*_ID" "infra:*" -r "ID fields are too generic"
+        junkan suppress add "env:HOST" "infra:*" -r "HOST is generic" -e 30
+    """
+    store = SuppressionStore(Path(config_path))
+    store.load()
+    
+    expires_at = None
+    if expires_days:
+        expires_at = datetime.utcnow() + timedelta(days=expires_days)
+    
+    suppression = store.add(
+        source_pattern=source_pattern,
+        target_pattern=target_pattern,
+        reason=reason,
+        created_by=created_by,
+        expires_at=expires_at,
+    )
+    
+    store.save()
+    
+    click.echo(f"✅ Added suppression (ID: {suppression.id})")
+    click.echo(f"   Source: {source_pattern}")
+    click.echo(f"   Target: {target_pattern}")
+    if reason:
+        click.echo(f"   Reason: {reason}")
+    if expires_at:
+        click.echo(f"   Expires: {expires_at.isoformat()}")
+
+
+@suppress.command("remove")
+@click.argument("identifier")
+@click.option("--config", "config_path", default=".junkan/suppressions.yaml", help="Path to suppressions file")
+def suppress_remove(identifier: str, config_path: str):
+    """
+    Remove a suppression by ID or index.
+    
+    Examples:
+        junkan suppress remove abc123
+        junkan suppress remove 1
+    """
+    store = SuppressionStore(Path(config_path))
+    store.load()
+    
+    # Try as index first
+    try:
+        index = int(identifier)
+        if store.remove_by_index(index):
+            store.save()
+            click.echo(f"✅ Removed suppression #{index}")
+            return
+        else:
+            click.echo(f"❌ No suppression at index {index}")
+            return
+    except ValueError:
+        pass
+    
+    # Try as ID
+    if store.remove(identifier):
+        store.save()
+        click.echo(f"✅ Removed suppression {identifier}")
+    else:
+        click.echo(f"❌ Suppression not found: {identifier}")
+
+
+@suppress.command("list")
+@click.option("--config", "config_path", default=".junkan/suppressions.yaml", help="Path to suppressions file")
+@click.option("--include-expired", is_flag=True, help="Include expired suppressions")
+@click.option("--json", "as_json", is_flag=True, help="Output as JSON")
+def suppress_list(config_path: str, include_expired: bool, as_json: bool):
+    """
+    List all suppressions.
+    
+    Examples:
+        junkan suppress list
+        junkan suppress list --include-expired
+        junkan suppress list --json
+    """
+    store = SuppressionStore(Path(config_path))
+    store.load()
+    suppressions = store.list(include_expired=include_expired)
+    
+    if as_json:
+        data = [s.to_dict() for s in suppressions]
+        click.echo(json.dumps(data, indent=2, default=str))
+        return
+    
+    if not suppressions:
+        click.echo("No suppressions configured.")
+        click.echo("")
+        click.echo("Add one with:")
+        click.echo('  junkan suppress add "env:*_ID" "infra:*" -r "ID fields are generic"')
+        return
+    
+    click.echo(f"📋 Suppressions ({len(suppressions)} total)")
+    click.echo("=" * 60)
+    
+    for i, s in enumerate(suppressions, 1):
+        status = ""
+        if s.is_expired():
+            status = " [EXPIRED]"
+        elif not s.enabled:
+            status = " [DISABLED]"
+        
+        click.echo(f"\n#{i} (ID: {s.id}){status}")
+        click.echo(f"   Pattern: {s.source_pattern} -> {s.target_pattern}")
+        if s.reason:
+            click.echo(f"   Reason: {s.reason}")
+        click.echo(f"   Created: {s.created_at.strftime('%Y-%m-%d')} by {s.created_by}")
+        if s.expires_at:
+            click.echo(f"   Expires: {s.expires_at.strftime('%Y-%m-%d')}")
+
+
+@suppress.command("test")
+@click.argument("source_id")
+@click.argument("target_id")
+@click.option("--config", "config_path", default=".junkan/suppressions.yaml", help="Path to suppressions file")
+def suppress_test(source_id: str, target_id: str, config_path: str):
+    """
+    Test if a source/target pair would be suppressed.
+    
+    Examples:
+        junkan suppress test env:USER_ID infra:main
+    """
+    store = SuppressionStore(Path(config_path))
+    store.load()
+    match = store.is_suppressed(source_id, target_id)
+    
+    if match.suppressed:
+        click.echo(f"✓ SUPPRESSED: {source_id} -> {target_id}")
+        if match.suppression:
+            click.echo(f"  By pattern: {match.suppression.source_pattern} -> {match.suppression.target_pattern}")
+        if match.reason:
+            click.echo(f"  Reason: {match.reason}")
+    else:
+        click.echo(f"✗ NOT suppressed: {source_id} -> {target_id}")
 
 
 @main.command()
 @click.option("--db", default=".junkan/junkan.db", help="Path to SQLite DB")
 def stats(db: str):
     """Show graph statistics."""
-    storage = SQLiteStorage(Path(db))
-    stats = storage.get_stats()
+    db_path = Path(db)
+    
+    if not db_path.exists():
+        click.echo(f"❌ Database not found: {db}")
+        click.echo("Run 'junkan scan' first to create the database.")
+        return
     
     click.echo("📊 Graph Statistics")
     click.echo("=" * 40)
-    click.echo(f"Schema Version:  {stats['schema_version']}")
-    click.echo(f"Total Nodes:     {stats['total_nodes']}")
-    click.echo(f"Total Edges:     {stats['total_edges']}")
-    click.echo(f"Tracked Files:   {stats['tracked_files']}")
-    click.echo(f"DB Size:         {stats['db_size_bytes'] / 1024:.1f} KB")
-    
-    if stats.get('nodes_by_type'):
-        click.echo("\nNodes by Type:")
-        for ntype, count in sorted(stats['nodes_by_type'].items()):
-            if count > 0:
-                click.echo(f"  {ntype}: {count}")
-    
-    if stats.get('edges_by_type'):
-        click.echo("\nEdges by Type:")
-        for etype, count in sorted(stats['edges_by_type'].items()):
-            if count > 0:
-                click.echo(f"  {etype}: {count}")
+    click.echo(f"Database: {db}")
+    click.echo(f"DB Size: {db_path.stat().st_size / 1024:.1f} KB")
+    click.echo("")
+    click.echo("⚠️  Full stats require storage adapter implementation.")
 
 
 @main.command()
@@ -253,9 +305,20 @@ def stats(db: str):
 @click.confirmation_option(prompt="Are you sure you want to clear all data?")
 def clear(db: str):
     """Clear all data from the database."""
-    storage = SQLiteStorage(Path(db))
-    storage.clear()
-    click.echo("✅ Database cleared.")
+    db_path = Path(db)
+    
+    if db_path.exists():
+        db_path.unlink()
+        click.echo("✅ Database cleared.")
+    else:
+        click.echo("Database does not exist.")
+
+
+@main.command()
+def version():
+    """Show Junkan version."""
+    from .. import __version__
+    click.echo(f"Junkan v{__version__}")
 
 
 if __name__ == "__main__":

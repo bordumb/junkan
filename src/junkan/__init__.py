@@ -13,5 +13,16 @@ Key Features:
 - Configurable matching strategies with confidence scoring
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __author__ = "Junkan Team"
+
+from .core import (
+    Node, Edge, NodeType, RelationshipType,
+    DependencyGraph, ConfidenceCalculator
+)
+
+__all__ = [
+    "__version__",
+    "Node", "Edge", "NodeType", "RelationshipType",
+    "DependencyGraph", "ConfidenceCalculator",
+]
