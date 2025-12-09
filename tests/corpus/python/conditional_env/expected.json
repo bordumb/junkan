@@ -1,0 +1,13 @@
+{
+    "description": "Environment variables in control flow structures",
+    "env_vars": [
+      {"name": "DEBUG", "pattern": "os.getenv", "line": 7},
+      {"name": "DB_HOST", "pattern": "os.getenv", "line": 11},
+      {"name": "DATABASE_HOST", "pattern": "os.getenv", "line": 11},
+      {"name": "ENABLE_FEATURE", "pattern": "os.getenv", "line": 15},
+      {"name": "FEATURE_CONFIG_JSON", "pattern": "os.getenv", "line": 16},
+      {"name": "AUTH_TOKEN", "pattern": "os.getenv", "line": 26},
+      {"name": "DB_CONNECTION_STRING", "pattern": "os.getenv", "line": 30}
+    ],
+    "acceptable_false_positives": ["KAFKA_BROKER_"]
+  }
