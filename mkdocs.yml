@@ -4,7 +4,7 @@ site_description: Pre-flight impact analysis for infrastructure and data pipelin
 site_author: Jnkn Contributors
 
 repo_name: jnkn-io/jnkn
-repo_url: https://github.com/jnkn-io/jnkn
+repo_url: https://github.com/bordumb/jnkn
 edit_uri: edit/main/docs/
 
 copyright: Copyright &copy; 2024 Jnkn Contributors
@@ -105,7 +105,7 @@ extra:
     default: latest
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/jnkn-io/jnkn
+      link: https://github.com/bordumb/jnkn
     - icon: fontawesome/brands/slack
       link: https://jnkn.io/slack
   generator: false
