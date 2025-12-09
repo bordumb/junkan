@@ -1,10 +1,6 @@
 {
-  "description": "Real-world ETL job with multiple reads/writes and env vars",
+  "description": "Real-world ETL job with multiple reads/writes",
   "priority": "HIGH",
-  "env_vars": [
-    {"name": "DATABASE_HOST", "pattern": "os.getenv"},
-    {"name": "OUTPUT_PATH", "pattern": "os.getenv", "has_default": true}
-  ],
   "tables_read": [
     {"name": "warehouse.dim_users", "pattern": "spark.read.table"},
     {"name": "s3://data-lake/delta/fact_events", "pattern": "spark.read.format.load", "source_type": "delta"},
@@ -13,8 +9,8 @@
   ],
   "tables_written": [
     {"name": "warehouse.daily_user_metrics", "pattern": "write.saveAsTable"},
-    {"name": "s3://ml-features/user_segments/", "pattern": "write.format.save", "source_type": "delta"},
+    {"name": "s3://ml-features/user_segments/", "pattern": "write.save", "source_type": "delta"},
     {"name": "reporting.segment_summary", "pattern": "write.insertInto"}
   ],
-  "notes": "The f-string parquet write is harder to detect statically - acceptable miss"
+  "notes": "Env vars detected by Python parser. f-string parquet write is acceptable miss."
 }

@@ -76,3 +76,28 @@ spark_yaml/
 integration/
 └── pyspark_pipeline/      # Cross-reference YAML config with PySpark code
 ```
+
+## PySpark Test Cases
+
+```
+pyspark/
+├── basic_read_write/      # ✅ spark.read.table, write.saveAsTable
+├── spark_sql_queries/     # ✅ Tables from spark.sql() queries
+├── file_based_io/         # ✅ parquet, delta, csv, json patterns
+└── real_world_etl/        # ✅ Complex real-world job
+```
+
+## Spark YAML Test Cases
+
+```
+spark_yaml/
+├── basic_job_config/      # ✅ Single job with deps, env vars, tables
+└── multi_job_pipeline/    # ✅ Multiple jobs with DAG dependencies
+```
+
+## Integration: PySpark + YAML
+
+```
+integration/
+└── pyspark_pipeline/      # Cross-reference YAML config with PySpark code
+```
