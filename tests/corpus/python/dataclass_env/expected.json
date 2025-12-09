@@ -1,0 +1,9 @@
+{
+    "description": "Dataclass field default_factory patterns",
+    "env_vars": [
+      {"name": "SERVICE_HOST", "pattern": "os.getenv", "line": 8},
+      {"name": "SERVICE_PORT", "pattern": "os.getenv", "line": 11},
+      {"name": "TAGS", "pattern": "os.getenv", "line": 14},
+      {"name": "API_KEY", "pattern": "os.environ[]", "line": 21}
+    ]
+  }

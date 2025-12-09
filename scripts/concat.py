@@ -58,7 +58,9 @@ DEFAULT_IGNORE_DIRS = {
     ".vscode",
     
     # Tests
-    "tests",
+    "scripts",
+    "src",
+    "tests/unit"
 }
 
 DEFAULT_IGNORE_EXTENSIONS = {
