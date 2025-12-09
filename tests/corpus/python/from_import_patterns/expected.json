@@ -1,0 +1,9 @@
+{
+  "description": "Env var detection after 'from os import getenv/environ'",
+  "env_vars": [
+    {"name": "SECRET_KEY", "pattern": "getenv", "line": 5},
+    {"name": "JWT_SECRET", "pattern": "getenv", "line": 6, "has_default": true},
+    {"name": "LOG_LEVEL", "pattern": "environ.get", "line": 9, "has_default": true},
+    {"name": "WORKER_COUNT", "pattern": "environ[]", "line": 10}
+  ]
+}

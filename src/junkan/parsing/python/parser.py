@@ -248,8 +248,19 @@ class PythonParser(LanguageParser):
         re.MULTILINE | re.IGNORECASE
     )
     
+    # Common default values to filter out (false positive prevention)
+    COMMON_DEFAULTS = frozenset({
+        'localhost', 'true', 'false', 'null', 'none', 'default',
+        'dev', 'prod', 'staging', 'test', 'development', 'production',
+        'info', 'debug', 'warning', 'error', 'critical',
+        'utf-8', 'utf8', 'ascii', 'dev-secret', 'secret',
+        'yes', 'no', 'on', 'off', 'enabled', 'disabled',
+        'myapp', 'app', 'main', 'root', 'admin', 'user',
+    })
+    
     def __init__(self, context: Optional[ParserContext] = None):
         super().__init__(context)
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._tree_sitter_initialized = False
         self._ts_parser = None
         self._ts_language = None
@@ -273,6 +284,54 @@ class PythonParser(LanguageParser):
             ParserCapability.DEFINITIONS,
             ParserCapability.CONFIGS,
         ]
+    
+    def _is_valid_env_var_name(self, name: str) -> bool:
+        """
+        Validate that a string looks like an environment variable name.
+        
+        Filters out default values like "5432", "localhost", "dev-secret".
+        This prevents false positives from os.getenv("VAR", "default").
+        
+        Args:
+            name: The string to validate
+            
+        Returns:
+            True if it looks like a valid env var name, False otherwise
+        """
+        # Empty or too short
+        if not name or len(name) < 2:
+            return False
+        
+        # Pure digits = port number, timeout, etc.
+        if name.isdigit():
+            return False
+        
+        # Known common default values
+        if name.lower() in self.COMMON_DEFAULTS:
+            return False
+        
+        # Contains spaces = description or sentence, not env var
+        if ' ' in name:
+            return False
+        
+        # Starts with digit = invalid variable name
+        if name[0].isdigit():
+            return False
+        
+        # Looks like a path or URL = default value
+        if name.startswith(('/', 'http://', 'https://', './', '../', 'redis://', 'postgresql://', 'mysql://')):
+            return False
+        
+        # All lowercase, no separators, long string = probably an English word/default
+        # Real env vars are typically UPPER_CASE or have underscores
+        if name.islower() and '_' not in name and '-' not in name and len(name) > 6:
+            return False
+        
+        # Looks like a file extension or mime type
+        if name.startswith('.') or '/' in name:
+            return False
+        
+        return True
     
     def _init_tree_sitter(self) -> bool:
         """Initialize tree-sitter parser lazily."""
@@ -335,14 +394,24 @@ class PythonParser(LanguageParser):
                 self._logger.error(f"Failed to decode {file_path}: {e}")
                 return
         
+        # Track seen env vars across all extraction methods to prevent duplicates
+        seen_env_vars: Set[str] = set()
+        
         # Try tree-sitter parsing first
         if self._init_tree_sitter():
-            yield from self._parse_with_tree_sitter(file_path, file_id, content, text)
+            for item in self._parse_with_tree_sitter(file_path, file_id, content, text):
+                # Track env var names to prevent duplicates
+                if hasattr(item, 'type') and item.type == NodeType.ENV_VAR:
+                    seen_env_vars.add(item.name)
+                yield item
         else:
-            yield from self._parse_with_regex(file_path, file_id, text)
+            for item in self._parse_with_regex(file_path, file_id, text):
+                if hasattr(item, 'type') and item.type == NodeType.ENV_VAR:
+                    seen_env_vars.add(item.name)
+                yield item
         
-        # Always run heuristic detection for additional coverage
-        yield from self._detect_env_like_assignments(file_path, file_id, text)
+        # Run heuristic detection for additional coverage (skip already-seen vars)
+        yield from self._detect_env_like_assignments(file_path, file_id, text, seen_env_vars)
     
     def _parse_with_tree_sitter(
         self,
@@ -388,6 +457,10 @@ class PythonParser(LanguageParser):
                 continue
             
             var_name = node.text.decode("utf-8").strip('"\'')
+            
+            # Filter out default values (false positive prevention)
+            if not self._is_valid_env_var_name(var_name):
+                continue
             
             if var_name in seen_vars:
                 continue
@@ -519,11 +592,15 @@ class PythonParser(LanguageParser):
         captures = query.captures(tree.root_node)
         
         seen_vars: Set[str] = set()
-        settings_classes: Set[str] = set()
         
+        # First handle explicit Field(env="VAR") patterns
         for node, capture_name in captures:
             if capture_name == "pydantic_env_field":
                 var_name = node.text.decode("utf-8").strip('"\'')
+                
+                # Apply validation to pydantic fields too
+                if not self._is_valid_env_var_name(var_name):
+                    continue
                 
                 if var_name in seen_vars:
                     continue
@@ -548,103 +625,113 @@ class PythonParser(LanguageParser):
                     type=RelationshipType.READS,
                     metadata={"pattern": "pydantic_field"},
                 )
-            
-            elif capture_name == "settings_class":
-                class_name = node.text.decode("utf-8")
-                settings_classes.add(class_name)
         
-        # For BaseSettings subclasses, try to infer env vars from field names
-        if settings_classes:
-            yield from self._infer_pydantic_env_vars(
-                file_path, file_id, tree, text, settings_classes
-            )
+        # Now detect BaseSettings classes and their fields using regex
+        # (more reliable than tree-sitter for this complex pattern)
+        yield from self._extract_pydantic_settings_regex(
+            file_path, file_id, text, seen_vars
+        )
     
-    def _infer_pydantic_env_vars(
+    def _extract_pydantic_settings_regex(
         self,
         file_path: Path,
         file_id: str,
-        tree,
         text: str,
-        settings_classes: Set[str],
+        seen_vars: Set[str],
     ) -> Generator[Union[Node, Edge], None, None]:
         """
-        Infer env vars from Pydantic BaseSettings field names.
+        Extract Pydantic BaseSettings env vars using regex.
         
-        Fields in BaseSettings classes auto-map to env vars by default.
+        Handles:
+        - Classes inheriting from BaseSettings
+        - env_prefix in Config inner class
+        - Field type annotations
         """
-        # Query for typed assignments in class bodies
-        assignment_query = """
-        (class_definition
-          name: (identifier) @class_name
-          body: (block
-            (expression_statement
-              (assignment
-                left: (identifier) @field_name
-                right: (_) @field_value))))
+        # Find all BaseSettings subclasses and their bodies
+        class_pattern = re.compile(
+            r'class\s+(\w+)\s*\([^)]*BaseSettings[^)]*\)\s*:\s*\n(.*?)(?=\nclass\s+\w+\s*[\(:]|\Z)',
+            re.DOTALL
+        )
         
-        (class_definition
-          name: (identifier) @class_name
-          body: (block
-            (expression_statement
-              (type_alias
-                name: (identifier) @typed_field))))
-        """
-        
-        try:
-            query = self._ts_language.query(assignment_query)
-            captures = query.captures(tree.root_node)
+        for class_match in class_pattern.finditer(text):
+            class_name = class_match.group(1)
+            class_body = class_match.group(2)
+            class_start_line = text[:class_match.start()].count('\n') + 1
             
-            current_class = None
-            seen_fields: Set[str] = set()
+            # Extract env_prefix from Config class
+            prefix = ""
+            prefix_match = re.search(
+                r'class\s+Config\s*:.*?env_prefix\s*=\s*["\']([^"\']*)["\']',
+                class_body,
+                re.DOTALL
+            )
+            if prefix_match:
+                prefix = prefix_match.group(1)
             
-            for node, capture_name in captures:
-                if capture_name == "class_name":
-                    name = node.text.decode("utf-8")
-                    if name in settings_classes:
-                        current_class = name
-                    else:
-                        current_class = None
+            # Find all typed field definitions (field_name: type)
+            # Match lines like: "    host: str" or "    port: int = Field(...)"
+            field_pattern = re.compile(
+                r'^([ \t]{4}(\w+)\s*:\s*\w+.*?)$',
+                re.MULTILINE
+            )
+            
+            for field_match in field_pattern.finditer(class_body):
+                field_line_content = field_match.group(1)
+                field_name = field_match.group(2)
                 
-                elif capture_name in ("field_name", "typed_field") and current_class:
-                    field_name = node.text.decode("utf-8")
-                    
-                    # Skip private fields and common methods
-                    if field_name.startswith("_"):
-                        continue
-                    if field_name in ("Config", "model_config"):
-                        continue
-                    
-                    # Convert field_name to ENV_VAR format (uppercase with underscores)
-                    env_var_name = field_name.upper()
-                    
-                    if env_var_name in seen_fields:
-                        continue
-                    seen_fields.add(env_var_name)
-                    
-                    env_id = f"env:{env_var_name}"
-                    
-                    yield Node(
-                        id=env_id,
-                        name=env_var_name,
-                        type=NodeType.ENV_VAR,
-                        metadata={
-                            "source": "pydantic_auto",
-                            "file": str(file_path),
-                            "settings_class": current_class,
-                            "field_name": field_name,
-                            "inferred": True,
-                        },
-                    )
-                    
-                    yield Edge(
-                        source_id=file_id,
-                        target_id=env_id,
-                        type=RelationshipType.READS,
-                        metadata={"pattern": "pydantic_auto"},
-                    )
-        
-        except Exception as e:
-            self._logger.debug(f"Failed to infer pydantic env vars: {e}")
+                # Skip private fields, Config class, and model internals
+                if field_name.startswith('_'):
+                    continue
+                if field_name in ('Config', 'model_config', 'model_fields'):
+                    continue
+                
+                # Check if this field has an explicit env= override in Field()
+                # If so, skip auto-generation (the explicit one was already captured)
+                explicit_env_match = re.search(
+                    r'Field\s*\([^)]*\benv\s*=\s*["\']([^"\']+)["\']',
+                    field_line_content
+                )
+                if explicit_env_match:
+                    # Field has explicit env= override, skip auto-generation
+                    continue
+                
+                # Generate env var name: PREFIX + UPPER_CASE(field_name)
+                env_var_name = prefix + field_name.upper()
+                
+                if env_var_name in seen_vars:
+                    continue
+                seen_vars.add(env_var_name)
+                
+                # Calculate line number
+                field_line = class_start_line + class_body[:field_match.start()].count('\n')
+                
+                env_id = f"env:{env_var_name}"
+                
+                yield Node(
+                    id=env_id,
+                    name=env_var_name,
+                    type=NodeType.ENV_VAR,
+                    metadata={
+                        "source": "pydantic_settings",
+                        "file": str(file_path),
+                        "line": field_line,
+                        "settings_class": class_name,
+                        "field_name": field_name,
+                        "env_prefix": prefix,
+                        "inferred": True,
+                    },
+                )
+                
+                yield Edge(
+                    source_id=file_id,
+                    target_id=env_id,
+                    type=RelationshipType.READS,
+                    metadata={
+                        "pattern": "pydantic_settings",
+                        "env_prefix": prefix,
+                    },
+                )
+    
     
     def _parse_with_regex(
         self,
@@ -665,6 +752,10 @@ class PythonParser(LanguageParser):
                     var_name = match.group(2)
                 else:
                     var_name = match.group(1)
+                
+                # Filter out default values (false positive prevention)
+                if not self._is_valid_env_var_name(var_name):
+                    continue
                 
                 if var_name in seen_vars:
                     continue
@@ -752,6 +843,7 @@ class PythonParser(LanguageParser):
         file_path: Path,
         file_id: str,
         text: str,
+        seen_env_vars: Optional[Set[str]] = None,
     ) -> Generator[Union[Node, Edge], None, None]:
         """
         Heuristic detection of env-like variable assignments.
@@ -762,10 +854,20 @@ class PythonParser(LanguageParser):
         
         This catches assignments that might be sourced from env vars
         even if the exact pattern isn't recognized.
+        
+        Args:
+            seen_env_vars: Set of env var names already detected (to prevent duplicates)
         """
+        if seen_env_vars is None:
+            seen_env_vars = set()
+        
         # Find variable names that look like env vars
         for match in self.ENV_LIKE_ASSIGNMENT.finditer(text):
             var_name = match.group(1).upper()
+            
+            # Skip if already detected by tree-sitter or regex
+            if var_name in seen_env_vars:
+                continue
             
             # Get the line content to check if it's actually reading from env
             line_start = text.rfind('\n', 0, match.start()) + 1
