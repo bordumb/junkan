@@ -56,6 +56,9 @@ DEFAULT_IGNORE_DIRS = {
     ".github", # Optional: keep if you want CI workflows
     ".idea",
     ".vscode",
+    
+    # Tests
+    "tests",
 }
 
 DEFAULT_IGNORE_EXTENSIONS = {
