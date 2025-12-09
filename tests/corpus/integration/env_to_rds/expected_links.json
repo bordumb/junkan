@@ -1,0 +1,19 @@
+{
+  "description": "Integration test: Python env vars stitched to Terraform resources",
+  "notes": "This tests the core value proposition of Jnkn - cross-domain linking",
+  "python_env_vars": [
+    "DATABASE_HOST", "DATABASE_PORT", "DATABASE_NAME", "DATABASE_USER",
+    "DATABASE_PASSWORD", "REDIS_HOST", "REDIS_PORT", "S3_BUCKET", "AWS_REGION"
+  ],
+  "terraform_resources": [
+    {"name": "main", "type": "aws_db_instance"},
+    {"name": "main", "type": "aws_elasticache_cluster"},
+    {"name": "uploads", "type": "aws_s3_bucket"}
+  ],
+  "expected_stitched_links": [
+    {"source": "env:DATABASE_HOST", "target": "infra:aws_db_instance.main", "min_confidence": 0.7},
+    {"source": "env:DATABASE_NAME", "target": "infra:aws_db_instance.main", "min_confidence": 0.7},
+    {"source": "env:REDIS_HOST", "target": "infra:aws_elasticache_cluster.main", "min_confidence": 0.7},
+    {"source": "env:S3_BUCKET", "target": "infra:aws_s3_bucket.uploads", "min_confidence": 0.6}
+  ]
+}

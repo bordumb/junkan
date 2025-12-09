@@ -1,0 +1,4 @@
+# Extensibility
+
+Plugin architecture.
+

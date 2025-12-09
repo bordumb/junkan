@@ -1,0 +1,4 @@
+# Why SQLite?
+
+Storage strategy.
+

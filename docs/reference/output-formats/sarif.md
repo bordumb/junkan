@@ -1,0 +1,4 @@
+# SARIF
+
+SARIF output format.
+

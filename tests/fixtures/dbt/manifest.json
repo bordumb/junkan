@@ -1,0 +1,108 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v10.json",
+    "dbt_version": "1.6.0",
+    "generated_at": "2024-01-15T10:00:00Z",
+    "project_name": "analytics"
+  },
+  "nodes": {
+    "model.analytics.stg_customers": {
+      "resource_type": "model",
+      "name": "stg_customers",
+      "schema": "staging",
+      "database": "analytics",
+      "original_file_path": "models/staging/stg_customers.sql",
+      "columns": {
+        "customer_id": {"name": "customer_id", "description": "Primary key", "data_type": "integer"},
+        "email": {"name": "email", "description": "Customer email", "data_type": "varchar"},
+        "created_at": {"name": "created_at", "description": "Account creation timestamp", "data_type": "timestamp"}
+      },
+      "depends_on": {
+        "nodes": ["source.analytics.raw.customers"]
+      },
+      "tags": ["staging", "customers"]
+    },
+    "model.analytics.stg_orders": {
+      "resource_type": "model",
+      "name": "stg_orders",
+      "schema": "staging",
+      "database": "analytics",
+      "original_file_path": "models/staging/stg_orders.sql",
+      "columns": {
+        "order_id": {"name": "order_id", "description": "Primary key"},
+        "customer_id": {"name": "customer_id", "description": "Foreign key to customers"},
+        "total_amount": {"name": "total_amount", "description": "Order total"}
+      },
+      "depends_on": {
+        "nodes": ["source.analytics.raw.orders"]
+      },
+      "tags": ["staging", "orders"]
+    },
+    "model.analytics.fct_orders": {
+      "resource_type": "model",
+      "name": "fct_orders",
+      "schema": "marts",
+      "database": "analytics",
+      "original_file_path": "models/marts/fct_orders.sql",
+      "columns": {
+        "order_id": {"name": "order_id", "description": "Primary key"},
+        "customer_id": {"name": "customer_id", "description": "Customer ID"},
+        "customer_email": {"name": "customer_email", "description": "Customer email"},
+        "total_amount": {"name": "total_amount", "description": "Order total"},
+        "order_date": {"name": "order_date", "description": "Date of order"}
+      },
+      "depends_on": {
+        "nodes": ["model.analytics.stg_orders", "model.analytics.stg_customers"]
+      },
+      "tags": ["marts", "orders"]
+    },
+    "model.analytics.dim_customers": {
+      "resource_type": "model",
+      "name": "dim_customers",
+      "schema": "marts",
+      "database": "analytics",
+      "original_file_path": "models/marts/dim_customers.sql",
+      "depends_on": {
+        "nodes": ["model.analytics.stg_customers", "model.analytics.fct_orders"]
+      },
+      "tags": ["marts", "customers"]
+    },
+    "seed.analytics.country_codes": {
+      "resource_type": "seed",
+      "name": "country_codes",
+      "schema": "seeds",
+      "database": "analytics",
+      "original_file_path": "seeds/country_codes.csv"
+    }
+  },
+  "sources": {
+    "source.analytics.raw.customers": {
+      "resource_type": "source",
+      "name": "customers",
+      "source_name": "raw",
+      "schema": "raw_data",
+      "database": "analytics",
+      "description": "Raw customer data from production database"
+    },
+    "source.analytics.raw.orders": {
+      "resource_type": "source",
+      "name": "orders",
+      "source_name": "raw",
+      "schema": "raw_data",
+      "database": "analytics",
+      "description": "Raw order data from production database"
+    }
+  },
+  "exposures": {
+    "exposure.analytics.customer_dashboard": {
+      "name": "customer_dashboard",
+      "type": "dashboard",
+      "owner": {"name": "Data Team", "email": "data@example.com"},
+      "description": "Customer analytics dashboard in Looker",
+      "depends_on": {
+        "nodes": ["model.analytics.dim_customers", "model.analytics.fct_orders"]
+      },
+      "url": "https://looker.example.com/dashboards/123"
+    }
+  }
+}

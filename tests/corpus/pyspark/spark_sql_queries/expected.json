@@ -1,0 +1,13 @@
+{
+  "description": "Tables extracted from spark.sql() queries",
+  "tables_read": [
+    {"name": "analytics.dim_users", "pattern": "spark.sql.FROM"},
+    {"name": "analytics.fact_events", "pattern": "spark.sql.FROM"},
+    {"name": "staging.user_updates", "pattern": "spark.sql.USING"}
+  ],
+  "tables_written": [
+    {"name": "analytics.daily_summary", "pattern": "spark.sql.INSERT"},
+    {"name": "analytics.user_segments", "pattern": "spark.sql.CTAS"},
+    {"name": "analytics.dim_users", "pattern": "spark.sql.MERGE"}
+  ]
+}

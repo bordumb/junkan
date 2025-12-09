@@ -1,0 +1,19 @@
+{
+  "description": "Basic Terraform resources, variables, and outputs",
+  "resources": [
+    {"name": "main", "type": "aws_vpc", "line": 14},
+    {"name": "public", "type": "aws_subnet", "line": 25},
+    {"name": "main", "type": "aws_db_instance", "line": 36},
+    {"name": "database", "type": "aws_security_group", "line": 51}
+  ],
+  "variables": [
+    {"name": "vpc_cidr", "type": "string", "has_default": true},
+    {"name": "db_username", "type": "string", "sensitive": true},
+    {"name": "db_password", "type": "string", "sensitive": true}
+  ],
+  "outputs": [
+    {"name": "vpc_id", "references": ["aws_vpc.main"]},
+    {"name": "db_endpoint", "references": ["aws_db_instance.main"]},
+    {"name": "db_host", "references": ["aws_db_instance.main"]}
+  ]
+}

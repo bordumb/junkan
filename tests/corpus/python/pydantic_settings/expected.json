@@ -1,0 +1,16 @@
+{
+  "description": "Pydantic BaseSettings with env_prefix - COMMON PATTERN, likely not yet supported",
+  "priority": "HIGH",
+  "notes": "Pydantic Settings auto-generates env var names from field names + prefix",
+  "env_vars": [
+    {"name": "DB_HOST", "pattern": "pydantic_settings", "has_default": true},
+    {"name": "DB_PORT", "pattern": "pydantic_settings", "has_default": true},
+    {"name": "DB_NAME", "pattern": "pydantic_settings", "has_default": true},
+    {"name": "DB_USER", "pattern": "pydantic_settings", "has_default": false},
+    {"name": "DB_PASSWORD", "pattern": "pydantic_settings", "has_default": false},
+    {"name": "APP_DEBUG", "pattern": "pydantic_settings", "has_default": true},
+    {"name": "APP_SECRET_KEY", "pattern": "pydantic_settings", "has_default": false},
+    {"name": "APP_API_KEY", "pattern": "pydantic_settings", "has_default": true},
+    {"name": "LOG_LEVEL", "pattern": "pydantic_field_env", "has_default": true}
+  ]
+}
