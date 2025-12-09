@@ -8,7 +8,7 @@ in its own module under cli/commands/.
 import click
 
 from .commands import scan, impact, trace, graph, lint, ingest
-from .commands import blast_radius, explain, suppress, stats
+from .commands import blast_radius, check, diff, explain, suppress, stats
 
 
 @click.group()
@@ -44,7 +44,8 @@ main.add_command(explain.explain)
 main.add_command(suppress.suppress)
 main.add_command(stats.stats)
 main.add_command(stats.clear)
-
+main.add_command(check.check)
+main.add_command(diff.diff)
 
 if __name__ == "__main__":
     main()
