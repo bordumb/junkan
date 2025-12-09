@@ -311,6 +311,18 @@ class CorpusScorer:
                 self._parsers["dbt"] = DbtManifestParser(self._context)
             except ImportError:
                 pass
+            
+            try:
+                from junkan.parsing.pyspark.parser import PySparkParser
+                self._parsers["pyspark"] = PySparkParser(self._context)
+            except ImportError:
+                pass
+            
+            try:
+                from junkan.parsing.spark_yaml.parser import SparkYamlParser
+                self._parsers["spark_yaml"] = SparkYamlParser(self._context)
+            except ImportError:
+                pass
                 
         except ImportError as e:
             print(f"{Colors.RED}Error importing parsers: {e}{Colors.RESET}")
@@ -372,6 +384,8 @@ class CorpusScorer:
             "kubernetes": [".yaml", ".yml"],
             "javascript": [".js", ".ts", ".jsx", ".tsx"],
             "dbt": [".json"],
+            "pyspark": [".py"],
+            "spark_yaml": [".yml", ".yaml"],
         }
         
         extensions = extension_map.get(parser_name, [])
@@ -497,6 +511,49 @@ class CorpusScorer:
         
         return None
     
+    def _match_table(
+        self,
+        expected: Dict[str, Any],
+        actual_nodes: List[Dict[str, Any]],
+        operation: str = "read",
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Find a matching data asset (table/file) node.
+        
+        Args:
+            expected: Expected table definition with 'name' and optionally 'pattern', 'source_type'
+            actual_nodes: List of actual parsed nodes
+            operation: 'read' or 'write' - used to filter by edge type if needed
+        """
+        expected_name = expected.get("name", "")
+        expected_pattern = expected.get("pattern", "")
+        expected_source_type = expected.get("source_type", "")
+        
+        for node in actual_nodes:
+            node_type = str(node.get("type", ""))
+            node_name = node.get("name", "")
+            node_id = node.get("id", "")
+            metadata = node.get("metadata", {})
+            
+            # Check if it's a data asset
+            if "data" not in node_type.lower() and not node_id.startswith("data:"):
+                continue
+            
+            # Match by name (exact or normalized)
+            if node_name == expected_name:
+                return node
+            
+            # Also check the ID (data:schema.table or data:s3:bucket/path)
+            normalized_expected = expected_name.replace("://", ":")
+            if node_id == f"data:{expected_name}" or node_id == f"data:{normalized_expected}":
+                return node
+            
+            # Fuzzy match for paths (ignore trailing slashes)
+            if node_name.rstrip('/') == expected_name.rstrip('/'):
+                return node
+        
+        return None
+    
     def _match_edge(
         self,
         expected: Dict[str, Any],
@@ -607,6 +664,58 @@ class CorpusScorer:
                 result.false_negatives += 1
                 self._log(f"    ✗ resource:{exp_res['name']} (MISSED)", Colors.RED)
         
+        # Score tables_read (PySpark data lineage)
+        for exp_table in expected.get("tables_read", []):
+            match = self._match_table(exp_table, actual_nodes, operation="read")
+            
+            if match:
+                idx = actual_nodes.index(match)
+                matched_node_indices.add(idx)
+                result.detections.append(DetectionResult(
+                    item_type="table_read",
+                    expected=exp_table,
+                    actual=match,
+                    status=MatchStatus.TRUE_POSITIVE,
+                ))
+                result.true_positives += 1
+                self._log(f"    ✓ read:{exp_table['name']}", Colors.GREEN)
+            else:
+                result.detections.append(DetectionResult(
+                    item_type="table_read",
+                    expected=exp_table,
+                    actual=None,
+                    status=MatchStatus.FALSE_NEGATIVE,
+                    notes=f"Pattern: {exp_table.get('pattern', 'unknown')}",
+                ))
+                result.false_negatives += 1
+                self._log(f"    ✗ read:{exp_table['name']} (MISSED)", Colors.RED)
+        
+        # Score tables_written (PySpark data lineage)
+        for exp_table in expected.get("tables_written", []):
+            match = self._match_table(exp_table, actual_nodes, operation="write")
+            
+            if match:
+                idx = actual_nodes.index(match)
+                matched_node_indices.add(idx)
+                result.detections.append(DetectionResult(
+                    item_type="table_written",
+                    expected=exp_table,
+                    actual=match,
+                    status=MatchStatus.TRUE_POSITIVE,
+                ))
+                result.true_positives += 1
+                self._log(f"    ✓ write:{exp_table['name']}", Colors.GREEN)
+            else:
+                result.detections.append(DetectionResult(
+                    item_type="table_written",
+                    expected=exp_table,
+                    actual=None,
+                    status=MatchStatus.FALSE_NEGATIVE,
+                    notes=f"Pattern: {exp_table.get('pattern', 'unknown')}",
+                ))
+                result.false_negatives += 1
+                self._log(f"    ✗ write:{exp_table['name']} (MISSED)", Colors.RED)
+        
         # Score edges
         for exp_edge in expected.get("edges", []):
             match = self._match_edge(exp_edge, actual_edges)
@@ -633,30 +742,43 @@ class CorpusScorer:
                 self._log(f"    ✗ edge:{exp_edge['source']} -> {exp_edge['target']} (MISSED)", Colors.RED)
         
         # Count false positives (actual items not in expected)
-        # Only count env vars and resources as FPs - ignore file nodes, imports, etc.
+        # Only count env vars, resources, and data assets as FPs - ignore file nodes, imports, etc.
         for i, node in enumerate(actual_nodes):
             if i in matched_node_indices:
                 continue
             
             node_type = str(node.get("type", "")).lower()
             node_id = node.get("id", "")
+            node_name = node.get("name", "")
             
-            # Only count env vars as potential false positives
+            # Check if this is explicitly marked as acceptable FP
+            acceptable_fps = expected.get("acceptable_false_positives", [])
+            if node_name in acceptable_fps:
+                continue
+            
+            # Count env vars as potential false positives
             if "env" in node_type or node_id.startswith("env:"):
-                # Check if this is explicitly marked as acceptable FP
-                acceptable_fps = expected.get("acceptable_false_positives", [])
-                node_name = node.get("name", "")
-                
-                if node_name not in acceptable_fps:
-                    result.detections.append(DetectionResult(
-                        item_type="env_var",
-                        expected={},
-                        actual=node,
-                        status=MatchStatus.FALSE_POSITIVE,
-                        notes="Detected but not expected",
-                    ))
-                    result.false_positives += 1
-                    self._log(f"    ? env:{node_name} (UNEXPECTED)", Colors.YELLOW)
+                result.detections.append(DetectionResult(
+                    item_type="env_var",
+                    expected={},
+                    actual=node,
+                    status=MatchStatus.FALSE_POSITIVE,
+                    notes="Detected but not expected",
+                ))
+                result.false_positives += 1
+                self._log(f"    ? env:{node_name} (UNEXPECTED)", Colors.YELLOW)
+            
+            # Count data assets as potential false positives  
+            elif "data" in node_type or node_id.startswith("data:"):
+                result.detections.append(DetectionResult(
+                    item_type="table",
+                    expected={},
+                    actual=node,
+                    status=MatchStatus.FALSE_POSITIVE,
+                    notes="Detected but not expected",
+                ))
+                result.false_positives += 1
+                self._log(f"    ? data:{node_name} (UNEXPECTED)", Colors.YELLOW)
         
         return result
     

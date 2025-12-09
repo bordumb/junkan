@@ -1,0 +1,25 @@
+{
+  "description": "Integration test: cross-reference spark.yml with PySpark code",
+  "expected_matches": [
+    {
+      "yaml_input": "warehouse.dim_users",
+      "code_read": "warehouse.dim_users",
+      "match": true
+    },
+    {
+      "yaml_output": "warehouse.daily_metrics",
+      "code_write": "warehouse.daily_metrics",
+      "match": true
+    }
+  ],
+  "env_vars_from_both": [
+    {"name": "DATABASE_HOST", "in_yaml": true, "in_code": true},
+    {"name": "S3_BUCKET", "in_yaml": true, "in_code": true},
+    {"name": "PROD_DB_HOST", "in_yaml": true, "in_code": false},
+    {"name": "DATA_LAKE_BUCKET", "in_yaml": true, "in_code": false}
+  ],
+  "code_only_tables": [
+    {"name": "s3://${S3_BUCKET}/raw/events/", "operation": "read", "note": "dynamic path"},
+    {"name": "s3://${S3_BUCKET}/exports/metrics/", "operation": "write", "note": "dynamic path"}
+  ]
+}

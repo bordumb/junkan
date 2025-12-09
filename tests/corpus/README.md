@@ -51,3 +51,28 @@ Each test case directory contains:
 2. Add input file: `tests/corpus/python/my_pattern/input.py`
 3. Add expected: `tests/corpus/python/my_pattern/expected.json`
 4. Run: `uv run python -m tests.utils.score_corpus --case my_pattern -v`
+
+## PySpark Test Cases
+
+```
+pyspark/
+├── basic_read_write/      # ✅ spark.read.table, write.saveAsTable
+├── spark_sql_queries/     # ✅ Tables from spark.sql() queries
+├── file_based_io/         # ✅ parquet, delta, csv, json patterns
+└── real_world_etl/        # ✅ Complex real-world job
+```
+
+## Spark YAML Test Cases
+
+```
+spark_yaml/
+├── basic_job_config/      # ✅ Single job with deps, env vars, tables
+└── multi_job_pipeline/    # ✅ Multiple jobs with DAG dependencies
+```
+
+## Integration: PySpark + YAML
+
+```
+integration/
+└── pyspark_pipeline/      # Cross-reference YAML config with PySpark code
+```

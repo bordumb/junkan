@@ -1,0 +1,26 @@
+{
+  "description": "Multi-job pipeline with dependencies",
+  "jobs": [
+    {"name": "ingest_raw_events"},
+    {"name": "process_events"},
+    {"name": "build_aggregates"}
+  ],
+  "dependencies": [
+    {"from": "process_events", "to": "ingest_raw_events"},
+    {"from": "build_aggregates", "to": "process_events"}
+  ],
+  "env_vars": [
+    {"name": "KAFKA_SERVERS", "reference_type": "variable_substitution"}
+  ],
+  "tables_read": [
+    {"name": "staging.raw_events"},
+    {"name": "warehouse.fact_events"},
+    {"name": "warehouse.dim_users"}
+  ],
+  "tables_written": [
+    {"name": "staging.raw_events"},
+    {"name": "warehouse.fact_events"},
+    {"name": "warehouse.daily_aggregates"},
+    {"name": "reporting.executive_summary"}
+  ]
+}
