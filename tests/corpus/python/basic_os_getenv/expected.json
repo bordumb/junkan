@@ -1,0 +1,12 @@
+{
+  "description": "Basic os.getenv, os.environ.get, and os.environ[] patterns",
+  "env_vars": [
+    {"name": "DATABASE_HOST", "pattern": "os.getenv", "line": 5, "has_default": false},
+    {"name": "DATABASE_PORT", "pattern": "os.getenv", "line": 8, "has_default": true},
+    {"name": "REDIS_URL", "pattern": "os.environ.get", "line": 11, "has_default": false},
+    {"name": "CACHE_TTL", "pattern": "os.environ.get", "line": 14, "has_default": true},
+    {"name": "API_KEY", "pattern": "os.environ[]", "line": 17, "has_default": false},
+    {"name": "DEBUG_MODE", "pattern": "os.getenv", "line": 20, "has_default": true}
+  ],
+  "acceptable_false_positives": ["5432", "3600", "false"]
+}
