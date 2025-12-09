@@ -1,0 +1,38 @@
+{
+    "description": "Basic OpenLineage run with inputs and outputs",
+    "resources": [
+      {
+        "name": "daily_revenue_etl",
+        "type": "job",
+        "id": "job:spark_prod/daily_revenue_etl"
+      }
+    ],
+    "tables_read": [
+      {
+        "name": "public.orders",
+        "source_type": "openlineage"
+      },
+      {
+        "name": "public.customers",
+        "source_type": "openlineage"
+      }
+    ],
+    "tables_written": [
+      {
+        "name": "finance/revenue_daily",
+        "source_type": "openlineage"
+      }
+    ],
+    "edges": [
+      {
+        "source": "job:spark_prod/daily_revenue_etl",
+        "target": "data:postgres_db/public.orders",
+        "type": "READS"
+      },
+      {
+        "source": "job:spark_prod/daily_revenue_etl",
+        "target": "data:s3://data-lake/finance/revenue_daily",
+        "type": "WRITES"
+      }
+    ]
+  }

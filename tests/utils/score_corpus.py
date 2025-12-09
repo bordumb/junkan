@@ -21,53 +21,6 @@ Usage:
     
     # Generate detailed report
     uv run python -m tests.utils.score_corpus --report report.json
-
-Corpus Structure:
-    tests/corpus/
-    ├── python/
-    │   ├── basic_os_getenv/
-    │   │   ├── input.py          # Source file to parse
-    │   │   └── expected.json     # Expected detection results
-    │   └── pydantic_settings/
-    │       ├── input.py
-    │       └── expected.json
-    ├── terraform/
-    │   ├── basic_resources/
-    │   │   ├── input.tf
-    │   │   └── expected.json
-    │   └── module_composition/
-    └── integration/
-        └── env_to_rds/
-            ├── app.py
-            ├── main.tf
-            └── expected_links.json
-
-Expected JSON Schema:
-    {
-        "description": "Test case description",
-        "env_vars": [
-            {
-                "name": "DATABASE_HOST",
-                "pattern": "os.getenv",
-                "line": 5,
-                "has_default": false
-            }
-        ],
-        "resources": [
-            {
-                "name": "main",
-                "type": "aws_db_instance",
-                "line": 10
-            }
-        ],
-        "edges": [
-            {
-                "source": "file://app.py",
-                "target": "env:DATABASE_HOST",
-                "type": "READS"
-            }
-        ]
-    }
 """
 
 from __future__ import annotations
@@ -253,12 +206,6 @@ class CorpusReport:
 class CorpusScorer:
     """
     Scores parser accuracy against a ground-truth test corpus.
-    
-    The scorer:
-    1. Discovers test cases in the corpus directory
-    2. Runs the appropriate parser on each input file
-    3. Compares actual detections against expected results
-    4. Calculates precision, recall, and F1 scores
     """
     
     def __init__(
@@ -323,6 +270,12 @@ class CorpusScorer:
                 self._parsers["spark_yaml"] = SparkYamlParser(self._context)
             except ImportError:
                 pass
+
+            try:
+                from junkan.parsing.openlineage.parser import OpenLineageParser
+                self._parsers["openlineage"] = OpenLineageParser()
+            except ImportError:
+                pass
                 
         except ImportError as e:
             print(f"{Colors.RED}Error importing parsers: {e}{Colors.RESET}")
@@ -331,12 +284,7 @@ class CorpusScorer:
             sys.exit(1)
     
     def discover_cases(self, parser_filter: Optional[str] = None) -> Dict[str, List[Path]]:
-        """
-        Discover test cases in the corpus directory.
-        
-        Returns:
-            Dict mapping parser name to list of case directories
-        """
+        """Discover test cases in the corpus directory."""
         cases: Dict[str, List[Path]] = {}
         
         for parser_dir in self.corpus_path.iterdir():
@@ -365,12 +313,6 @@ class CorpusScorer:
                     self._log(f"  Skipping {case_dir.name}: no expected.json", Colors.DIM)
                     continue
                 
-                # Check for at least one input file
-                input_files = list(case_dir.glob("input.*"))
-                if not input_files:
-                    self._log(f"  Skipping {case_dir.name}: no input file", Colors.DIM)
-                    continue
-                
                 cases[parser_name].append(case_dir)
         
         return cases
@@ -386,6 +328,7 @@ class CorpusScorer:
             "dbt": [".json"],
             "pyspark": [".py"],
             "spark_yaml": [".yml", ".yaml"],
+            "openlineage": [".json"],
         }
         
         extensions = extension_map.get(parser_name, [])
@@ -409,12 +352,7 @@ class CorpusScorer:
         parser_name: str,
         input_file: Path,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
-        """
-        Run a parser on an input file.
-        
-        Returns:
-            Tuple of (nodes, edges, parse_time_ms)
-        """
+        """Run a parser on an input file."""
         import time
         
         self._init_parsers()
@@ -431,17 +369,26 @@ class CorpusScorer:
         edges = []
         
         try:
-            for item in parser.parse(input_file, content):
+            # Special case for OpenLineage which doesn't follow standard parse signature
+            if parser_name == "openlineage":
+                items = parser.parse(input_file, content)
+            else:
+                items = parser.parse(input_file, content)
+
+            for item in items:
                 # Convert to dict for comparison
+                # PRIORITIZE to_dict() over __dict__ to correctly handle Enums
                 if hasattr(item, 'model_dump'):
                     item_dict = item.model_dump()
+                elif hasattr(item, 'to_dict'):
+                    item_dict = item.to_dict()
                 elif hasattr(item, '__dict__'):
                     item_dict = {k: v for k, v in item.__dict__.items() if not k.startswith('_')}
                 else:
                     item_dict = {"value": str(item)}
                 
                 # Classify as node or edge
-                if hasattr(item, 'source_id') or 'source_id' in item_dict:
+                if hasattr(item, 'source_id') or 'source_id' in item_dict or 'source' in item_dict:
                     edges.append(item_dict)
                 else:
                     nodes.append(item_dict)
@@ -484,27 +431,39 @@ class CorpusScorer:
         expected: Dict[str, Any],
         actual_nodes: List[Dict[str, Any]],
     ) -> Optional[Dict[str, Any]]:
-        """Find a matching infrastructure resource node."""
+        """Find a matching resource node."""
         expected_name = expected.get("name", "")
         expected_type = expected.get("type", "")
+        expected_id = expected.get("id", "")
         
         for node in actual_nodes:
             node_type_enum = str(node.get("type", ""))
             node_name = node.get("name", "")
+            node_id = node.get("id", "")
             
-            # Check if it's an infra resource
-            if "infra" not in node_type_enum.lower() and "resource" not in node_type_enum.lower():
+            # Check if it's an infra resource OR matches the expected type
+            is_infra = "infra" in node_type_enum.lower() or "resource" in node_type_enum.lower()
+            is_expected_type = expected_type and expected_type.lower() == node_type_enum.lower()
+            
+            if not is_infra and not is_expected_type:
                 continue
             
+            # Match by ID (strongest match)
+            if expected_id and node_id == expected_id:
+                return node
+
             # Match by name
             if node_name == expected_name:
-                # If expected specifies resource type, check metadata
+                # If expected specifies resource type, check metadata or type match
                 if expected_type:
                     metadata = node.get("metadata", {})
                     if metadata.get("resource_type") == expected_type:
                         return node
                     # Also check if type is in the ID
                     if expected_type in node.get("id", ""):
+                        return node
+                    # Exact type match
+                    if node_type_enum.lower() == expected_type.lower():
                         return node
                 else:
                     return node
@@ -517,23 +476,13 @@ class CorpusScorer:
         actual_nodes: List[Dict[str, Any]],
         operation: str = "read",
     ) -> Optional[Dict[str, Any]]:
-        """
-        Find a matching data asset (table/file) node.
-        
-        Args:
-            expected: Expected table definition with 'name' and optionally 'pattern', 'source_type'
-            actual_nodes: List of actual parsed nodes
-            operation: 'read' or 'write' - used to filter by edge type if needed
-        """
+        """Find a matching data asset (table/file) node."""
         expected_name = expected.get("name", "")
-        expected_pattern = expected.get("pattern", "")
-        expected_source_type = expected.get("source_type", "")
         
         for node in actual_nodes:
             node_type = str(node.get("type", ""))
             node_name = node.get("name", "")
             node_id = node.get("id", "")
-            metadata = node.get("metadata", {})
             
             # Check if it's a data asset
             if "data" not in node_type.lower() and not node_id.startswith("data:"):
@@ -565,8 +514,8 @@ class CorpusScorer:
         expected_type = expected.get("type", "")
         
         for edge in actual_edges:
-            source = edge.get("source_id", "")
-            target = edge.get("target_id", "")
+            source = edge.get("source_id") or edge.get("source", "")
+            target = edge.get("target_id") or edge.get("target", "")
             edge_type = str(edge.get("type", ""))
             
             # Flexible matching - allow partial matches
@@ -742,7 +691,6 @@ class CorpusScorer:
                 self._log(f"    ✗ edge:{exp_edge['source']} -> {exp_edge['target']} (MISSED)", Colors.RED)
         
         # Count false positives (actual items not in expected)
-        # Only count env vars, resources, and data assets as FPs - ignore file nodes, imports, etc.
         for i, node in enumerate(actual_nodes):
             if i in matched_node_indices:
                 continue
@@ -797,16 +745,7 @@ class CorpusScorer:
         parser_filter: Optional[str] = None,
         case_filter: Optional[str] = None,
     ) -> CorpusReport:
-        """
-        Score all parsers against the corpus.
-        
-        Args:
-            parser_filter: Only score this parser
-            case_filter: Only score cases matching this pattern
-        
-        Returns:
-            Complete corpus report
-        """
+        """Score all parsers against the corpus."""
         report = CorpusReport(
             timestamp=datetime.now(),
             corpus_path=self.corpus_path,

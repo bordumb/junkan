@@ -1,0 +1,47 @@
+{
+  "description": "Column-level lineage extraction from OpenLineage facets",
+  "resources": [
+    {
+      "name": "users",
+      "type": "data_asset",
+      "id": "data:db/users"
+    },
+    {
+      "name": "user_stats",
+      "type": "data_asset",
+      "id": "data:db/user_stats"
+    },
+    {
+      "name": "id",
+      "type": "data_asset",
+      "id": "column:db/users/id"
+    },
+    {
+      "name": "email",
+      "type": "data_asset",
+      "id": "column:db/users/email"
+    },
+    {
+      "name": "user_id",
+      "type": "data_asset",
+      "id": "column:db/user_stats/user_id"
+    },
+    {
+      "name": "email_hash",
+      "type": "data_asset",
+      "id": "column:db/user_stats/email_hash"
+    }
+  ],
+  "edges": [
+    {
+      "source": "column:db/users/id",
+      "target": "column:db/user_stats/user_id",
+      "type": "TRANSFORMS"
+    },
+    {
+      "source": "column:db/users/email",
+      "target": "column:db/user_stats/email_hash",
+      "type": "TRANSFORMS"
+    }
+  ]
+}
