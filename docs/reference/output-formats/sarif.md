@@ -1,4 +1,0 @@
-# SARIF
-
-SARIF output format.
-

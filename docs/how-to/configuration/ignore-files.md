@@ -1,4 +1,0 @@
-# Ignore Files
-
-Using .jnknignore.
-
