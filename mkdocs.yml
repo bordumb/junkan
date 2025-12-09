@@ -1,0 +1,230 @@
+site_name: Junkan Documentation
+site_url: https://docs.junkan.io
+site_description: Pre-flight impact analysis for infrastructure and data
+repo_name: junkan-io/junkan
+repo_url: https://github.com/junkan-io/junkan
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2024 Junkan Contributors
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  logo: assets/images/logo.svg
+  favicon: assets/images/favicon.png
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - announce.dismiss
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+  - social:
+      cards_layout: default
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - getting-started/index.md
+    - Installation: getting-started/installation.md
+    - Quickstart: getting-started/quickstart.md
+    - First CI Integration: getting-started/first-ci-integration.md
+    - Example Repository: getting-started/example-repository.md
+  - Tutorials:
+    - tutorials/index.md
+    - Beginner:
+      - tutorials/beginner/scanning-python-project.md
+      - tutorials/beginner/scanning-terraform.md
+      - tutorials/beginner/understanding-blast-radius.md
+      - tutorials/beginner/fixing-false-positives.md
+    - Intermediate:
+      - tutorials/intermediate/multi-stack-analysis.md
+      - tutorials/intermediate/ci-cd-integration.md
+      - tutorials/intermediate/custom-confidence-tuning.md
+      - tutorials/intermediate/team-workflows.md
+    - Advanced:
+      - tutorials/advanced/custom-parsers.md
+      - tutorials/advanced/custom-stitching-rules.md
+      - tutorials/advanced/enterprise-deployment.md
+      - tutorials/advanced/extending-junkan.md
+  - How-To Guides:
+    - how-to/index.md
+    - Scanning:
+      - how-to/scanning/scan-monorepo.md
+      - how-to/scanning/scan-specific-directories.md
+      - how-to/scanning/incremental-scanning.md
+      - how-to/scanning/parallel-scanning.md
+    - Analysis:
+      - how-to/analysis/calculate-blast-radius.md
+      - how-to/analysis/compare-branches.md
+      - how-to/analysis/export-results.md
+      - how-to/analysis/query-dependency-graph.md
+    - Integration:
+      - how-to/integration/github-actions.md
+      - how-to/integration/gitlab-ci.md
+      - how-to/integration/jenkins.md
+      - how-to/integration/azure-devops.md
+      - how-to/integration/slack-notifications.md
+      - how-to/integration/jira-integration.md
+    - Configuration:
+      - how-to/configuration/configure-confidence.md
+      - how-to/configuration/manage-suppressions.md
+      - how-to/configuration/ignore-files.md
+      - how-to/configuration/environment-variables.md
+    - Troubleshooting:
+      - how-to/troubleshooting/no-matches-found.md
+      - how-to/troubleshooting/too-many-false-positives.md
+      - how-to/troubleshooting/performance-issues.md
+      - how-to/troubleshooting/parser-errors.md
+  - Reference:
+    - reference/index.md
+    - CLI:
+      - reference/cli/index.md
+      - reference/cli/scan.md
+      - reference/cli/blast-radius.md
+      - reference/cli/explain.md
+      - reference/cli/suppress.md
+      - reference/cli/stats.md
+      - reference/cli/diff.md
+      - reference/cli/init.md
+    - API:
+      - reference/api/index.md
+      - Core:
+        - reference/api/core/types.md
+        - reference/api/core/graph.md
+        - reference/api/core/confidence.md
+        - reference/api/core/storage.md
+      - Parsing:
+        - reference/api/parsing/base.md
+        - reference/api/parsing/python.md
+        - reference/api/parsing/terraform.md
+        - reference/api/parsing/kubernetes.md
+        - reference/api/parsing/dbt.md
+        - reference/api/parsing/javascript.md
+      - Stitching:
+        - reference/api/stitching/engine.md
+        - reference/api/stitching/matchers.md
+        - reference/api/stitching/rules.md
+        - reference/api/stitching/suppressions.md
+      - Analysis:
+        - reference/api/analysis/blast_radius.md
+        - reference/api/analysis/explain.md
+        - reference/api/analysis/diff.md
+    - Configuration:
+      - reference/configuration/junkan-yaml.md
+      - reference/configuration/junkanignore.md
+      - reference/configuration/suppressions-yaml.md
+      - reference/configuration/environment-vars.md
+    - Patterns:
+      - reference/patterns/index.md
+      - reference/patterns/python-env-vars.md
+      - reference/patterns/terraform-resources.md
+      - reference/patterns/kubernetes-refs.md
+      - reference/patterns/dbt-refs.md
+      - reference/patterns/javascript-env-vars.md
+    - Output Formats:
+      - reference/output-formats/json-schema.md
+      - reference/output-formats/sarif.md
+      - reference/output-formats/csv.md
+    - Glossary: reference/glossary.md
+  - Explanation:
+    - explanation/index.md
+    - Architecture:
+      - explanation/architecture/overview.md
+      - explanation/architecture/parsing-pipeline.md
+      - explanation/architecture/stitching-engine.md
+      - explanation/architecture/confidence-model.md
+      - explanation/architecture/storage-model.md
+      - explanation/architecture/graph-algorithms.md
+    - Concepts:
+      - explanation/concepts/dependency-graph.md
+      - explanation/concepts/blast-radius.md
+      - explanation/concepts/cross-domain-deps.md
+      - explanation/concepts/tokens-and-matching.md
+      - explanation/concepts/confidence-levels.md
+    - Design Decisions:
+      - explanation/design-decisions/why-tree-sitter.md
+      - explanation/design-decisions/why-sqlite.md
+      - explanation/design-decisions/why-token-matching.md
+      - explanation/design-decisions/false-positive-tradeoffs.md
+      - explanation/design-decisions/extensibility-model.md
+    - Security:
+      - explanation/security/threat-model.md
+      - explanation/security/supply-chain.md
+      - explanation/security/data-handling.md
+  - Community:
+    - community/index.md
+    - Contributing: community/contributing.md
+    - Code of Conduct: community/code-of-conduct.md
+    - Development Setup: community/development-setup.md
+    - Testing Guide: community/testing-guide.md
+    - Release Process: community/release-process.md
+    - Roadmap: community/roadmap.md
+  - Changelog:
+    - changelog/index.md
+    - changelog/CHANGELOG.md
+  - Legal:
+    - legal/license.md
+    - legal/security-policy.md
+    - legal/third-party-licenses.md

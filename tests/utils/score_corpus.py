@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Corpus Scoring Utility for Junkan Parser Evaluation
+Corpus Scoring Utility for jnkn Parser Evaluation
 
 This module provides tools to measure parser precision and recall against
 a ground-truth test corpus. It enables data-driven parser improvement by
@@ -229,9 +229,9 @@ class CorpusScorer:
             return
         
         try:
-            from junkan.parsing.base import ParserContext
-            from junkan.parsing.python.parser import PythonParser
-            from junkan.parsing.terraform.parser import TerraformParser
+            from jnkn.parsing.base import ParserContext
+            from jnkn.parsing.python.parser import PythonParser
+            from jnkn.parsing.terraform.parser import TerraformParser
             
             self._context = ParserContext(root_dir=Path.cwd())
             
@@ -242,44 +242,44 @@ class CorpusScorer:
             
             # Try to load optional parsers
             try:
-                from junkan.parsing.kubernetes.parser import KubernetesParser
+                from jnkn.parsing.kubernetes.parser import KubernetesParser
                 self._parsers["kubernetes"] = KubernetesParser(self._context)
             except ImportError:
                 pass
             
             try:
-                from junkan.parsing.javascript.parser import JavaScriptParser
+                from jnkn.parsing.javascript.parser import JavaScriptParser
                 self._parsers["javascript"] = JavaScriptParser(self._context)
             except ImportError:
                 pass
             
             try:
-                from junkan.parsing.dbt.manifest_parser import DbtManifestParser
+                from jnkn.parsing.dbt.manifest_parser import DbtManifestParser
                 self._parsers["dbt"] = DbtManifestParser(self._context)
             except ImportError:
                 pass
             
             try:
-                from junkan.parsing.pyspark.parser import PySparkParser
+                from jnkn.parsing.pyspark.parser import PySparkParser
                 self._parsers["pyspark"] = PySparkParser(self._context)
             except ImportError:
                 pass
             
             try:
-                from junkan.parsing.spark_yaml.parser import SparkYamlParser
+                from jnkn.parsing.spark_yaml.parser import SparkYamlParser
                 self._parsers["spark_yaml"] = SparkYamlParser(self._context)
             except ImportError:
                 pass
 
             try:
-                from junkan.parsing.openlineage.parser import OpenLineageParser
+                from jnkn.parsing.openlineage.parser import OpenLineageParser
                 self._parsers["openlineage"] = OpenLineageParser()
             except ImportError:
                 pass
                 
         except ImportError as e:
             print(f"{Colors.RED}Error importing parsers: {e}{Colors.RESET}")
-            print("Make sure you're running from the junkan project root with:")
+            print("Make sure you're running from the jnkn project root with:")
             print("  uv run python -m tests.utils.score_corpus")
             sys.exit(1)
     
@@ -828,7 +828,7 @@ class CorpusScorer:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Score Junkan parsers against a ground-truth test corpus",
+        description="Score jnkn parsers against a ground-truth test corpus",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

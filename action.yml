@@ -1,6 +1,6 @@
-name: 'Junkan Impact Analysis'
+name: 'jnkn Impact Analysis'
 description: 'Analyze Pull Requests for cross-domain breaking changes (Infra -> Code -> Data)'
-author: 'Junkan'
+author: 'jnkn'
 inputs:
   github-token:
     description: 'GitHub Token for fetching diffs'

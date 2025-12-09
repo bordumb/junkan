@@ -12,11 +12,11 @@ echo -e "${GREEN}🧪 INITIATING E2E SURVIVAL TEST...${NC}"
 # ==============================================================================
 # 1. SETUP: Ensure the Codebase is Exact
 # ==============================================================================
-mkdir -p src/junkan/languages/python
-mkdir -p src/junkan/languages/terraform
+mkdir -p src/jnkn/languages/python
+mkdir -p src/jnkn/languages/terraform
 
 # Write the Python Query (How we find Env Vars)
-cat << 'EOF' > src/junkan/languages/python/imports.scm
+cat << 'EOF' > src/jnkn/languages/python/imports.scm
 (import_statement name: (dotted_name) @import)
 (import_from_statement module_name: (dotted_name) @import)
 
@@ -58,7 +58,7 @@ cat << 'EOF' > src/junkan/languages/python/imports.scm
 EOF
 
 # Write empty definitions.scm
-cat << 'EOF' > src/junkan/languages/python/definitions.scm
+cat << 'EOF' > src/jnkn/languages/python/definitions.scm
 ; Capture Function Definitions
 (function_definition
   name: (identifier) @definition)
@@ -69,7 +69,7 @@ cat << 'EOF' > src/junkan/languages/python/definitions.scm
 EOF
 
 # Write the Terraform Query (How we find Resources)
-cat << 'EOF' > src/junkan/languages/terraform/resources.scm
+cat << 'EOF' > src/jnkn/languages/terraform/resources.scm
 (block
   (identifier) @block_type
   (string_lit) @res_type
@@ -108,21 +108,21 @@ EOF
 # ==============================================================================
 # 3. EXECUTION: Run the Engine
 # ==============================================================================
-echo "🚀 Running Junkan High-Road Engine..."
+echo "🚀 Running jnkn High-Road Engine..."
 
 # Reset DB
-rm -rf .junkan
-mkdir -p .junkan
+rm -rf .jnkn
+mkdir -p .jnkn
 
 # Run Scan with full flag to ensure clean state
-uv run python -m junkan.cli.main scan --dir tests/e2e_live --full
+uv run python -m jnkn.cli.main scan --dir tests/e2e_live --full
 
 # ==============================================================================
 # 4. VERIFICATION: Prove the Link Exists
 # ==============================================================================
 echo -e "\n${GREEN}🔍 VERIFYING STITCHING LOGIC...${NC}"
 
-DB_PATH=".junkan/junkan.db"
+DB_PATH=".jnkn/jnkn.db"
 
 # Check if nodes exist
 ENV_NODE_COUNT=$(sqlite3 $DB_PATH "SELECT count(*) FROM nodes WHERE id LIKE 'env:%PAYMENT%';")
@@ -169,6 +169,6 @@ if [ "$LINK_COUNT" -gt "0" ]; then
     sqlite3 $DB_PATH "SELECT source_id, target_id, confidence, match_strategy FROM edges WHERE source_id LIKE 'env:%' AND target_id LIKE 'infra:%';"
 else
     echo -e "${RED}❌ FAILURE: The Stitcher did not connect the Env Var to the Terraform Resource.${NC}"
-    echo "Debug Advice: Check 'src/junkan/core/stitching.py' fuzzy matching logic."
+    echo "Debug Advice: Check 'src/jnkn/core/stitching.py' fuzzy matching logic."
     exit 1
 fi

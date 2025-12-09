@@ -2,7 +2,7 @@
 """
 End-to-End Demo: Static Analysis + OpenLineage Integration
 
-This demo shows how Junkan combines:
+This demo shows how jnkn combines:
 1. Static analysis (PySpark column lineage from code)
 2. Runtime lineage (OpenLineage from production)
 
@@ -20,8 +20,8 @@ from typing import Dict, List, Set, Any, Tuple
 from collections import defaultdict
 
 # Import our parsers
-from junkan.parsing.pyspark.column_lineage import extract_column_lineage, ColumnLineageExtractor, ColumnLineageResult
-from junkan.parsing.openlineage.parser import OpenLineageParser, Node, Edge, NodeType, RelationshipType
+from jnkn.parsing.pyspark.column_lineage import extract_column_lineage, ColumnLineageExtractor, ColumnLineageResult
+from jnkn.parsing.openlineage.parser import OpenLineageParser, Node, Edge, NodeType, RelationshipType
 
 
 # =============================================================================
@@ -392,7 +392,7 @@ def main():
     """)
     
     # Simulate the check
-    print("🔍 Running Junkan pre-merge check...")
+    print("🔍 Running jnkn pre-merge check...")
     print()
     
     critical_tables = ["redshift/analytics.exec_dashboard"]
@@ -447,7 +447,7 @@ def main():
     print("SUMMARY: Why This Matters")
     print("=" * 70)
     print("""
-    WITHOUT Junkan + OpenLineage:
+    WITHOUT jnkn + OpenLineage:
     ─────────────────────────────
     1. Developer changes event_count calculation
     2. PR passes tests (unit tests don't check downstream)
@@ -457,10 +457,10 @@ def main():
     6. On-call gets paged at 3am
     7. 4 hours to debug the root cause
     
-    WITH Junkan + OpenLineage:
+    WITH jnkn + OpenLineage:
     ──────────────────────────
     1. Developer changes event_count calculation
-    2. Junkan runs on PR:
+    2. jnkn runs on PR:
        - Static analysis: sees column modification
        - OpenLineage lookup: finds downstream consumers
        - Combined: identifies executive dashboard + ML impact

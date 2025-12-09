@@ -5,7 +5,7 @@ Here is the `README.md` file for your OpenLineage test corpus, including the dir
 ```markdown
 # OpenLineage Test Corpus
 
-This directory contains ground-truth test cases for the OpenLineage parser (`src/junkan/parsing/openlineage`). It is used to verify that runtime lineage events are correctly parsed into Junkan's graph structure.
+This directory contains ground-truth test cases for the OpenLineage parser (`src/jnkn/parsing/openlineage`). It is used to verify that runtime lineage events are correctly parsed into jnkn's graph structure.
 
 ## Directory Structure
 
@@ -36,9 +36,9 @@ Tests the extraction of fine-grained lineage from event facets.
 
 ## Parsing Logic
 
-The OpenLineage parser maps events to Junkan nodes as follows:
+The OpenLineage parser maps events to jnkn nodes as follows:
 ```
-| OpenLineage Concept | Junkan Node Type | ID Format |
+| OpenLineage Concept | jnkn Node Type | ID Format |
 |---------------------|------------------|-----------|
 | Job | `JOB` | `job:{namespace}/{name}` |
 | Input Dataset | `DATA_ASSET` | `data:{namespace}/{name}` |

@@ -9,7 +9,7 @@ Tests cover:
 """
 
 import pytest
-from junkan.core.confidence import (
+from jnkn.core.confidence import (
     ConfidenceCalculator,
     ConfidenceConfig,
     ConfidenceResult,

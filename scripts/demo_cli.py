@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Junkan CLI Demo - Complete Working Example
+jnkn CLI Demo - Complete Working Example
 
 This script demonstrates the full workflow:
 1. Creates a sample data pipeline (PySpark jobs + config)
@@ -431,7 +431,7 @@ def generate_html(graph: LineageGraph) -> str:
     return f'''<!DOCTYPE html>
 <html>
 <head>
-    <title>Junkan Lineage Graph</title>
+    <title>jnkn Lineage Graph</title>
     <meta charset="utf-8">
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style>
@@ -536,7 +536,7 @@ def generate_html(graph: LineageGraph) -> str:
 </head>
 <body>
     <div id="header">
-        <h1>🔗 Junkan Lineage Graph</h1>
+        <h1>🔗 jnkn Lineage Graph</h1>
         <div style="display:flex">
             <div class="stat">Nodes: <span class="stat-value">{len(vis_nodes)}</span></div>
             <div class="stat">Edges: <span class="stat-value">{len(vis_edges)}</span></div>
@@ -754,13 +754,13 @@ def main():
     print("""
     ╔═══════════════════════════════════════════════════════════╗
     ║                                                           ║
-    ║   🔗 JUNKAN CLI DEMO - Data Lineage Visualization         ║
+    ║   🔗 jnkn CLI DEMO - Data Lineage Visualization         ║
     ║                                                           ║
     ╚═══════════════════════════════════════════════════════════╝
     """)
     
     # Create temp directory with sample files
-    tmp_dir = Path(tempfile.mkdtemp(prefix="junkan_demo_"))
+    tmp_dir = Path(tempfile.mkdtemp(prefix="jnkn_demo_"))
     print(f"📁 Creating sample pipeline in: {tmp_dir}\n")
     
     for rel_path, content in SAMPLE_FILES.items():
@@ -863,7 +863,7 @@ def main():
    
    5. Zoom with scroll, pan by dragging
 
-🚀 This is what 'junkan scan' + 'junkan graph' does!
+🚀 This is what 'jnkn scan' + 'jnkn graph' does!
 
 """)
     

@@ -1,9 +1,9 @@
-# Junkan Architecture
+# jnkn Architecture
 
 > **Version:** 0.4.0  
 > **Last Updated:** December 2024
 
-This document provides a comprehensive technical overview of Junkan's architecture, including system design, data flows, module responsibilities, and extension points.
+This document provides a comprehensive technical overview of jnkn's architecture, including system design, data flows, module responsibilities, and extension points.
 
 ---
 
@@ -26,9 +26,9 @@ This document provides a comprehensive technical overview of Junkan's architectu
 
 ## System Overview
 
-Junkan is a **cross-domain dependency analysis engine** that discovers hidden relationships between infrastructure (Terraform), data pipelines (dbt), and application code (Python, JavaScript, Kubernetes).
+jnkn is a **cross-domain dependency analysis engine** that discovers hidden relationships between infrastructure (Terraform), data pipelines (dbt), and application code (Python, JavaScript, Kubernetes).
 
-### The Problem Junkan Solves
+### The Problem jnkn Solves
 
 ```mermaid
 graph TB
@@ -53,11 +53,11 @@ graph TB
     style BREAK3 fill:#ff6b6b,stroke:#c92a2a,color:#fff
 ```
 
-### Junkan's Solution
+### jnkn's Solution
 
 ```mermaid
 graph TB
-    subgraph "Junkan (Unified View)"
+    subgraph "jnkn (Unified View)"
         PARSE[Multi-Language Parsers]
         GRAPH[Unified Dependency Graph]
         STITCH[Cross-Domain Stitching]
@@ -91,11 +91,11 @@ graph TB
     end
     
     subgraph CLI["CLI Layer"]
-        SCAN_CMD["junkan scan"]
-        BLAST_CMD["junkan blast-radius"]
-        STATS_CMD["junkan stats"]
-        EXPLAIN_CMD["junkan explain"]
-        SUPPRESS_CMD["junkan suppress"]
+        SCAN_CMD["jnkn scan"]
+        BLAST_CMD["jnkn blast-radius"]
+        STATS_CMD["jnkn stats"]
+        EXPLAIN_CMD["jnkn explain"]
+        SUPPRESS_CMD["jnkn suppress"]
     end
     
     subgraph Parsing["Parsing Layer"]
@@ -262,7 +262,7 @@ classDiagram
 
 ```mermaid
 graph TB
-    subgraph junkan["junkan package"]
+    subgraph jnkn["jnkn package"]
         CLI_PKG["cli/<br/>Command-line interface"]
         CORE_PKG["core/<br/>Graph, types, stitching"]
         PARSING_PKG["parsing/<br/>Language parsers"]
@@ -318,7 +318,7 @@ sequenceDiagram
     participant Stitcher
     participant Storage as SQLite
     
-    User->>CLI: junkan scan --dir ./src
+    User->>CLI: jnkn scan --dir ./src
     CLI->>Engine: scan(root_dir)
     
     loop For each file
@@ -351,7 +351,7 @@ sequenceDiagram
     participant Graph as DependencyGraph
     participant Analyzer as BlastRadiusAnalyzer
     
-    User->>CLI: junkan blast-radius env:DB_HOST
+    User->>CLI: jnkn blast-radius env:DB_HOST
     CLI->>Storage: load_graph()
     Storage-->>Graph: nodes, edges
     
@@ -500,7 +500,7 @@ graph TB
 
 ## Stitching Engine
 
-The stitching engine is Junkan's **core innovation** - it discovers implicit dependencies across domains.
+The stitching engine is jnkn's **core innovation** - it discovers implicit dependencies across domains.
 
 ### Stitching Process
 
@@ -635,7 +635,7 @@ graph TB
     end
     
     subgraph Implementations["Implementations"]
-        SQLITE[SQLiteStorage<br/>.junkan/junkan.db]
+        SQLITE[SQLiteStorage<br/>.jnkn/jnkn.db]
         MEMORY[MemoryStorage<br/>In-process]
     end
     
@@ -760,7 +760,7 @@ graph TB
 ```mermaid
 graph TB
     subgraph "CLI Commands"
-        MAIN["junkan<br/>(main entry)"]
+        MAIN["jnkn<br/>(main entry)"]
         
         SCAN["scan<br/>--dir, --db, --full,<br/>--min-confidence"]
         BLAST["blast-radius<br/>--db, --max-depth, --lazy"]
@@ -788,7 +788,7 @@ sequenceDiagram
     participant Core as Core Modules
     participant Output as Rich Output
     
-    User->>Click: junkan scan --dir ./src
+    User->>Click: jnkn scan --dir ./src
     Click->>Click: Parse arguments
     Click->>Command: scan(dir="./src", ...)
     
@@ -849,8 +849,8 @@ flowchart TB
 ## Directory Structure
 
 ```
-junkan/
-├── src/junkan/
+jnkn/
+├── src/jnkn/
 │   ├── __init__.py
 │   ├── cli.py                      # Legacy CLI entry
 │   ├── models.py                   # Legacy models
@@ -976,7 +976,7 @@ flowchart LR
 
 ```mermaid
 timeline
-    title Junkan Roadmap
+    title jnkn Roadmap
     
     section Epic 1 - Foundation
         Core Types : Node, Edge models

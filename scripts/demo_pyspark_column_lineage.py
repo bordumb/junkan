@@ -10,7 +10,7 @@ Covers:
 """
 
 import json
-from junkan.parsing.pyspark.column_lineage import extract_column_lineage, ColumnLineageExtractor
+from jnkn.parsing.pyspark.column_lineage import extract_column_lineage, ColumnLineageExtractor
 
 
 def test_sql_extraction():

@@ -3,7 +3,7 @@
 > **Version:** 1.0.0  
 > **Last Updated:** December 2024
 
-This document describes the design and implementation of Junkan's CI/CD gate - a pre-merge enforcement layer that prevents breaking changes from reaching production.
+This document describes the design and implementation of jnkn's CI/CD gate - a pre-merge enforcement layer that prevents breaking changes from reaching production.
 
 ---
 
@@ -27,9 +27,9 @@ This document describes the design and implementation of Junkan's CI/CD gate - a
 
 ### The One-Liner
 
-**Junkan's CI/CD gate tells you "this PR will break the executive dashboard" before you merge, not after the CEO asks why the numbers are wrong.**
+**jnkn's CI/CD gate tells you "this PR will break the executive dashboard" before you merge, not after the CEO asks why the numbers are wrong.**
 
-### Before Junkan
+### Before jnkn
 
 ```
 Developer → PR → Code Review → Merge → Deploy → Run → Silent Failure → Alert
@@ -49,10 +49,10 @@ Developer → PR → Code Review → Merge → Deploy → Run → Silent Failure
               - Which ML models use it as input
 ```
 
-### After Junkan
+### After jnkn
 
 ```
-Developer → PR → Junkan Check → Decision
+Developer → PR → jnkn Check → Decision
                       │
                       ├─→ PASS: Safe to merge
                       │
@@ -69,7 +69,7 @@ Developer → PR → Junkan Check → Decision
 
 ### Quantified Value
 
-| Metric | Without Junkan | With Junkan |
+| Metric | Without jnkn | With jnkn |
 |--------|----------------|-------------|
 | Time to detect impact | Hours to days | Seconds (at PR time) |
 | Data incidents from code changes | Common | Preventable |
@@ -111,7 +111,7 @@ This knowledge exists in two places:
 - **OpenLineage**: Actual runtime dependencies
 - **Tribal knowledge**: Who owns what, what's critical
 
-Junkan bridges both gaps.
+jnkn bridges both gaps.
 
 ---
 
@@ -121,7 +121,7 @@ Junkan bridges both gaps.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         junkan check                                │
+│                         jnkn check                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │   INPUTS:                                                           │
@@ -174,7 +174,7 @@ graph TB
         FILE[Diff File]
     end
     
-    subgraph "Junkan Check Command"
+    subgraph "jnkn Check Command"
         PARSER[Diff Parser]
         ENGINE[Check Engine]
         POLICY_ENGINE[Policy Engine]
@@ -284,7 +284,7 @@ classDiagram
 ```mermaid
 sequenceDiagram
     participant CI as CI Pipeline
-    participant Check as junkan check
+    participant Check as jnkn check
     participant Git as Git
     participant OL as OpenLineage API
     participant Policy as Policy File
@@ -526,7 +526,7 @@ Exit 2 (WARN)
 ### GitHub Actions
 
 ```yaml
-name: Junkan Impact Analysis
+name: jnkn Impact Analysis
 
 on:
   pull_request:
@@ -542,12 +542,12 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Run Junkan Check
-        id: junkan
+      - name: Run jnkn Check
+        id: jnkn
         env:
           OPENLINEAGE_URL: ${{ secrets.MARQUEZ_URL }}
         run: |
-          junkan check \
+          jnkn check \
             --git-diff origin/${{ github.base_ref }} HEAD \
             --policy policy.yaml \
             --output report.json \
@@ -562,23 +562,23 @@ jobs:
             // Post formatted comment
       
       - name: Enforce Gate
-        if: steps.junkan.outcome == 'failure'
+        if: steps.jnkn.outcome == 'failure'
         run: exit 1
 ```
 
 ### GitLab CI
 
 ```yaml
-junkan-check:
+jnkn-check:
   stage: validate
   script:
-    - junkan check --git-diff $CI_MERGE_REQUEST_TARGET_BRANCH_NAME HEAD
+    - jnkn check --git-diff $CI_MERGE_REQUEST_TARGET_BRANCH_NAME HEAD
       --openlineage-url $MARQUEZ_URL
       --policy policy.yaml
       --output report.json
   artifacts:
     reports:
-      dotenv: junkan.env
+      dotenv: jnkn.env
     paths:
       - report.json
   allow_failure:
@@ -594,7 +594,7 @@ pipeline {
         stage('Impact Analysis') {
             steps {
                 sh '''
-                    junkan check \
+                    jnkn check \
                         --git-diff origin/main HEAD \
                         --policy policy.yaml \
                         --output report.json
@@ -716,7 +716,7 @@ Policy Violations:
 
 **Markdown (PR Comments)**
 ```markdown
-## 🔍 Junkan Impact Analysis
+## 🔍 jnkn Impact Analysis
 
 ### ❌ BLOCKED - Critical Impact Detected
 
@@ -739,20 +739,20 @@ Policy Violations:
 
 ```bash
 # Diff against main branch
-junkan check --git-diff main HEAD
+jnkn check --git-diff main HEAD
 
 # From a file of changed paths
-junkan check --diff changed_files.txt
+jnkn check --diff changed_files.txt
 
 # From GitHub PR
-junkan check --github-pr 123 --repo myorg/myrepo
+jnkn check --github-pr 123 --repo myorg/myrepo
 ```
 
 ### With OpenLineage
 
 ```bash
 # Enrich with runtime lineage
-junkan check --git-diff main HEAD \
+jnkn check --git-diff main HEAD \
     --openlineage-url http://marquez:5000 \
     --openlineage-namespace spark-production
 ```
@@ -761,7 +761,7 @@ junkan check --git-diff main HEAD \
 
 ```bash
 # Apply business rules
-junkan check --git-diff main HEAD \
+jnkn check --git-diff main HEAD \
     --policy policy.yaml \
     --fail-if-critical
 ```
@@ -770,7 +770,7 @@ junkan check --git-diff main HEAD \
 
 ```bash
 # Complete example for CI
-junkan check \
+jnkn check \
     --git-diff origin/main HEAD \
     --openlineage-url $MARQUEZ_URL \
     --policy policy.yaml \
@@ -793,7 +793,7 @@ fi
 
 ### Prerequisites
 
-1. **Junkan installed**: `pip install junkan`
+1. **jnkn installed**: `pip install jnkn`
 2. **Git available**: For diff parsing
 3. **OpenLineage/Marquez** (optional): For runtime enrichment
 4. **Policy file**: Define your critical assets
@@ -813,7 +813,7 @@ critical:
 EOF
 
 # 2. Test locally
-junkan check --git-diff main HEAD --policy policy.yaml
+jnkn check --git-diff main HEAD --policy policy.yaml
 
 # 3. Add to CI pipeline
 # (see GitHub Actions example above)
@@ -826,7 +826,7 @@ junkan check --git-diff main HEAD --policy policy.yaml
 | `OPENLINEAGE_URL` | Marquez/DataHub API URL | None |
 | `OPENLINEAGE_NAMESPACE` | Namespace to query | All |
 | `GITHUB_TOKEN` | For GitHub PR API | None |
-| `JUNKAN_POLICY` | Default policy file | None |
+| `jnkn_POLICY` | Default policy file | None |
 
 ### Rollout Strategy
 
@@ -858,7 +858,7 @@ Phase 3: Enforce Mode (Week 5+)
 
 | Component | Purpose |
 |-----------|---------|
-| `junkan check` | CLI command for CI/CD integration |
+| `jnkn check` | CLI command for CI/CD integration |
 | Policy Engine | Business rules for severity classification |
 | OpenLineage Client | Runtime lineage enrichment |
 | Multiple Outputs | Text, JSON, Markdown for different consumers |

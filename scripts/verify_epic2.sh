@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Junkan Epic 2 Parser Verification Script
+# jnkn Epic 2 Parser Verification Script
 # =============================================================================
 # This script verifies that all Epic 2 parsers work correctly by creating
 # test fixtures and running the parsers against them.
@@ -18,7 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║       JUNKAN EPIC 2 - PARSER EXPANSION VERIFICATION          ║${NC}"
+echo -e "${BLUE}║       jnkn EPIC 2 - PARSER EXPANSION VERIFICATION          ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -188,7 +188,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "Project name for resource naming"
   type        = string
-  default     = "junkan-test"
+  default     = "jnkn-test"
 }
 
 variable "vpc_cidr" {
@@ -657,12 +657,12 @@ echo -e "${BLUE}═════════════════════�
 echo ""
 
 # Reset database
-rm -rf .junkan
-mkdir -p .junkan
+rm -rf .jnkn
+mkdir -p .jnkn
 
 # Run scan on all fixtures
 echo -e "${YELLOW}🔍 Scanning all fixtures...${NC}"
-if uv run python -m junkan.cli.main scan --dir "$TEST_DIR" --full 2>&1; then
+if uv run python -m jnkn.cli.main scan --dir "$TEST_DIR" --full 2>&1; then
     echo -e "${GREEN}✓ Scan completed successfully${NC}"
 else
     echo -e "${RED}✗ Scan failed${NC}"
@@ -679,7 +679,7 @@ echo -e "${BLUE}                    VERIFICATION RESULTS                        
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
-DB_PATH=".junkan/junkan.db"
+DB_PATH=".jnkn/jnkn.db"
 
 if [ ! -f "$DB_PATH" ]; then
     echo -e "${RED}✗ Database not created${NC}"

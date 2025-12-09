@@ -3,7 +3,7 @@
 > **Version:** 1.0.0  
 > **Last Updated:** December 2024
 
-This document describes how Junkan integrates with OpenLineage to provide complete pre-merge impact analysis for data pipelines.
+This document describes how jnkn integrates with OpenLineage to provide complete pre-merge impact analysis for data pipelines.
 
 ---
 
@@ -12,7 +12,7 @@ This document describes how Junkan integrates with OpenLineage to provide comple
 1. [Executive Summary](#executive-summary)
 2. [The Problem](#the-problem)
 3. [Why OpenLineage Alone Isn't Enough](#why-openlineage-alone-isnt-enough)
-4. [The Junkan + OpenLineage Solution](#the-junkan--openlineage-solution)
+4. [The jnkn + OpenLineage Solution](#the-jnkn--openlineage-solution)
 5. [Architecture Overview](#architecture-overview)
 6. [Data Flow](#data-flow)
 7. [Integration Patterns](#integration-patterns)
@@ -29,12 +29,12 @@ This document describes how Junkan integrates with OpenLineage to provide comple
 
 **The Gap:** OpenLineage captures runtime lineage (what happened), but cannot predict the impact of code changes before they're deployed.
 
-**The Solution:** Junkan combines static code analysis with OpenLineage runtime data to provide pre-merge impact prediction with production-grade confidence.
+**The Solution:** jnkn combines static code analysis with OpenLineage runtime data to provide pre-merge impact prediction with production-grade confidence.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                                                                     │
-│   Code Change → Junkan Analysis → OpenLineage Lookup → Impact Map   │
+│   Code Change → jnkn Analysis → OpenLineage Lookup → Impact Map   │
 │                                                                     │
 │   "This PR modifies     "Which jobs      "These 4 systems          │
 │    column X"             consume X?"      will be affected"         │
@@ -150,9 +150,9 @@ Timeline:
 
 ---
 
-## The Junkan + OpenLineage Solution
+## The jnkn + OpenLineage Solution
 
-Junkan bridges the timing gap by combining:
+jnkn bridges the timing gap by combining:
 
 1. **Static Analysis** (pre-merge): Parse code to understand what changes
 2. **Runtime Lineage** (OpenLineage): Know actual production dependencies
@@ -160,7 +160,7 @@ Junkan bridges the timing gap by combining:
 
 ```mermaid
 graph TB
-    subgraph "Pre-Merge (Junkan)"
+    subgraph "Pre-Merge (jnkn)"
         PR[Pull Request]
         STATIC[Static Analysis]
         DIFF[Change Detection]
@@ -202,7 +202,7 @@ graph TB
 
 ### Value Proposition
 
-| Capability | OpenLineage Only | Junkan + OpenLineage |
+| Capability | OpenLineage Only | jnkn + OpenLineage |
 |------------|------------------|----------------------|
 | Know what ran | ✅ | ✅ |
 | Know dependencies | ✅ | ✅ |
@@ -225,7 +225,7 @@ graph TB
         CI[CI/CD Pipeline]
     end
     
-    subgraph "Junkan Core"
+    subgraph "jnkn Core"
         PARSER_ENGINE[Parser Engine]
         
         subgraph "Parsers"
@@ -335,45 +335,45 @@ sequenceDiagram
     participant Dev as Developer
     participant Git as GitHub/GitLab
     participant CI as CI Pipeline
-    participant Junkan as Junkan
+    participant jnkn as jnkn
     participant OL as OpenLineage API
     participant Slack as Notifications
     
     Dev->>Git: Push PR (modifies etl_job.py)
     Git->>CI: Trigger pipeline
-    CI->>Junkan: Run impact analysis
+    CI->>jnkn: Run impact analysis
     
     rect rgb(240, 248, 255)
-        Note over Junkan: Static Analysis Phase
-        Junkan->>Junkan: Parse changed files
-        Junkan->>Junkan: Extract columns, tables
-        Junkan->>Junkan: Detect modifications
+        Note over jnkn: Static Analysis Phase
+        jnkn->>jnkn: Parse changed files
+        jnkn->>jnkn: Extract columns, tables
+        jnkn->>jnkn: Detect modifications
     end
     
     rect rgb(255, 248, 240)
-        Note over Junkan,OL: Runtime Enrichment Phase
-        Junkan->>OL: Query job dependencies
-        OL-->>Junkan: Return lineage graph
-        Junkan->>Junkan: Merge static + runtime
+        Note over jnkn,OL: Runtime Enrichment Phase
+        jnkn->>OL: Query job dependencies
+        OL-->>jnkn: Return lineage graph
+        jnkn->>jnkn: Merge static + runtime
     end
     
     rect rgb(240, 255, 240)
-        Note over Junkan: Impact Analysis Phase
-        Junkan->>Junkan: Traverse dependency graph
-        Junkan->>Junkan: Identify affected systems
-        Junkan->>Junkan: Calculate risk score
+        Note over jnkn: Impact Analysis Phase
+        jnkn->>jnkn: Traverse dependency graph
+        jnkn->>jnkn: Identify affected systems
+        jnkn->>jnkn: Calculate risk score
     end
     
     alt High Risk
-        Junkan->>CI: Block PR
-        Junkan->>Slack: Notify affected teams
+        jnkn->>CI: Block PR
+        jnkn->>Slack: Notify affected teams
         CI->>Git: Post check failure
     else Medium Risk
-        Junkan->>CI: Warn
-        Junkan->>Slack: Notify for awareness
+        jnkn->>CI: Warn
+        jnkn->>Slack: Notify for awareness
         CI->>Git: Post warning comment
     else Low Risk
-        Junkan->>CI: Pass
+        jnkn->>CI: Pass
         CI->>Git: Post success
     end
 ```
@@ -394,7 +394,7 @@ flowchart TB
         CUSTOM[Custom Store]
     end
     
-    subgraph "Junkan Ingestion"
+    subgraph "jnkn Ingestion"
         OL_PARSER[OpenLineage Parser]
         
         subgraph "Extraction"
@@ -406,7 +406,7 @@ flowchart TB
     end
     
     subgraph "Unified Graph"
-        GRAPH[(Junkan Graph)]
+        GRAPH[(jnkn Graph)]
     end
     
     SPARK_EVENTS --> MARQUEZ
@@ -440,7 +440,7 @@ Query OpenLineage at PR time for freshest data.
 
 ```python
 # In CI pipeline
-from junkan.parsing.openlineage import OpenLineageParser
+from jnkn.parsing.openlineage import OpenLineageParser
 
 parser = OpenLineageParser()
 events = parser.fetch_from_marquez(
@@ -513,7 +513,7 @@ for item in parser.parse_events(recent_events):
 ```python
 class OpenLineageParser:
     """
-    Converts OpenLineage events to Junkan nodes and edges.
+    Converts OpenLineage events to jnkn nodes and edges.
     
     Supports:
     - Marquez API
@@ -553,7 +553,7 @@ class OpenLineageParser:
 
 ### Cross-Domain Stitching
 
-Junkan links code files to OpenLineage jobs via token matching:
+jnkn links code files to OpenLineage jobs via token matching:
 
 ```mermaid
 graph LR
@@ -640,7 +640,7 @@ Path confidence = minimum confidence along the path.
 ### GitHub Actions Example
 
 ```yaml
-name: Junkan Impact Analysis
+name: jnkn Impact Analysis
 
 on:
   pull_request:
@@ -660,20 +660,20 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Install Junkan
-        run: pip install junkan
+      - name: Install jnkn
+        run: pip install jnkn
       
       - name: Fetch OpenLineage Data
         env:
           MARQUEZ_URL: ${{ secrets.MARQUEZ_URL }}
         run: |
-          junkan openlineage fetch \
+          jnkn openlineage fetch \
             --url $MARQUEZ_URL \
             --output lineage-cache.json
       
       - name: Run Impact Analysis
         run: |
-          junkan analyze \
+          jnkn analyze \
             --changed-files "${{ github.event.pull_request.changed_files }}" \
             --openlineage lineage-cache.json \
             --critical-tables config/critical-tables.yaml \
@@ -685,7 +685,7 @@ jobs:
           script: |
             const report = require('./impact-report.json');
             
-            let comment = '## 🔍 Junkan Impact Analysis\n\n';
+            let comment = '## 🔍 jnkn Impact Analysis\n\n';
             
             if (report.critical_impact.length > 0) {
               comment += '### 🚨 Critical Systems Affected\n';
@@ -710,7 +710,7 @@ jobs:
       
       - name: Gate Decision
         run: |
-          if junkan gate --report impact-report.json --policy config/policy.yaml; then
+          if jnkn gate --report impact-report.json --policy config/policy.yaml; then
             echo "✅ Safe to merge"
           else
             echo "❌ Blocked - requires approval"
@@ -756,10 +756,10 @@ critical:
 
 ```bash
 # Install
-pip install junkan
+pip install jnkn
 
 # One-time analysis
-junkan analyze \
+jnkn analyze \
   --dir ./src \
   --openlineage-url http://marquez:5000 \
   --output report.json
@@ -778,8 +778,8 @@ See GitHub Actions example above. Also supports:
 ```yaml
 # docker-compose.yml
 services:
-  junkan:
-    image: junkan/server:latest
+  jnkn:
+    image: jnkn/server:latest
     ports:
       - "8080:8080"
     environment:
@@ -811,7 +811,7 @@ Code Change → Deploy → Run → Failure → Alert → Debug → Fix → Deplo
 ### After: Proactive Prevention
 
 ```
-Code Change → Junkan + OpenLineage → Impact Known → Coordinated Deploy
+Code Change → jnkn + OpenLineage → Impact Known → Coordinated Deploy
                      │
               Block if critical,
               notify stakeholders
@@ -836,5 +836,5 @@ Code Change → Junkan + OpenLineage → Impact Known → Coordinated Deploy
 - [OpenLineage Specification](https://openlineage.io/spec)
 - [Marquez Documentation](https://marquezproject.ai/docs)
 - [DataHub Lineage](https://datahubproject.io/docs/lineage)
-- [Junkan Architecture](./ARCHITECTURE.md)
+- [jnkn Architecture](./ARCHITECTURE.md)
 - [PySpark Column Lineage](./COLUMN_LINEAGE_DESIGN.md)

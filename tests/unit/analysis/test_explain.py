@@ -11,16 +11,16 @@ Tests cover:
 import pytest
 from typing import List
 
-from junkan.analysis.explain import (
+from jnkn.analysis.explain import (
     ExplanationGenerator,
     MatchExplanation,
     NodeInfo,
     AlternativeMatch,
     create_explanation_generator,
 )
-from junkan.core.confidence import ConfidenceResult
-from junkan.core.graph import DependencyGraph
-from junkan.core.types import Node, Edge, NodeType, RelationshipType
+from jnkn.core.confidence import ConfidenceResult
+from jnkn.core.graph import DependencyGraph
+from jnkn.core.types import Node, Edge, NodeType, RelationshipType
 
 
 class TestNodeInfo:

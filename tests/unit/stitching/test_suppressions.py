@@ -14,7 +14,7 @@ from pathlib import Path
 import tempfile
 import yaml
 
-from junkan.stitching.suppressions import (
+from jnkn.stitching.suppressions import (
     Suppression,
     SuppressionStore,
     SuppressionMatch,

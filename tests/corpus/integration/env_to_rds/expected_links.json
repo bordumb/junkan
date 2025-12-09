@@ -1,6 +1,6 @@
 {
   "description": "Integration test: Python env vars stitched to Terraform resources",
-  "notes": "This tests the core value proposition of Junkan - cross-domain linking",
+  "notes": "This tests the core value proposition of jnkn - cross-domain linking",
   "python_env_vars": [
     "DATABASE_HOST", "DATABASE_PORT", "DATABASE_NAME", "DATABASE_USER",
     "DATABASE_PASSWORD", "REDIS_HOST", "REDIS_PORT", "S3_BUCKET", "AWS_REGION"

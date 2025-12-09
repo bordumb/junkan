@@ -1,8 +1,8 @@
-# Junkan
+# jnkn
 
 **The Pre-Flight Impact Analysis Engine for Engineering Teams.**
 
-Junkan prevents production outages by stitching together the hidden dependencies between your **Infrastructure** (Terraform), **Data Pipelines** (dbt), and **Application Code**.
+jnkn prevents production outages by stitching together the hidden dependencies between your **Infrastructure** (Terraform), **Data Pipelines** (dbt), and **Application Code**.
 
 ---
 
@@ -18,7 +18,7 @@ Most tools operate in silos:
 | **Dependabot** | Package versions | Doesn't know infrastructure compatibility |
 | **Terraform Plan** | Resource changes | Doesn't know what env vars code expects |
 
-**Junkan checks the "Glue."** It detects cross-domain breaking changes that slip through every other tool.
+**jnkn checks the "Glue."** It detects cross-domain breaking changes that slip through every other tool.
 
 It does so like this:
 
@@ -131,9 +131,9 @@ graph LR
 
 ---
 
-## How Junkan Solves This
+## How jnkn Solves This
 
-Junkan builds a **unified dependency graph** across all domains:
+jnkn builds a **unified dependency graph** across all domains:
 
 ```mermaid
 flowchart LR
@@ -160,7 +160,7 @@ flowchart LR
     style Stitch fill:#4dabf7,stroke:#1971c2,color:#fff
 ```
 
-**The key innovation is Step 3: Stitching.** Junkan uses token-based fuzzy matching to discover implicit dependencies:
+**The key innovation is Step 3: Stitching.** jnkn uses token-based fuzzy matching to discover implicit dependencies:
 
 ```mermaid
 graph TB
@@ -172,7 +172,7 @@ graph TB
         TERRA["aws_db_instance.payment_db_host"]
     end
     
-    subgraph "Junkan Stitching"
+    subgraph "jnkn Stitching"
         TOK1["Tokens: [payment, db, host]"]
         TOK2["Tokens: [payment, db, host]"]
         MATCH2["100% overlap → Link created"]
@@ -198,19 +198,19 @@ graph TB
 ### Install with uv
 
 ```bash
-git clone https://github.com/your-org/junkan.git
-cd junkan
+git clone https://github.com/your-org/jnkn.git
+cd jnkn
 uv sync
-uv run junkan --help
+uv run jnkn --help
 ```
 
 ### Install with pip
 
 ```bash
-git clone https://github.com/your-org/junkan.git
-cd junkan
+git clone https://github.com/your-org/jnkn.git
+cd jnkn
 pip install -e .
-junkan --help
+jnkn --help
 ```
 
 ---
@@ -221,10 +221,10 @@ junkan --help
 
 ```bash
 # Scan current directory
-uv run junkan scan --dir .
+uv run jnkn scan --dir .
 
 # Scan specific directory with lower confidence threshold
-uv run junkan scan --dir ./src --min-confidence 0.3
+uv run jnkn scan --dir ./src --min-confidence 0.3
 ```
 
 **Output:**
@@ -243,10 +243,10 @@ uv run junkan scan --dir ./src --min-confidence 0.3
 
 ```bash
 # What breaks if this env var changes?
-uv run junkan blast-radius env:DATABASE_URL
+uv run jnkn blast-radius env:DATABASE_URL
 
 # What's impacted by this Terraform resource?
-uv run junkan blast-radius infra:payment_db_host
+uv run jnkn blast-radius infra:payment_db_host
 ```
 
 **Output:**
@@ -272,7 +272,7 @@ uv run junkan blast-radius infra:payment_db_host
 ### 3. View Statistics
 
 ```bash
-uv run junkan stats
+uv run jnkn stats
 ```
 
 ```
@@ -301,25 +301,25 @@ Edges by Type:
 
 | Command | Description |
 |---------|-------------|
-| `junkan scan` | Parse codebase and build dependency graph |
-| `junkan blast-radius <artifact>` | Calculate downstream impact |
-| `junkan stats` | Show graph statistics |
-| `junkan clear` | Clear all data |
+| `jnkn scan` | Parse codebase and build dependency graph |
+| `jnkn blast-radius <artifact>` | Calculate downstream impact |
+| `jnkn stats` | Show graph statistics |
+| `jnkn clear` | Clear all data |
 
-### `junkan scan` Options
+### `jnkn scan` Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--dir` | `.` | Root directory to scan |
-| `--db` | `.junkan/junkan.db` | Path to SQLite database |
+| `--db` | `.jnkn/jnkn.db` | Path to SQLite database |
 | `--full` | `false` | Force full rescan |
 | `--min-confidence` | `0.5` | Minimum confidence for stitched links |
 
-### `junkan blast-radius` Options
+### `jnkn blast-radius` Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--db` | `.junkan/junkan.db` | Path to SQLite database |
+| `--db` | `.jnkn/jnkn.db` | Path to SQLite database |
 | `--max-depth` | `-1` | Maximum traversal depth |
 | `--lazy` | `false` | Use SQL queries (memory-efficient) |
 
@@ -358,10 +358,10 @@ Tune sensitivity:
 
 ```bash
 # More matches (more false positives)
-junkan scan --min-confidence 0.3
+jnkn scan --min-confidence 0.3
 
 # Fewer matches (higher precision)
-junkan scan --min-confidence 0.8
+jnkn scan --min-confidence 0.8
 ```
 
 ---
@@ -371,7 +371,7 @@ junkan scan --min-confidence 0.8
 ### GitHub Actions
 
 ```yaml
-name: Junkan Impact Analysis
+name: jnkn Impact Analysis
 on:
   pull_request:
     paths: ['**.py', '**.tf']
@@ -382,20 +382,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Junkan
+      - name: Install jnkn
         run: |
           pip install uv
-          git clone https://github.com/your-org/junkan.git /tmp/junkan
-          cd /tmp/junkan && uv sync
+          git clone https://github.com/your-org/jnkn.git /tmp/jnkn
+          cd /tmp/jnkn && uv sync
       
       - name: Analyze Changes
         run: |
-          cd /tmp/junkan
-          uv run junkan scan --dir $GITHUB_WORKSPACE
+          cd /tmp/jnkn
+          uv run jnkn scan --dir $GITHUB_WORKSPACE
           
           for file in $(git diff --name-only origin/main...HEAD | grep -E '\.(py|tf)$'); do
             echo "::group::Impact of $file"
-            uv run junkan blast-radius "$file"
+            uv run jnkn blast-radius "$file"
             echo "::endgroup::"
           done
 ```
@@ -407,9 +407,9 @@ jobs:
 ```mermaid
 graph TB
     subgraph CLI["CLI Layer"]
-        SCAN[junkan scan]
-        BLAST[junkan blast-radius]
-        STATS[junkan stats]
+        SCAN[jnkn scan]
+        BLAST[jnkn blast-radius]
+        STATS[jnkn stats]
     end
     
     subgraph Core["Core Engine"]
@@ -440,8 +440,8 @@ graph TB
 ## Project Structure
 
 ```
-junkan/
-├── src/junkan/
+jnkn/
+├── src/jnkn/
 │   ├── cli/main.py              # CLI commands
 │   ├── core/
 │   │   ├── types.py             # Node, Edge, enums
@@ -494,6 +494,6 @@ MIT
 
 1. Fork the repository
 2. Create a feature branch
-3. Make changes in `src/junkan/`
+3. Make changes in `src/jnkn/`
 4. Run tests
 5. Submit a pull request

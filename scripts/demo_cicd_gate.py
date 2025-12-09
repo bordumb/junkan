@@ -4,7 +4,7 @@ End-to-End Demo: CI/CD Gate for Pre-Merge Impact Analysis
 
 This demo simulates the complete flow of:
 1. A PR is opened with changes to a PySpark ETL job
-2. Junkan analyzes the changed files
+2. jnkn analyzes the changed files
 3. OpenLineage data enriches the blast radius
 4. Policy rules are evaluated
 5. The PR is blocked/warned/passed
@@ -22,7 +22,7 @@ from typing import List, Optional
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from junkan.cli.commands.check import (
+from jnkn.cli.commands.check import (
     CheckEngine,
     CheckResult,
     ChangedFile,
@@ -460,27 +460,27 @@ def show_cli_usage():
     
     print("""
     # Basic usage (git diff against main)
-    junkan check --git-diff main HEAD
+    jnkn check --git-diff main HEAD
     
     # With OpenLineage enrichment
-    junkan check --git-diff main HEAD \\
+    jnkn check --git-diff main HEAD \\
         --openlineage-url http://marquez.internal:5000 \\
         --openlineage-namespace spark-production
     
     # With policy enforcement
-    junkan check --git-diff main HEAD \\
+    jnkn check --git-diff main HEAD \\
         --policy policy.yaml \\
         --fail-if-critical
     
     # GitHub Actions (uses GITHUB_TOKEN automatically)
-    junkan check --github-pr ${{ github.event.pull_request.number }} \\
+    jnkn check --github-pr ${{ github.event.pull_request.number }} \\
         --repo ${{ github.repository }} \\
         --output impact-report.json \\
         --format markdown
     
     # From a file containing changed paths
     git diff --name-only main HEAD > changed_files.txt
-    junkan check --diff changed_files.txt
+    jnkn check --diff changed_files.txt
     """)
 
 
@@ -491,7 +491,7 @@ def show_github_actions_workflow():
     print("=" * 70)
     
     workflow = '''
-name: Junkan Impact Analysis
+name: jnkn Impact Analysis
 
 on:
   pull_request:
@@ -513,8 +513,8 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Install Junkan
-        run: pip install junkan
+      - name: Install jnkn
+        run: pip install jnkn
       
       - name: Run Impact Analysis
         id: check
@@ -522,7 +522,7 @@ jobs:
           OPENLINEAGE_URL: ${{ secrets.MARQUEZ_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          junkan check \\
+          jnkn check \\
             --git-diff origin/${{ github.base_ref }} HEAD \\
             --openlineage-url $OPENLINEAGE_URL \\
             --policy policy.yaml \\
@@ -537,7 +537,7 @@ jobs:
             const fs = require('fs');
             const report = JSON.parse(fs.readFileSync('impact-report.json', 'utf8'));
             
-            let body = '## 🔍 Junkan Impact Analysis\\n\\n';
+            let body = '## 🔍 jnkn Impact Analysis\\n\\n';
             
             if (report.result === 'BLOCKED') {
               body += '### ❌ BLOCKED\\n\\n';
@@ -563,7 +563,7 @@ jobs:
       - name: Enforce Gate
         if: steps.check.outcome == 'failure'
         run: |
-          echo "::error::Junkan detected critical impact. PR blocked."
+          echo "::error::jnkn detected critical impact. PR blocked."
           exit 1
 '''
     print(workflow)
@@ -577,17 +577,17 @@ def main():
     print("""
     ╔═══════════════════════════════════════════════════════════════════╗
     ║                                                                   ║
-    ║   JUNKAN CI/CD GATE DEMO                                          ║
+    ║   jnkn CI/CD GATE DEMO                                          ║
     ║   Pre-Merge Impact Analysis                                       ║
     ║                                                                   ║
     ╚═══════════════════════════════════════════════════════════════════╝
     
-    This demo shows how Junkan integrates with CI/CD pipelines to
+    This demo shows how jnkn integrates with CI/CD pipelines to
     prevent breaking changes from reaching production.
     
     The flow:
     1. PR is opened
-    2. Junkan analyzes changed files
+    2. jnkn analyzes changed files
     3. OpenLineage data enriches blast radius
     4. Policy rules are evaluated
     5. PR is BLOCKED / WARNED / PASSED

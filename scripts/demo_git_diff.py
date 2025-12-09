@@ -2,7 +2,7 @@
 """
 End-to-End Demo: Diff-Aware Analysis
 
-This demo shows how Junkan's diff analyzer works:
+This demo shows how jnkn's diff analyzer works:
 1. Compare two versions of PySpark code
 2. Detect semantic changes (not just text diff)
 3. Identify breaking changes
@@ -19,7 +19,7 @@ from pathlib import Path
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from junkan.analysis.diff_analyzer import diff_code, DiffReport, ChangeType
+from jnkn.analysis.diff_analyzer import diff_code, DiffReport, ChangeType
 
 
 # =============================================================================
@@ -79,7 +79,7 @@ result.write.saveAsTable("warehouse.processed_events")
     _print_scenario_report(report)
     
     print("\n💡 Impact: Any downstream job selecting 'created_at' will fail!")
-    print("   Junkan would flag this as a BREAKING CHANGE.")
+    print("   jnkn would flag this as a BREAKING CHANGE.")
     
     return report
 
@@ -425,22 +425,22 @@ def show_cli_usage():
     
     print("""
     # Basic diff against main
-    junkan diff main HEAD
+    jnkn diff main HEAD
     
     # Compare specific branches
-    junkan diff feature-branch origin/main
+    jnkn diff feature-branch origin/main
     
     # Output as JSON for CI/CD
-    junkan diff main HEAD --format json --output diff-report.json
+    jnkn diff main HEAD --format json --output diff-report.json
     
     # Generate markdown changelog
-    junkan diff main HEAD --format markdown > CHANGES.md
+    jnkn diff main HEAD --format markdown > CHANGES.md
     
     # Fail CI if breaking changes
-    junkan diff origin/main HEAD --fail-on-breaking
+    jnkn diff origin/main HEAD --fail-on-breaking
     
     # Only show removed columns (breaking changes)
-    junkan diff main HEAD --breaking-only
+    jnkn diff main HEAD --breaking-only
     """)
 
 
@@ -469,7 +469,7 @@ jobs:
       - name: Analyze Changes
         id: diff
         run: |
-          junkan diff origin/${{ github.base_ref }} HEAD \\
+          jnkn diff origin/${{ github.base_ref }} HEAD \\
             --format json \\
             --output diff-report.json
         continue-on-error: true
@@ -528,10 +528,10 @@ def main():
     ║                                                                   ║
     ╚═══════════════════════════════════════════════════════════════════╝
     
-    This demo shows how Junkan detects WHAT changed, not just WHICH files.
+    This demo shows how jnkn detects WHAT changed, not just WHICH files.
     
     Traditional diff:  "etl_job.py was modified (+10, -5 lines)"
-    Junkan diff:       "Column 'user_id' was removed from SELECT"
+    jnkn diff:       "Column 'user_id' was removed from SELECT"
     
     """)
     
@@ -573,7 +573,7 @@ def main():
        - Should trigger data validation
        - May indicate environment issues (prod vs staging)
     
-    Junkan's diff analysis catches ALL of these, not just file changes.
+    jnkn's diff analysis catches ALL of these, not just file changes.
     """)
 
 
