@@ -11,3 +11,4 @@ env/
 all_repos.txt
 create
 .cache/
+.ruff_cache/
