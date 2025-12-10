@@ -1,8 +1,10 @@
 import time
-import click
 from typing import Any
 
+import click
+
 from ..core.telemetry import track_event
+
 
 class TelemetryGroup(click.Group):
     """

@@ -40,6 +40,25 @@ def echo_info(message: str) -> None:
     click.echo(click.style(f"   {message}", dim=True))
 
 
+def echo_low_node_warning(count: int) -> None:
+    """
+    Print a helpful warning when a scan finds very few nodes.
+    
+    This is critical for onboarding: if a user sees 0-5 nodes, they often assume
+    the tool is broken rather than misconfigured.
+    """
+    click.echo()
+    click.echo(click.style(f"⚠️  Low node count detected! ({count} nodes found)", fg="yellow", bold=True))
+    click.echo(click.style("   This usually means the parser missed your files.", fg="yellow"))
+    click.echo()
+    click.echo("   Troubleshooting:")
+    click.echo("   1. Are you running this from the project root?")
+    click.echo("   2. Check .jnknignore (we skip .git, venv, node_modules by default)")
+    click.echo("   3. Run with --verbose to see exactly what is being skipped:")
+    click.echo(click.style("      jnkn scan --verbose", fg="cyan"))
+    click.echo()
+
+
 def load_graph(graph_file: str) -> Optional["LineageGraph"]:
     """
     Load a LineageGraph from a JSON file.

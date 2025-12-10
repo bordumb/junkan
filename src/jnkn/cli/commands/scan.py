@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Set
 
 import click
 
-from ..utils import SKIP_DIRS, echo_error, echo_info, echo_success
+from ..utils import SKIP_DIRS, echo_error, echo_info, echo_low_node_warning, echo_success
 
 
 @click.command()
@@ -59,7 +59,7 @@ def scan(directory: str, output: str, verbose: bool, no_recursive: bool):
     # Filter out skip directories
     files = [f for f in files if not any(d in f.parts for d in SKIP_DIRS)]
 
-    click.echo(f"   Files: {len(files)}")
+    click.echo(f"   Files found: {len(files)}")
 
     # Parse files
     graph = LineageGraph()
@@ -84,9 +84,15 @@ def scan(directory: str, output: str, verbose: bool, no_recursive: bool):
 
     # Output results
     stats = graph.stats()
-    echo_success("Scan complete")
-    click.echo(f"   Nodes: {stats['total_nodes']}")
-    click.echo(f"   Edges: {stats['total_edges']}")
+    
+    # NEW: Check for low node count "panic state"
+    total_nodes = stats.get('total_nodes', 0)
+    if total_nodes < 5:
+        echo_low_node_warning(total_nodes)
+    else:
+        echo_success("Scan complete")
+        click.echo(f"   Nodes: {total_nodes}")
+        click.echo(f"   Edges: {stats.get('total_edges', 0)}")
 
     # Save output
     if output:
