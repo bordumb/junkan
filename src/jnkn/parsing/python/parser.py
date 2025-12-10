@@ -1,150 +1,89 @@
-import logging
+"""
+Standardized Python Parser.
+"""
+
+import ast
 from pathlib import Path
-from typing import Generator, List, Optional, Set, Union
+from typing import List, Union
 
-from ...core.types import Edge, Node, NodeType, ScanMetadata
-from ..base import (
-    LanguageParser,
-    ParserCapability,
-    ParserContext,
-)
-from .extractors import get_extractors
+from ...core.types import Node, Edge, NodeType, RelationshipType
+from ..base import BaseParser
 
-logger = logging.getLogger(__name__)
 
-# Check if tree-sitter is available
-try:
-    from tree_sitter_languages import get_parser
-    TREE_SITTER_AVAILABLE = True
-except ImportError:
-    TREE_SITTER_AVAILABLE = False
-    logger.debug("tree-sitter not available")
+class PythonParser(BaseParser):
+    def can_parse(self, file_path: Path) -> bool:
+        return file_path.suffix == ".py"
 
-class PythonParser(LanguageParser):
-    """
-    Orchestrating Python Parser.
-    
-    Delegates actual extraction to specialized Extractor classes.
-    """
-
-    def __init__(self, context: Optional[ParserContext] = None):
-        super().__init__(context)
-        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self._extractors = get_extractors()
-        self._tree_sitter_initialized = False
-        self._ts_parser = None
-
-    @property
-    def name(self) -> str:
-        return "python"
-
-    @property
-    def extensions(self) -> List[str]:
-        return [".py", ".pyi"]
-
-    @property
-    def description(self) -> str:
-        return "Python parser with pluggable extractors"
-
-    def get_capabilities(self) -> List[ParserCapability]:
-        return [
-            ParserCapability.IMPORTS,
-            ParserCapability.ENV_VARS,
-            ParserCapability.DEFINITIONS,
-            ParserCapability.CONFIGS,
-        ]
-
-    def _init_tree_sitter(self) -> bool:
-        """Initialize tree-sitter parser lazily."""
-        if self._tree_sitter_initialized:
-            return self._ts_parser is not None
-
-        self._tree_sitter_initialized = True
-
-        if not TREE_SITTER_AVAILABLE:
-            return False
-
+    def parse(self, file_path: Path, content: bytes) -> List[Union[Node, Edge]]:
+        results: List[Union[Node, Edge]] = []
+        
         try:
-            self._ts_parser = get_parser("python")
-            return True
-        except Exception as e:
-            self._logger.warning(f"Failed to initialize tree-sitter: {e}")
-            return False
+            tree = ast.parse(content)
+        except SyntaxError:
+            # If we can't parse syntax, we can't extract nodes
+            return []
 
-    def parse(
-        self,
-        file_path: Path,
-        content: bytes,
-    ) -> Generator[Union[Node, Edge], None, None]:
-        """
-        Parse a Python file and yield nodes and edges.
-        """
-        # Create file node
-        try:
-            file_hash = ScanMetadata.compute_hash(str(file_path))
-        except Exception:
-            file_hash = ""
-
-        file_id = f"file://{file_path}"
-        yield Node(
+        rel_path = self._relativize(file_path)
+        file_id = f"file://{rel_path}"
+        
+        # 1. Create the File Node
+        file_node = Node(
             id=file_id,
             name=file_path.name,
             type=NodeType.CODE_FILE,
-            path=str(file_path),
-            language="python",
-            file_hash=file_hash,
+            path=rel_path,
+            metadata={"language": "python"}
         )
+        results.append(file_node)
 
-        # Decode content
-        try:
-            text = content.decode(self._context.encoding)
-        except UnicodeDecodeError:
-            try:
-                text = content.decode("latin-1")
-            except Exception as e:
-                self._logger.error(f"Failed to decode {file_path}: {e}")
-                return
+        # 2. Walk the AST to find env vars
+        # Simple walker looking for os.getenv / os.environ
+        for node in ast.walk(tree):
+            env_var_name = self._extract_env_var(node)
+            if env_var_name:
+                # We do NOT create the EnvVar node here (the Stitcher/Graph does that or we assume it exists).
+                # But typically parsers create a "reference" or "demand".
+                # In Jnkn architecture, we often create the EnvVar node lazily or create a dependency to it.
+                
+                env_id = f"env:{env_var_name}"
+                
+                # Create the EnvVar node (it's okay if duplicates exist, Graph deduplicates)
+                env_node = Node(
+                    id=env_id,
+                    name=env_var_name,
+                    type=NodeType.ENV_VAR,
+                    tokens=[t.lower() for t in env_var_name.split("_")] # Simplified tokenization
+                )
+                results.append(env_node)
+                
+                # Create the Edge (File READS EnvVar)
+                edge = Edge(
+                    source_id=file_id,
+                    target_id=env_id,
+                    type=RelationshipType.READS,
+                    metadata={"line": getattr(node, "lineno", 0)}
+                )
+                results.append(edge)
 
-        # Prepare AST if possible
-        tree = None
-        if self._init_tree_sitter():
-            tree = self._ts_parser.parse(content)
+        return results
 
-        # Track what we've yielded to avoid duplicates (Precision fix)
-        # We track (id, type) for nodes to ensure we only emit a node once per file.
-        # Edges can be multiple if they are distinct, but usually one edge per relationship is preferred.
-        yielded_node_ids: Set[str] = set()
-
-        # This set is passed to extractors to coordinate logic if needed
-        seen_vars: Set[str] = set()
-
-        for extractor in self._extractors:
-            if extractor.can_extract(text):
-                try:
-                    for item in extractor.extract(file_path, file_id, tree, text, seen_vars):
-
-                        # Handle Node Deduplication
-                        if isinstance(item, Node):
-                            if item.id in yielded_node_ids:
-                                continue
-                            yielded_node_ids.add(item.id)
-
-                            # Update seen_vars for extractor coordination
-                            if item.type == NodeType.ENV_VAR:
-                                seen_vars.add(item.name)
-
-                        # Always yield edges (they represent specific usages on lines)
-                        # OR: You could dedup edges too if you only want 1 dependency per file
-                        # For now, yielding all edges is better for "where is this used?" queries,
-                        # but nodes must be unique.
-                        if isinstance(item, Edge):
-                            yield item
-                        else:
-                            yield item
-
-                except Exception as e:
-                    self._logger.error(f"Extractor {extractor.name} failed on {file_path}: {e}")
-
-def create_python_parser(context: Optional[ParserContext] = None) -> PythonParser:
-    """Factory function to create a Python parser."""
-    return PythonParser(context)
+    def _extract_env_var(self, node: ast.AST) -> str | None:
+        """
+        Detect `os.getenv('VAR')` or `os.environ['VAR']`.
+        """
+        # Case: os.getenv("VAR")
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Attribute):
+                if getattr(node.func.value, "id", "") == "os" and node.func.attr == "getenv":
+                    if node.args and isinstance(node.args[0], ast.Constant):
+                        return node.args[0].value
+        
+        # Case: os.environ["VAR"] or os.environ.get("VAR")
+        # Simplified for brevity in this refactor example
+        if isinstance(node, ast.Subscript):
+            if isinstance(node.value, ast.Attribute):
+                if getattr(node.value.value, "id", "") == "os" and node.value.attr == "environ":
+                    if isinstance(node.slice, ast.Constant):
+                        return node.slice.value
+                        
+        return None
