@@ -1,4 +1,0 @@
-# Parallel Scanning
-
-Optimizing performance.
-

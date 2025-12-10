@@ -1,4 +1,0 @@
-# Supply Chain
-
-Dependency security.
-
