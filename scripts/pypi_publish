@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# scripts/pypi_release.sh
+# Automates the PyPI release process using uv.
+# Requires UV_PUBLISH_TOKEN to be set in your environment.
+
+set -e  # Exit immediately if any command fails
+
+# 1. Validation: Ensure Auth Token exists
+if [ -z "$UV_PUBLISH_TOKEN" ]; then
+    echo "❌ Error: UV_PUBLISH_TOKEN is not set."
+    echo "   Export your PyPI token first:"
+    echo "   export UV_PUBLISH_TOKEN=pypi-AgEIcHlwaS5vcmc..."
+    exit 1
+fi
+
+echo "🚀 Starting PyPI Release..."
+
+# 2. Clean: Remove old artifacts to prevent uploading stale code
+if [ -d "dist" ]; then
+    echo "🧹 Cleaning dist/ directory..."
+    rm -rf dist/
+fi
+
+# 3. Build: Create Source Tarball and Wheel
+echo "📦 Building artifacts..."
+uv build
+
+# 4. Publish: Upload to PyPI
+echo "Ep Publishing to PyPI..."
+# uv publish uses UV_PUBLISH_TOKEN automatically
+uv publish
+
+echo ""
+echo "✅ Published successfully!"
+echo "   Verify with: uv pip install --no-cache jnkn"

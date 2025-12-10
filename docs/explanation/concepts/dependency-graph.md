@@ -4,32 +4,47 @@ The core data structure of Jnkn.
 
 ## What Is It?
 
-A dependency graph is a directed graph where:
+The dependency graph is a directed graph that maps the relationships between every artifact in your stack. It serves as the "source of truth" for impact analysis.
 
-- **Nodes** are artifacts (files, env vars, infrastructure)
-- **Edges** are dependencies between artifacts
+Crucially, Jnkn distinguishes between **Dependency Direction** (structural) and **Impact Direction** (semantic):
+
+  * **Dependency:** `App` → *reads* → `Env Var` (The App depends on the Env Var)
+  * **Impact:** `Env Var` → *impacts* → `App` (Changing the Env Var breaks the App)
+
+<!-- end list -->
 
 ```mermaid
 graph LR
-    F[config.py] --> E[env:DATABASE_URL]
-    E --> T[aws_db_instance.main]
-    F --> R[env:REDIS_HOST]
-    R --> C[aws_elasticache.redis]
+    subgraph "Infrastructure Layer"
+        T[infra:aws_db_instance] --"PROVIDES"--> E[env:DB_HOST]
+    end
+    subgraph "Application Layer"
+        C[file://config.py] --"READS"--> E
+    end
+    
+    style E fill:#f9f,stroke:#333,stroke-width:2px
 ```
+
+## The IGraph Interface
+
+The graph is implemented via a strict **IGraph Protocol**, decoupling the analysis logic from the underlying storage.
+
+  * **Backend Agnostic:** Currently backed by high-performance **rustworkx** in memory, but swappable for NetworkX or Neo4j.
+  * **Semantic Awareness:** The graph itself understands lineage logic (e.g., traversing `READS` edges in reverse to find downstream consumers).
 
 ## Nodes
 
-Each node represents an artifact in your system:
+Nodes represent unique artifacts across your stack.
 
 ```json
 {
   "id": "env:DATABASE_URL",
   "name": "DATABASE_URL",
   "type": "env_var",
+  "tokens": ["database", "url"],
   "metadata": {
     "source": "os.getenv",
-    "file": "src/config.py",
-    "line": 10
+    "file": "src/config.py"
   }
 }
 ```
@@ -37,74 +52,45 @@ Each node represents an artifact in your system:
 ### Node Types
 
 | Type | Represents | Example ID |
-|------|------------|------------|
-| `code_file` | Source file | `file://src/app.py` |
-| `code_entity` | Function/class | `entity:src/app.py:main` |
-| `env_var` | Environment variable | `env:DATABASE_URL` |
-| `infra_resource` | Terraform resource | `infra:aws_rds.main` |
-| `k8s_resource` | Kubernetes resource | `k8s:default/deployment/api` |
-| `data_asset` | dbt model | `data:fct_orders` |
+| :--- | :--- | :--- |
+| `code_file` | Source Code File | `file://src/app.py` |
+| `env_var` | Configuration Key | `env:DATABASE_URL` |
+| `infra_resource` | Infrastructure Resource | `infra:aws_rds:main` |
+| `config_key` | Terraform Output | `infra:output:db_host` |
+| `data_asset` | Table or S3 Path | `data:public.users` |
 
-## Edges
+## Edges & Semantics
 
-Edges represent dependencies:
+Edges are directed, but their *semantic meaning* dictates how analysis tools traverse them.
 
-```json
-{
-  "source": "file://src/config.py",
-  "target": "env:DATABASE_URL",
-  "type": "reads",
-  "metadata": {
-    "pattern": "os.getenv",
-    "line": 10
-  }
-}
-```
-
-### Edge Types
-
-| Type | Meaning | Example |
-|------|---------|---------|
-| `reads` | Source reads from target | File reads env var |
-| `imports` | Source imports target | Python import |
-| `provides` | Source provides target | Terraform outputs value |
-| `configures` | Source configures target | K8s uses ServiceAccount |
-| `contains` | Source contains target | File contains function |
-| `references` | Generic reference | Cross-domain link |
-
-## Graph Properties
-
-**Directed** — Edges have direction. `A → B` means "A depends on B."
-
-**Mostly Acyclic** — Well-designed systems don't have circular dependencies.
-
-**Multi-Domain** — Nodes span different technology domains (Python, Terraform, K8s).
+| Edge Type | Direction | Semantic Flow | Example |
+| :--- | :--- | :--- | :--- |
+| `PROVIDES` | A → B | **Downstream** (A impacts B) | Infra → Env Var |
+| `WRITES` | A → B | **Downstream** (A impacts B) | Job → Table |
+| `READS` | A → B | **Upstream** (B impacts A) | Code → Env Var |
+| `DEPENDS_ON` | A → B | **Upstream** (B impacts A) | Job → Upstream Job |
 
 ## Querying the Graph
 
-### Find Dependencies
+### Impact Analysis (Blast Radius)
 
-"What does X depend on?"
+Calculates the "Blast Radius" by following data flow, not just dependencies.
 
 ```bash
+# Finds everything that breaks if this Env Var changes
 jnkn blast env:DATABASE_URL
 ```
 
-### View Statistics
+### Lineage Tracing
+
+Traces the full path of data from Infrastructure to Code to Data Assets.
 
 ```bash
-jnkn stats
+# Traces: Infra -> Output -> Env Var -> App Code
+jnkn trace infra:aws_db_instance:main file://src/app.py
 ```
 
 ## Storage
 
-The graph is stored in SQLite at `.jnkn/jnkn.db`.
-
-## Why a Graph?
-
-Graphs enable:
-
-1. **Traversal** — Follow dependencies to any depth
-2. **Visualization** — See system structure  
-3. **Algorithms** — Shortest path, cycle detection
-4. **Incremental updates** — Add/remove nodes efficiently
+  * **Persistence:** Serialized to SQLite (`.jnkn/jnkn.db`) for caching.
+  * **Runtime:** Hydrated into an in-memory `rustworkx` graph for sub-millisecond traversal.

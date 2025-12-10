@@ -1,6 +1,6 @@
 [project]
 name = "jnkn"
-version = "0.0.0-rc.2"
+version = "0.0.0-rc.3"
 description = "The Pre-Flight Impact Analysis Engine for Engineering Teams."
 readme = "README.md"
 requires-python = ">=3.12"
