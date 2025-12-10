@@ -58,10 +58,9 @@ DEFAULT_IGNORE_DIRS = {
     ".vscode",
 
     # Tests
+    ".jnkn",
     "scripts",
-    "docs"
     "site",
-    
 }
 
 DEFAULT_IGNORE_EXTENSIONS = {
