@@ -1,11 +1,12 @@
 """
 jnkn CLI - Main entry point.
 
-This module registers all CLI commands. Each command is implemented
-in its own module under cli/commands/.
+This module assembles the CLI hierarchy. It uses the custom `TelemetryGroup`
+to ensure all commands registered here are automatically instrumented.
 """
 
 import click
+from .utils_telemetry import TelemetryGroup
 
 from .commands import (
     blast_radius,
@@ -24,23 +25,15 @@ from .commands import (
 from .commands.initialize import init
 
 
-@click.group()
+# Use cls=TelemetryGroup to enable automatic tracking middleware
+@click.group(cls=TelemetryGroup)
 @click.version_option(package_name="jnkn")
 def main():
-    """jnkn: Pre-Flight Impact Analysis Engine.
+    """
+    jnkn: The Pre-Flight Impact Analysis Engine.
     
     Detects cross-domain breaking changes between Infrastructure,
     Data Pipelines, and Application Code.
-    
-    \b
-    Quick Start:
-      jnkn scan ./src --output lineage.json
-      jnkn impact warehouse.dim_users
-      jnkn graph --output lineage.html
-    
-    \b
-    Documentation:
-      https://github.com/your-org/jnkn
     """
     pass
 
