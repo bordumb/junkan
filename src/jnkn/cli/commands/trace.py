@@ -136,10 +136,17 @@ def _get_all_edges_safe(graph: Any) -> List[Any]:
     return []
 
 
+def _normalize_type(val: Any) -> str:
+    """Robustly convert Enum or String to lowercase string."""
+    if hasattr(val, "value"):
+        return str(val.value).lower()
+    return str(val).lower()
+
+
 def _semantic_bfs(graph: Any, start: str, end: str) -> List[List[str]]:
     """
     Perform a BFS that follows 'Data Flow' rather than just 'Dependency'.
-    Robustly handles String vs Enum types for edges.
+    Robustly handles String vs Enum types for edges by using string literals.
     """
     all_edges = _get_all_edges_safe(graph)
     
@@ -149,23 +156,13 @@ def _semantic_bfs(graph: Any, start: str, end: str) -> List[List[str]]:
     
     max_depth = 15 
     
-    # Define sets using string values for robust comparison
     # Downstream Types: Provider -> Consumer
-    FORWARD_TYPES = {
-        str(RelationshipType.PROVIDES).lower(),
-        str(RelationshipType.WRITES).lower(), 
-        str(RelationshipType.FLOWS_TO).lower(),
-        str(RelationshipType.PROVISIONS).lower(),
-        "provides", "writes", "flows_to", "provisions"
-    }
+    # We use string literals to avoid AttributeError if RelationshipType is missing members
+    FORWARD_TYPES = {"provides", "writes", "flows_to", "provisions", "outputs"}
     
     # Upstream Types: Consumer -> Provider
     # These edges point Consumer -> Provider, but Data flows Provider -> Consumer
-    REVERSE_TYPES = {
-        str(RelationshipType.READS).lower(),
-        str(RelationshipType.DEPENDS_ON).lower(),
-        "reads", "depends_on"
-    }
+    REVERSE_TYPES = {"reads", "depends_on", "calls"}
 
     while queue:
         path = queue.pop(0)
@@ -183,10 +180,12 @@ def _semantic_bfs(graph: Any, start: str, end: str) -> List[List[str]]:
         for edge in all_edges:
             s = getattr(edge, "source_id", None) or edge.get("source_id")
             t = getattr(edge, "target_id", None) or edge.get("target_id")
-            
-            # Robust type extraction
             raw_type = getattr(edge, "type", None) or edge.get("type")
-            r_type = str(raw_type).lower() if raw_type else ""
+            
+            if not raw_type:
+                continue
+                
+            r_type = _normalize_type(raw_type)
             
             # Forward Traversal (Downstream)
             if s == current_node and r_type in FORWARD_TYPES:
