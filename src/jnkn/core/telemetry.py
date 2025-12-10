@@ -10,7 +10,10 @@ from urllib import request, error
 
 import yaml
 
-# TODO: Replace with your actual PostHog Project API Key
+# PUBLIC KEY: This is a write-only key for anonymous telemetry.
+# It cannot read data or modify project settings.
+# Safe to distribute in the CLI artifact.
+POSTHOG_API_KEY = "phc_YOUR_REAL_KEY_HERE"
 POSTHOG_API_KEY = "phc_YOUR_PUBLIC_KEY_HERE"
 POSTHOG_HOST = "https://app.posthog.com"
 
