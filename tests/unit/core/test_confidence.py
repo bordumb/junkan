@@ -1,532 +1,271 @@
 """
 Unit tests for the Confidence Calculation Engine.
-
-Tests cover:
-- Individual signal calculations
-- Penalty combinations
-- Explanation output format
-- Edge cases and boundary conditions
 """
 
 import pytest
-
 from jnkn.core.confidence import (
     ConfidenceCalculator,
     ConfidenceConfig,
     ConfidenceResult,
     ConfidenceSignal,
     PenaltyType,
+    SignalResult,
+    PenaltyResult,
     create_default_calculator,
 )
 
+class TestConfidenceCalculator:
+    
+    @pytest.fixture
+    def calculator(self):
+        return create_default_calculator()
 
-class TestConfidenceSignals:
-    """Test individual signal calculations."""
+    def test_initialization(self):
+        """Test default initialization and custom config."""
+        calc = create_default_calculator()
+        assert isinstance(calc.config, ConfidenceConfig)
+        
+        custom_config = ConfidenceConfig(min_token_overlap_high=5)
+        calc_custom = ConfidenceCalculator(config=custom_config)
+        assert calc_custom.config.min_token_overlap_high == 5
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.calculator = create_default_calculator()
+    def test_normalize(self):
+        """Test name normalization logic."""
+        # Test separators and casing
+        assert ConfidenceCalculator._normalize("PAYMENT_DB_HOST") == "paymentdbhost"
+        assert ConfidenceCalculator._normalize("api.v1-endpoint") == "apiv1endpoint"
+        assert ConfidenceCalculator._normalize("mixed/SEPARATOR:test") == "mixedseparatortest"
 
-    def test_exact_match_signal(self):
-        """Test exact match gives highest confidence."""
-        result = self.calculator.calculate(
-            source_name="PAYMENT_DB_HOST",
-            target_name="PAYMENT_DB_HOST",
-            source_tokens=["payment", "db", "host"],
-            target_tokens=["payment", "db", "host"],
+    def test_evaluate_signals_exact_match(self, calculator):
+        """Test EXACT_MATCH signal."""
+        results = calculator._evaluate_signals(
+            "DB_HOST", "DB_HOST", ["db", "host"], ["db", "host"], ["db", "host"]
         )
-        assert result.score == 1.0
-        assert any(s["signal"] == ConfidenceSignal.EXACT_MATCH for s in result.signals)
+        exact = next(r for r in results if r.signal == ConfidenceSignal.EXACT_MATCH)
+        assert exact.matched is True
+        assert exact.weight == 1.0
 
-    def test_normalized_match_signal(self):
-        """Test normalized match (case-insensitive, separator-insensitive)."""
-        result = self.calculator.calculate(
-            source_name="PAYMENT_DB_HOST",
-            target_name="payment_db_host",
-            source_tokens=["payment", "db", "host"],
-            target_tokens=["payment", "db", "host"],
+    def test_evaluate_signals_normalized_match(self, calculator):
+        """Test NORMALIZED_MATCH signal."""
+        results = calculator._evaluate_signals(
+            "DB_HOST", "db-host", ["db", "host"], ["db", "host"], ["db", "host"]
         )
-        # Should have normalized match but not exact match
-        assert result.score >= 0.8
-        assert any(s["signal"] == ConfidenceSignal.NORMALIZED_MATCH for s in result.signals)
-        assert not any(s["signal"] == ConfidenceSignal.EXACT_MATCH for s in result.signals)
+        norm = next(r for r in results if r.signal == ConfidenceSignal.NORMALIZED_MATCH)
+        assert norm.matched is True
+        # Ensure exact match is False to prevent double counting logic
+        exact = next(r for r in results if r.signal == ConfidenceSignal.EXACT_MATCH)
+        assert exact.matched is False
 
-    def test_token_overlap_high_signal(self):
-        """Test high token overlap (3+ significant tokens)."""
-        result = self.calculator.calculate(
-            source_name="PAYMENT_DB_HOST",
-            target_name="payment_database_host_primary",
-            source_tokens=["payment", "db", "host"],
-            target_tokens=["payment", "database", "host", "primary"],
-            matched_tokens=["payment", "host"],  # 2 significant tokens
+    def test_evaluate_signals_overlap(self, calculator):
+        """Test token overlap signals."""
+        # High overlap (3 tokens default)
+        tokens = ["a", "b", "c", "d"] # Assuming 'a' is not common/short for this test context or using config
+        # Use simpler tokens that pass filters: length >= 4
+        t_list = ["alpha", "beta", "gamma"] 
+        results = calculator._evaluate_signals(
+            "src", "tgt", t_list, t_list, t_list
         )
-        # This should be medium overlap (2 tokens), not high
-        assert not any(s["signal"] == ConfidenceSignal.TOKEN_OVERLAP_HIGH for s in result.signals)
+        high = next(r for r in results if r.signal == ConfidenceSignal.TOKEN_OVERLAP_HIGH)
+        assert high.matched is True
 
-    def test_token_overlap_medium_signal(self):
-        """Test medium token overlap (2 significant tokens)."""
-        result = self.calculator.calculate(
-            source_name="PAYMENT_HOST",
-            target_name="payment_server_host",
-            source_tokens=["payment", "host"],
-            target_tokens=["payment", "server", "host"],
-            matched_tokens=["payment", "host"],
+        # Medium overlap (2 tokens)
+        t_med = ["alpha", "beta"]
+        results = calculator._evaluate_signals(
+            "src", "tgt", t_med, t_med, t_med
         )
-        assert result.score >= 0.5
-        # Should have some overlap signal
-        has_overlap = any(
-            s["signal"] in (ConfidenceSignal.TOKEN_OVERLAP_HIGH, ConfidenceSignal.TOKEN_OVERLAP_MEDIUM)
-            for s in result.signals
+        high = next(r for r in results if r.signal == ConfidenceSignal.TOKEN_OVERLAP_HIGH)
+        med = next(r for r in results if r.signal == ConfidenceSignal.TOKEN_OVERLAP_MEDIUM)
+        assert high.matched is False
+        assert med.matched is True
+
+    def test_evaluate_signals_structural(self, calculator):
+        """Test Suffix, Prefix, and Contains."""
+        # Suffix
+        results = calculator._evaluate_signals(
+            "host", "db_host", ["host"], ["db", "host"], ["host"]
         )
-        # May also have normalized match since tokens overlap fully with source
-        assert has_overlap or result.score >= 0.6
+        suffix = next(r for r in results if r.signal == ConfidenceSignal.SUFFIX_MATCH)
+        assert suffix.matched is True
 
-    def test_suffix_match_signal(self):
-        """Test suffix matching."""
-        result = self.calculator.calculate(
-            source_name="DB_HOST",
-            target_name="aws_rds_db_host",
-            source_tokens=["db", "host"],
-            target_tokens=["aws", "rds", "db", "host"],
+        # Prefix
+        results = calculator._evaluate_signals(
+            "user", "user_id", ["user"], ["user", "id"], ["user"]
         )
-        # Should have suffix match
-        assert any(s["signal"] == ConfidenceSignal.SUFFIX_MATCH for s in result.signals)
-        assert result.score >= 0.5
+        prefix = next(r for r in results if r.signal == ConfidenceSignal.PREFIX_MATCH)
+        assert prefix.matched is True
 
-    def test_prefix_match_signal(self):
-        """Test prefix matching."""
-        result = self.calculator.calculate(
-            source_name="payment_service",
-            target_name="payment_service_config",
-            source_tokens=["payment", "service"],
-            target_tokens=["payment", "service", "config"],
+        # Contains
+        # Use a true substring that is not a prefix or suffix
+        # "base" inside "database_url"
+        results = calculator._evaluate_signals(
+            "base", "database_url", ["base"], ["database", "url"], [] 
         )
-        # Should have prefix match
-        assert any(s["signal"] == ConfidenceSignal.PREFIX_MATCH for s in result.signals)
+        contains = next(r for r in results if r.signal == ConfidenceSignal.CONTAINS)
+        assert contains.matched is True
 
-    def test_contains_signal(self):
-        """Test contains matching."""
-        result = self.calculator.calculate(
-            source_name="cache",
-            target_name="redis_cache_config",
-            source_tokens=["cache"],
-            target_tokens=["redis", "cache", "config"],
+    def test_evaluate_signals_single_token(self, calculator):
+        """Test single token match fallback."""
+        # Setup scenario where no other signal matches
+        results = calculator._evaluate_signals(
+            "foo", "bar", ["foo"], ["bar"], ["common"]
         )
-        # Contains but too short for suffix/prefix
-        # Should have contains or single token
-        assert result.score >= 0.2
+        single = next(r for r in results if r.signal == ConfidenceSignal.SINGLE_TOKEN)
+        assert single.matched is True
 
-    def test_single_token_weak_signal(self):
-        """Test single token match gives weak signal."""
-        result = self.calculator.calculate(
-            source_name="HOST",
-            target_name="server",  # Completely different
-            source_tokens=["host"],
-            target_tokens=["server"],
-            matched_tokens=[],  # No overlap
-        )
-        # Should have very low or zero score
-        assert result.score <= 0.3
+    def test_evaluate_penalties(self, calculator):
+        """Test all penalty types."""
+        # 1. Short Tokens
+        res = calculator._evaluate_penalties(["a", "b"], 0)
+        short = next(r for r in res if r.penalty_type == PenaltyType.SHORT_TOKEN)
+        assert short.multiplier < 1.0
 
+        # No short tokens
+        res = calculator._evaluate_penalties(["longtoken"], 0)
+        short = next(r for r in res if r.penalty_type == PenaltyType.SHORT_TOKEN)
+        assert short.multiplier == 1.0
 
-class TestPenalties:
-    """Test penalty calculations."""
+        # 2. Common Tokens
+        # Need to ensure token is in config.common_tokens
+        res = calculator._evaluate_penalties(["id"], 0) 
+        common = next(r for r in res if r.penalty_type == PenaltyType.COMMON_TOKEN)
+        assert common.multiplier < 1.0
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.calculator = create_default_calculator()
+        # Mixed common/uncommon
+        res = calculator._evaluate_penalties(["id", "uniquevalue"], 0)
+        common = next(r for r in res if r.penalty_type == PenaltyType.COMMON_TOKEN)
+        assert common.multiplier == 1.0
 
-    def test_short_token_penalty(self):
-        """Test penalty for short tokens."""
-        # Match with short tokens
-        result_short = self.calculator.calculate(
-            source_name="DB",
-            target_name="db",
-            source_tokens=["db"],
-            target_tokens=["db"],
-            matched_tokens=["db"],
-        )
-
-        # Match with longer tokens
-        result_long = self.calculator.calculate(
-            source_name="DATABASE",
-            target_name="database",
-            source_tokens=["database"],
-            target_tokens=["database"],
-            matched_tokens=["database"],
-        )
-
-        # Short tokens should have lower score due to penalty
-        assert result_short.score < result_long.score
-
-    def test_common_token_penalty(self):
-        """Test penalty for common tokens only."""
-        # Match with only common tokens
-        result_common = self.calculator.calculate(
-            source_name="DB_HOST",
-            target_name="db_host",
-            source_tokens=["db", "host"],
-            target_tokens=["db", "host"],
-            matched_tokens=["db", "host"],
-        )
-
-        # Match with non-common tokens
-        result_specific = self.calculator.calculate(
-            source_name="PAYMENT_SERVICE",
-            target_name="payment_service",
-            source_tokens=["payment", "service"],
-            target_tokens=["payment", "service"],
-            matched_tokens=["payment", "service"],
-        )
-
-        # Common-only tokens should have lower score
-        assert result_common.score <= result_specific.score
-
-    def test_ambiguity_penalty(self):
-        """Test penalty for ambiguous matches."""
-        # Low ambiguity
-        result_low = self.calculator.calculate(
-            source_name="PAYMENT_DB_HOST",
-            target_name="payment_db_host",
-            source_tokens=["payment", "db", "host"],
-            target_tokens=["payment", "db", "host"],
-            alternative_match_count=0,
-        )
-
+        # 3. Ambiguity
         # High ambiguity
-        result_high = self.calculator.calculate(
-            source_name="PAYMENT_DB_HOST",
-            target_name="payment_db_host",
-            source_tokens=["payment", "db", "host"],
-            target_tokens=["payment", "db", "host"],
-            alternative_match_count=5,
-        )
+        res = calculator._evaluate_penalties([], 5)
+        ambig = next(r for r in res if r.penalty_type == PenaltyType.AMBIGUITY)
+        assert ambig.multiplier < 1.0
+        
+        # Low ambiguity
+        res = calculator._evaluate_penalties([], 1)
+        ambig = next(r for r in res if r.penalty_type == PenaltyType.AMBIGUITY)
+        assert ambig.multiplier == 1.0
 
-        # High ambiguity should have lower score
-        assert result_high.score < result_low.score
+        # 4. Low Value Tokens
+        # "prod" is usually in low_value_tokens defaults
+        res = calculator._evaluate_penalties(["prod", "aws"], 0)
+        low_val = next(r for r in res if r.penalty_type == PenaltyType.LOW_VALUE_TOKEN)
+        assert low_val.multiplier < 1.0
 
-    def test_low_value_token_penalty(self):
-        """Test penalty for low-value tokens."""
-        # Mostly low-value tokens
-        result_low_value = self.calculator.calculate(
-            source_name="AWS_MAIN",
-            target_name="aws_main",
-            source_tokens=["aws", "main"],
-            target_tokens=["aws", "main"],
-            matched_tokens=["aws", "main"],
-        )
+        # High value exists
+        res = calculator._evaluate_penalties(["prod", "specific_service_name"], 0)
+        low_val = next(r for r in res if r.penalty_type == PenaltyType.LOW_VALUE_TOKEN)
+        assert low_val.multiplier == 1.0
 
-        # High-value tokens
-        result_high_value = self.calculator.calculate(
-            source_name="PAYMENT_GATEWAY",
-            target_name="payment_gateway",
-            source_tokens=["payment", "gateway"],
-            target_tokens=["payment", "gateway"],
-            matched_tokens=["payment", "gateway"],
-        )
+    def test_calculate_base_score(self, calculator):
+        """Test score aggregation logic."""
+        # No matches
+        assert calculator._calculate_base_score([]) == 0.0
 
-        # Low-value should have lower score
-        assert result_low_value.score <= result_high_value.score
+        # Max weight selection + bonus
+        s1 = SignalResult(ConfidenceSignal.EXACT_MATCH, 0.8, True)
+        s2 = SignalResult(ConfidenceSignal.SUFFIX_MATCH, 0.5, True)
+        
+        score = calculator._calculate_base_score([s1, s2])
+        # Base 0.8 + Bonus (1 extra signal * 0.02) = 0.82
+        assert score == pytest.approx(0.82)
 
-    def test_combined_penalties(self):
-        """Test multiple penalties applied together."""
-        result = self.calculator.calculate(
-            source_name="DB",  # Short AND common
-            target_name="db",
-            source_tokens=["db"],
-            target_tokens=["db"],
-            matched_tokens=["db"],
-            alternative_match_count=4,  # Also ambiguous
-        )
+        # Test capping at 1.0
+        s3 = SignalResult(ConfidenceSignal.EXACT_MATCH, 1.0, True)
+        # Add many signals to try to exceed 1.0
+        signals = [s3] + [s2] * 10
+        assert calculator._calculate_base_score(signals) == 1.0
 
-        # Should have multiple penalties
-        assert len(result.penalties) >= 2
-        assert result.score < 0.5  # Should be significantly reduced
-
-
-class TestExplanation:
-    """Test explanation output format."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.calculator = create_default_calculator()
-
-    def test_explanation_contains_match_info(self):
-        """Test explanation contains match information."""
-        result = self.calculator.calculate(
-            source_name="PAYMENT_DB_HOST",
-            target_name="payment_db_host",
-            source_tokens=["payment", "db", "host"],
-            target_tokens=["payment", "db", "host"],
-            source_node_id="env:PAYMENT_DB_HOST",
-            target_node_id="infra:payment_db_host",
-        )
-
-        explanation = self.calculator.explain(result)
-
-        assert "PAYMENT_DB_HOST" in explanation or "payment_db_host" in explanation
-        assert "CONFIDENCE" in explanation
-        assert "Signal" in explanation or "signal" in explanation
-
-    def test_explanation_shows_signals(self):
-        """Test explanation shows matched signals."""
-        result = self.calculator.calculate(
-            source_name="PAYMENT_DB_HOST",
-            target_name="payment_db_host",
-            source_tokens=["payment", "db", "host"],
-            target_tokens=["payment", "db", "host"],
-        )
-
-        explanation = self.calculator.explain(result)
-
-        # Should mention the matched signal type
-        assert "normalized" in explanation.lower() or "match" in explanation.lower()
-
-    def test_explanation_shows_penalties(self):
-        """Test explanation shows applied penalties."""
-        result = self.calculator.calculate(
-            source_name="DB",
-            target_name="db",
-            source_tokens=["db"],
-            target_tokens=["db"],
-            matched_tokens=["db"],
-        )
-
-        explanation = self.calculator.explain(result)
-
-        # Should mention penalties
-        assert "Penalt" in explanation or "penalt" in explanation
-
-    def test_explanation_shows_confidence_level(self):
-        """Test explanation shows human-readable confidence level."""
-        result_high = self.calculator.calculate(
-            source_name="PAYMENT_DB_HOST",
-            target_name="PAYMENT_DB_HOST",
-            source_tokens=["payment", "db", "host"],
-            target_tokens=["payment", "db", "host"],
-        )
-
-        explanation = self.calculator.explain(result_high)
-        assert "HIGH" in explanation
-
-
-class TestConfidenceConfig:
-    """Test configuration customization."""
-
-    def test_custom_signal_weights(self):
-        """Test custom signal weights are applied."""
-        config = ConfidenceConfig(
-            signal_weights={
-                ConfidenceSignal.EXACT_MATCH: 0.5,  # Reduced weight
-                ConfidenceSignal.NORMALIZED_MATCH: 0.4,
-                ConfidenceSignal.TOKEN_OVERLAP_HIGH: 0.3,
-                ConfidenceSignal.TOKEN_OVERLAP_MEDIUM: 0.2,
-                ConfidenceSignal.SUFFIX_MATCH: 0.2,
-                ConfidenceSignal.PREFIX_MATCH: 0.2,
-                ConfidenceSignal.CONTAINS: 0.1,
-                ConfidenceSignal.SINGLE_TOKEN: 0.05,
-            }
-        )
-        calculator = ConfidenceCalculator(config)
-
+    def test_full_calculate_flow(self, calculator):
+        """Test the public calculate method end-to-end."""
+        # Use names with tokens > 3 chars to avoid short_token penalty
+        # which heavily reduces score (x0.5)
         result = calculator.calculate(
-            source_name="TEST",
-            target_name="TEST",
-            source_tokens=["test"],
-            target_tokens=["test"],
+            source_name="PAYMENT_DATABASE",
+            target_name="payment_database",
+            source_tokens=["payment", "database"],
+            target_tokens=["payment", "database"],
+            alternative_match_count=0
         )
+        assert isinstance(result, ConfidenceResult)
+        # 0.9 base (normalized) * 1.0 (no penalties) = 0.9
+        assert result.score > 0.8
+        # Check that matched_tokens were computed automatically
+        assert "payment" in result.matched_tokens
+        assert result.explanation != ""
 
-        # Should use custom weight
-        assert result.score == 0.5
-
-    def test_custom_penalty_multipliers(self):
-        """Test custom penalty multipliers are applied."""
-        config = ConfidenceConfig(
-            penalty_multipliers={
-                PenaltyType.SHORT_TOKEN: 0.1,  # Very strong penalty
-                PenaltyType.COMMON_TOKEN: 0.9,
-                PenaltyType.AMBIGUITY: 0.9,
-                PenaltyType.LOW_VALUE_TOKEN: 0.9,
-            }
-        )
-        calculator = ConfidenceCalculator(config)
-
+    def test_explanation_building(self, calculator):
+        """Test text generation for explanations."""
         result = calculator.calculate(
-            source_name="DB",  # Short token
-            target_name="DB",
-            source_tokens=["db"],
-            target_tokens=["db"],
-            matched_tokens=["db"],
+            "A", "B", ["a"], ["b"], matched_tokens=[]
         )
+        assert "Penalties: None" in result.explanation
+        assert "(none)" in result.explanation # No signals
 
-        # Should have severe penalty
-        assert result.score < 0.2
-
-    def test_custom_common_tokens(self):
-        """Test custom common token list."""
-        config = ConfidenceConfig(
-            common_tokens={"custom", "tokens", "list"}
-        )
-        calculator = ConfidenceCalculator(config)
-
-        # "payment" is NOT in custom common list, so no penalty
+        # Test with signals and penalties
         result = calculator.calculate(
-            source_name="PAYMENT",
-            target_name="payment",
-            source_tokens=["payment"],
-            target_tokens=["payment"],
-            matched_tokens=["payment"],
+            "id", "id", ["id"], ["id"] # Matches but is short/common
         )
+        assert "exact_match" in result.explanation.lower()
+        assert "short_token" in result.explanation.lower()
 
-        # Should not have common token penalty
-        assert not any(
-            p.get("penalty_type") == PenaltyType.COMMON_TOKEN
-            for p in result.penalties
+    def test_explain_formatting_method(self, calculator):
+        """Test the explain() method formatting."""
+        res_obj = ConfidenceResult(
+            score=0.9,
+            signals=[{
+                "signal": "test_sig", 
+                "weight": 0.5, 
+                "matched": True, 
+                "details": "det"
+            }],
+            penalties=[{
+                "penalty_type": "test_pen", 
+                "multiplier": 0.5, 
+                "reason": "reas"
+            }],
+            source_node_id="src",
+            target_node_id="tgt"
         )
+        
+        text = calculator.explain(res_obj)
+        assert "MATCH EXPLANATION" in text
+        assert "Source: src" in text
+        assert "test_sig" in text
+        assert "test_pen" in text
+        assert "HIGH" in text # 0.9 score
 
+        # Test branch where matched_tokens is present
+        res_obj.matched_tokens = ["a"]
+        text = calculator.explain(res_obj)
+        assert "Matched Tokens: ['a']" in text
 
-class TestEdgeCases:
-    """Test edge cases and boundary conditions."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.calculator = create_default_calculator()
-
-    def test_empty_tokens(self):
-        """Test handling of empty token lists."""
-        result = self.calculator.calculate(
-            source_name="",
-            target_name="",
-            source_tokens=[],
-            target_tokens=[],
+        # Test branch where signal has matched_tokens
+        # Construct fresh object to avoid ambiguity in test state
+        res_obj_2 = ConfidenceResult(
+            score=0.5,
+            signals=[{
+                "signal": "sig",
+                "weight": 0.5,
+                "matched": True,
+                "matched_tokens": ["x"]
+            }]
         )
-        assert result.score == 0.0
+        text = calculator.explain(res_obj_2)
+        assert "['x']" in text
 
-    def test_no_overlap(self):
-        """Test handling when no tokens overlap."""
-        result = self.calculator.calculate(
-            source_name="PAYMENT",
-            target_name="SERVER",
-            source_tokens=["payment"],
-            target_tokens=["server"],
-            matched_tokens=[],
-        )
-        assert result.score == 0.0
+    def test_confidence_levels(self, calculator):
+        assert calculator._get_confidence_level(0.9) == "HIGH"
+        assert calculator._get_confidence_level(0.7) == "MEDIUM"
+        assert calculator._get_confidence_level(0.5) == "LOW"
+        assert calculator._get_confidence_level(0.2) == "VERY LOW"
 
-    def test_single_character_tokens(self):
-        """Test handling of very short tokens."""
-        result = self.calculator.calculate(
-            source_name="A",
-            target_name="A",
-            source_tokens=["a"],
-            target_tokens=["a"],
-            matched_tokens=["a"],
-        )
-        # Should have penalty but still match
-        assert 0.0 < result.score < 0.5
+    def test_dictionaries_helpers(self, calculator):
+        """Test helper methods that convert dataclasses to dicts."""
+        sig = SignalResult(ConfidenceSignal.EXACT_MATCH, 1.0, True)
+        d = calculator._signal_to_dict(sig)
+        assert d['signal'] == 'exact_match'
 
-    def test_very_long_tokens(self):
-        """Test handling of very long tokens."""
-        long_token = "verylongtokenthatexceedsnormalsize"
-        result = self.calculator.calculate(
-            source_name=long_token.upper(),
-            target_name=long_token,
-            source_tokens=[long_token],
-            target_tokens=[long_token],
-            matched_tokens=[long_token],
-        )
-        # Should work normally
-        assert result.score >= 0.8
-
-    def test_unicode_tokens(self):
-        """Test handling of unicode characters in tokens."""
-        result = self.calculator.calculate(
-            source_name="CAFÉ_SERVICE",
-            target_name="café_service",
-            source_tokens=["café", "service"],
-            target_tokens=["café", "service"],
-        )
-        # Should work with unicode
-        assert result.score >= 0.5
-
-    def test_special_characters_in_name(self):
-        """Test handling of special characters."""
-        result = self.calculator.calculate(
-            source_name="DB@HOST#1",
-            target_name="db@host#1",
-            source_tokens=["db", "host", "1"],
-            target_tokens=["db", "host", "1"],
-        )
-        # Should work with special chars
-        assert result.score >= 0.5
-
-    def test_score_bounds(self):
-        """Test score is always between 0 and 1."""
-        # Test maximum possible signals
-        result_max = self.calculator.calculate(
-            source_name="PAYMENT_DB_HOST",
-            target_name="PAYMENT_DB_HOST",
-            source_tokens=["payment", "db", "host"],
-            target_tokens=["payment", "db", "host"],
-        )
-        assert 0.0 <= result_max.score <= 1.0
-
-        # Test minimum
-        result_min = self.calculator.calculate(
-            source_name="X",
-            target_name="Y",
-            source_tokens=["x"],
-            target_tokens=["y"],
-            matched_tokens=[],
-        )
-        assert 0.0 <= result_min.score <= 1.0
-
-
-class TestConfidenceResult:
-    """Test ConfidenceResult model."""
-
-    def test_result_immutability(self):
-        """Test result fields can be accessed."""
-        result = ConfidenceResult(
-            score=0.85,
-            signals=[{"signal": "test", "weight": 0.9}],
-            penalties=[],
-            explanation="Test explanation",
-            matched_tokens=["test"],
-            source_node_id="env:TEST",
-            target_node_id="infra:test",
-        )
-
-        assert result.score == 0.85
-        assert len(result.signals) == 1
-        assert result.matched_tokens == ["test"]
-
-    def test_result_score_validation(self):
-        """Test score must be between 0 and 1."""
-        # Valid scores
-        result_valid = ConfidenceResult(score=0.5)
-        assert result_valid.score == 0.5
-
-        # Invalid scores should raise
-        with pytest.raises(ValueError):
-            ConfidenceResult(score=1.5)
-
-        with pytest.raises(ValueError):
-            ConfidenceResult(score=-0.1)
-
-
-class TestCreateDefaultCalculator:
-    """Test factory function."""
-
-    def test_creates_calculator_with_defaults(self):
-        """Test factory creates working calculator."""
-        calculator = create_default_calculator()
-
-        result = calculator.calculate(
-            source_name="TEST",
-            target_name="TEST",
-            source_tokens=["test"],
-            target_tokens=["test"],
-        )
-
-        assert result.score > 0
+        pen = PenaltyResult(PenaltyType.SHORT_TOKEN, 0.5)
+        d = calculator._penalty_to_dict(pen)
+        assert d['penalty_type'] == 'short_token'

@@ -352,12 +352,18 @@ class LineageGraph:
         """
         nodes_by_type: Dict[str, int] = defaultdict(int)
         for node_id in self._nodes:
-            if node_id.startswith("data:"): nodes_by_type["data"] += 1
-            elif node_id.startswith(("file:", "job:")): nodes_by_type["code"] += 1
-            elif node_id.startswith("env:"): nodes_by_type["config"] += 1
-            elif node_id.startswith("infra:"): nodes_by_type["infra"] += 1
-            elif node_id.startswith("k8s:"): nodes_by_type["k8s"] += 1
-            else: nodes_by_type["other"] += 1
+            if node_id.startswith("data:"): 
+                nodes_by_type["data"] += 1
+            elif node_id.startswith(("file:", "job:")): 
+                nodes_by_type["code"] += 1
+            elif node_id.startswith("env:"): 
+                nodes_by_type["config"] += 1
+            elif node_id.startswith("infra:"): 
+                nodes_by_type["infra"] += 1
+            elif node_id.startswith("k8s:"): 
+                nodes_by_type["k8s"] += 1
+            else: 
+                nodes_by_type["other"] += 1
 
         edges_by_type: Dict[str, int] = defaultdict(int)
         for (_, _), edge_type in self._edge_types.items():
@@ -408,10 +414,14 @@ class LineageGraph:
 
         for node_id, attrs in self._nodes.items():
             color = "#757575"
-            if node_id.startswith("data:"): color = colors["data"]
-            elif node_id.startswith(("file:", "job:")): color = colors["code"]
-            elif node_id.startswith("env:"): color = colors["config"]
-            elif node_id.startswith("infra:"): color = colors["infra"]
+            if node_id.startswith("data:"): 
+                color = colors["data"]
+            elif node_id.startswith(("file:", "job:")): 
+                color = colors["code"]
+            elif node_id.startswith("env:"): 
+                color = colors["config"]
+            elif node_id.startswith("infra:"): 
+                color = colors["infra"]
             
             name = attrs.get("name", node_id)
             label = name.split(".")[-1] if "." in name else name.split("/")[-1]

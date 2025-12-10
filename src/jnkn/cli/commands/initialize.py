@@ -96,12 +96,18 @@ def _init_project(root_dir: Path, force: bool, is_demo: bool = False):
     config["project_name"] = root_dir.name
 
     includes = []
-    if "python" in stack: includes.append("**/*.py")
-    if "terraform" in stack: includes.append("**/*.tf")
-    if "javascript" in stack: includes.extend(["**/*.js", "**/*.ts", "**/*.tsx"])
-    if "kubernetes" in stack: includes.extend(["**/*.yaml", "**/*.yml"])
+    if "python" in stack: 
+        includes.append("**/*.py")
+    if "terraform" in stack: 
+        includes.append("**/*.tf")
+    if "javascript" in stack: 
+        includes.extend(["**/*.js", "**/*.ts", "**/*.tsx"])
+    if "kubernetes" in stack: 
+        includes.extend(["**/*.yaml", "**/*.yml"])
     
-    if not includes: includes = ["**/*"]
+    if not includes: 
+        includes = ["**/*"]
+        
     config["scan"]["include"] = includes
 
     # Telemetry Opt-in

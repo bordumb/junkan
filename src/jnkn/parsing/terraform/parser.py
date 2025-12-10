@@ -28,7 +28,7 @@ from ..base import (
 logger = logging.getLogger(__name__)
 
 try:
-    from tree_sitter_languages import get_language, get_parser
+    from tree_sitter_languages import get_language, get_parser  # noqa: F401
     TREE_SITTER_AVAILABLE = True
 except ImportError:
     TREE_SITTER_AVAILABLE = False
