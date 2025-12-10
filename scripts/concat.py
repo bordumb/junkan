@@ -61,6 +61,8 @@ DEFAULT_IGNORE_DIRS = {
     ".jnkn",
     "scripts",
     "site",
+    "tests",
+    "docs"
 }
 
 DEFAULT_IGNORE_EXTENSIONS = {

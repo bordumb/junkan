@@ -1,5 +1,10 @@
-# Rules
+# Stitching Rules
 
-::: jnkn.stitching.rules
-    # Fallback if rules are defined in core.stitching
-    # or separate modules.
+::: jnkn.core.stitching
+    options:
+      show_root_heading: false
+      show_source: false
+      members:
+        - StitchingRule
+        - EnvVarToInfraRule
+        - InfraToInfraRule
