@@ -6,7 +6,19 @@ Get Jnkn running in your project in under 10 minutes.
 
 <div class="grid cards" markdown>
 
--   :material-download:{ .lg .middle } __Just want to try it?__
+-   :material-presentation-play:{ .lg .middle } __Instant Demo__
+
+    ---
+
+    Don't have a repo ready? Spin up a full example environment locally to see a perfect graph.
+
+    ```bash
+    jnkn init --demo
+    ```
+
+    [:octicons-arrow-right-24: Example Repo](example-repository.md)
+
+-   :material-download:{ .lg .middle } __Ready to apply to your project?__
 
     ---
 

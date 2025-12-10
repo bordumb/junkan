@@ -530,9 +530,15 @@ class ConfidenceCalculator:
                 weight = signal.get("weight", 0)
                 name = signal.get("signal", "unknown")
                 details = signal.get("details", "")
-                lines.append(f"  [+{weight:.2f}] {name}")
-                if details:
+                matched_tokens = signal.get("matched_tokens", [])
+
+                if matched_tokens:
+                    lines.append(f"  [+{weight:.2f}] {name}: {matched_tokens}")
+                elif details:
+                    lines.append(f"  [+{weight:.2f}] {name}")
                     lines.append(f"         {details}")
+                else:
+                    lines.append(f"  [+{weight:.2f}] {name}")
         else:
             lines.append("  (none)")
 

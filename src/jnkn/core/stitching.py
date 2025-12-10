@@ -6,16 +6,18 @@ This module implements the core "glue" logic that connects disparate domains:
 - Code references to data assets
 - Configuration keys to their providers
 
-Key Design Principles:
-1. Multiple matching strategies with confidence scoring
-2. Token-based indexing for O(n) instead of O(n*m) matching
-3. Configurable thresholds to filter low-confidence matches
-4. Explainable results for debugging false positives
+Key capabilities include:
+- Linking environment variables to infrastructure resources (e.g., `PAYMENT_DB_HOST` -> `aws_db_instance.payment`).
+- Linking infrastructure resources to each other (e.g., Security Groups to EC2 instances).
+- Configurable confidence scoring to minimize false positives.
+
+The stitching process transforms a collection of isolated nodes (from parsing) into a
+connected graph that represents the full system architecture.
 """
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from .graph import DependencyGraph
 from .types import Edge, MatchResult, MatchStrategy, Node, NodeType, RelationshipType
@@ -23,9 +25,19 @@ from .types import Edge, MatchResult, MatchStrategy, Node, NodeType, Relationshi
 
 class MatchConfig:
     """
-    Configuration for matching behavior.
-    
-    Allows tuning of confidence thresholds and strategy weights.
+    Configuration for the fuzzy matching engine.
+
+    Controls the thresholds and weights used to determine if two artifacts are related.
+
+    Attributes:
+        min_confidence (float): The minimum score (0.0 - 1.0) required to create an edge.
+            Defaults to 0.5.
+        min_token_overlap (int): The minimum number of shared tokens required for a match.
+            Defaults to 2.
+        min_token_length (int): Tokens shorter than this length are ignored to reduce noise.
+            Defaults to 2.
+        strategy_weights (Dict[MatchStrategy, float]): A mapping of matching strategies to
+            their base confidence scores.
     """
 
     def __init__(
@@ -35,6 +47,15 @@ class MatchConfig:
         min_token_length: int = 2,
         strategy_weights: Optional[Dict[MatchStrategy, float]] = None,
     ):
+        """
+        Initialize the match configuration.
+
+        Args:
+            min_confidence: Minimum score (0.0-1.0) to accept a match.
+            min_token_overlap: Minimum shared tokens required.
+            min_token_length: Minimum character length for valid tokens.
+            strategy_weights: Optional overrides for strategy scoring weights.
+        """
         self.min_confidence = min_confidence
         self.min_token_overlap = min_token_overlap
         self.min_token_length = min_token_length
@@ -51,11 +72,28 @@ class MatchConfig:
 class TokenMatcher:
     """
     Utility class for token-based matching operations.
+
+    Provides static methods for normalizing names, tokenizing strings, and
+    calculating similarity scores between token sets.
     """
 
     @staticmethod
     def normalize(name: str) -> str:
-        """Normalize a name by lowercasing and removing separators."""
+        """
+        Normalize a name by lowercasing and removing separators.
+
+        This allows matching across different casing styles (snake_case vs camelCase).
+
+        Args:
+            name: The raw name string.
+
+        Returns:
+            str: The normalized string (lowercase, no separators).
+
+        Example:
+            >>> TokenMatcher.normalize("Payment_DB_Host")
+            "paymentdbhost"
+        """
         result = name.lower()
         for sep in ["_", ".", "-", "/", ":"]:
             result = result.replace(sep, "")
@@ -63,24 +101,52 @@ class TokenMatcher:
 
     @staticmethod
     def tokenize(name: str) -> List[str]:
-        """Split a name into tokens."""
+        """
+        Split a name into constituent tokens.
+
+        Splits on common separators like underscores, dots, hyphens, and slashes.
+
+        Args:
+            name: The raw name string.
+
+        Returns:
+            List[str]: A list of lowercase tokens.
+
+        Example:
+            >>> TokenMatcher.tokenize("Payment_DB_Host")
+            ['payment', 'db', 'host']
+        """
         normalized = name.lower()
         for sep in ["_", ".", "-", "/", ":"]:
             normalized = normalized.replace(sep, " ")
         return [t.strip() for t in normalized.split() if t.strip()]
 
     @staticmethod
-    def token_overlap(
-        tokens1: List[str], tokens2: List[str]
+    def significant_token_overlap(
+        tokens1: List[str],
+        tokens2: List[str],
+        min_length: int = 2
     ) -> Tuple[List[str], float]:
         """
-        Calculate token overlap between two token lists.
-        
+        Calculate the overlap between two token lists, filtering out insignificant tokens.
+
+        Computes the Jaccard similarity coefficient for tokens that meet the minimum length requirement.
+
+        Args:
+            tokens1: The first list of tokens.
+            tokens2: The second list of tokens.
+            min_length: The minimum length for a token to be considered significant.
+
         Returns:
-            Tuple of (overlapping tokens, Jaccard similarity score)
+            Tuple[List[str], float]: A tuple containing:
+                - A list of overlapping tokens.
+                - The calculated similarity score (0.0 - 1.0).
         """
-        set1 = set(tokens1)
-        set2 = set(tokens2)
+        sig1 = [t for t in tokens1 if len(t) >= min_length]
+        sig2 = [t for t in tokens2 if len(t) >= min_length]
+        
+        set1 = set(sig1)
+        set2 = set(sig2)
         overlap = set1 & set2
         union = set1 | set2
 
@@ -90,72 +156,99 @@ class TokenMatcher:
         jaccard = len(overlap) / len(union)
         return list(overlap), jaccard
 
-    @staticmethod
-    def significant_token_overlap(
-        tokens1: List[str],
-        tokens2: List[str],
-        min_length: int = 2
-    ) -> Tuple[List[str], float]:
-        """
-        Calculate overlap only for significant (long enough) tokens.
-        """
-        sig1 = [t for t in tokens1 if len(t) >= min_length]
-        sig2 = [t for t in tokens2 if len(t) >= min_length]
-        return TokenMatcher.token_overlap(sig1, sig2)
-
 
 class StitchingRule(ABC):
     """
-    Abstract base class for stitching rules.
+    Abstract base class for all stitching rules.
+
+    A stitching rule defines logic to discover implicit relationships between
+    nodes in the dependency graph. Subclasses must implement the `apply` method.
+
+    Attributes:
+        config (MatchConfig): The configuration used for scoring matches.
     """
 
     def __init__(self, config: Optional[MatchConfig] = None):
+        """
+        Initialize the rule.
+
+        Args:
+            config: Optional match configuration. Uses defaults if None.
+        """
         self.config = config or MatchConfig()
 
     @abstractmethod
     def apply(self, graph: DependencyGraph) -> List[Edge]:
-        """Apply this rule to discover new edges."""
+        """
+        Apply this rule to discover new edges in the graph.
+
+        Args:
+            graph: The dependency graph to analyze.
+
+        Returns:
+            List[Edge]: A list of newly discovered edges.
+        """
         pass
 
     @abstractmethod
     def get_name(self) -> str:
-        """Return a descriptive name for this rule."""
+        """
+        Return a descriptive, unique name for this rule.
+
+        Returns:
+            str: The rule name (e.g., 'EnvVarToInfraRule').
+        """
         pass
 
 
 class EnvVarToInfraRule(StitchingRule):
     """
-    Links environment variables to infrastructure resources.
-    
-    Matching Strategies (in order of confidence):
-    1. NORMALIZED: "PAYMENT_DB_HOST" normalized matches "payment_db_host"
-    2. TOKEN_OVERLAP: Shared significant tokens (payment, db, host)
-    3. SUFFIX: Env var name is suffix of infra name
-    
-    Uses token index for O(n) performance instead of O(n*m).
+    Stitching rule that links environment variables to infrastructure resources.
+
+    This rule attempts to find the infrastructure resource that *provides* the value
+    for a given environment variable. It uses strategies like normalized name matching
+    and token overlap.
+
+    Directionality:
+        Infra Resource (or Output) -> PROVIDES -> Environment Variable
     """
 
     def get_name(self) -> str:
+        """Get the rule name."""
         return "EnvVarToInfraRule"
 
     def apply(self, graph: DependencyGraph) -> List[Edge]:
+        """
+        Execute the rule logic against the graph.
+
+        Finds potential matches between `ENV_VAR` nodes and `INFRA_RESOURCE`/`CONFIG_KEY` nodes.
+
+        Args:
+            graph: The dependency graph.
+
+        Returns:
+            List[Edge]: Discovered edges with confidence scores and metadata.
+        """
         edges = []
 
-        # Get all env var nodes (check both ENV_VAR and DATA_ASSET with env: prefix)
+        # Get all env var nodes
         env_nodes = graph.get_nodes_by_type(NodeType.ENV_VAR)
         if not env_nodes:
+            # Also check data assets that might be env vars (legacy behavior support)
             env_nodes = [
                 n for n in graph.get_nodes_by_type(NodeType.DATA_ASSET)
                 if n.id.startswith("env:")
             ]
 
         # Get all infra nodes
+        # FIX: Include CONFIG_KEY nodes (Terraform Outputs) as potential providers
         infra_nodes = graph.get_nodes_by_type(NodeType.INFRA_RESOURCE)
+        infra_nodes.extend(graph.get_nodes_by_type(NodeType.CONFIG_KEY))
 
         if not env_nodes or not infra_nodes:
             return edges
 
-        # Build lookup structures for infra nodes - O(m)
+        # Build lookup structures for infra nodes
         infra_by_normalized: Dict[str, List[Node]] = defaultdict(list)
         infra_by_tokens: Dict[str, List[Node]] = defaultdict(list)
 
@@ -168,7 +261,7 @@ class EnvVarToInfraRule(StitchingRule):
                 if len(token) >= self.config.min_token_length:
                     infra_by_tokens[token].append(infra)
 
-        # Match each env var - O(n) with index lookups
+        # Match each env var
         for env in env_nodes:
             env_normalized = TokenMatcher.normalize(env.name)
             env_tokens = env.tokens or TokenMatcher.tokenize(env.name)
@@ -178,8 +271,8 @@ class EnvVarToInfraRule(StitchingRule):
             # Strategy 1: Exact normalized match
             for infra in infra_by_normalized.get(env_normalized, []):
                 match = MatchResult(
-                    source_node=env.id,
-                    target_node=infra.id,
+                    source_node=infra.id,  # Infra is source
+                    target_node=env.id,    # Env is target
                     strategy=MatchStrategy.NORMALIZED,
                     confidence=self.config.strategy_weights[MatchStrategy.NORMALIZED],
                     matched_tokens=env_tokens,
@@ -187,7 +280,7 @@ class EnvVarToInfraRule(StitchingRule):
                 )
                 self._update_best_match(best_matches, infra.id, match)
 
-            # Strategy 2: Token overlap (using index)
+            # Strategy 2: Token overlap
             candidate_infra: Set[str] = set()
             for token in env_tokens:
                 if len(token) >= self.config.min_token_length:
@@ -211,8 +304,8 @@ class EnvVarToInfraRule(StitchingRule):
                     )
 
                     match = MatchResult(
-                        source_node=env.id,
-                        target_node=infra.id,
+                        source_node=infra.id,
+                        target_node=env.id,
                         strategy=MatchStrategy.TOKEN_OVERLAP,
                         confidence=confidence,
                         matched_tokens=overlap,
@@ -220,27 +313,12 @@ class EnvVarToInfraRule(StitchingRule):
                     )
                     self._update_best_match(best_matches, infra_id, match)
 
-            # Strategy 3: Suffix matching
-            if len(env_normalized) >= 4:
-                for normalized_infra, infra_list in infra_by_normalized.items():
-                    if normalized_infra.endswith(env_normalized):
-                        for infra in infra_list:
-                            match = MatchResult(
-                                source_node=env.id,
-                                target_node=infra.id,
-                                strategy=MatchStrategy.SUFFIX,
-                                confidence=self.config.strategy_weights[MatchStrategy.SUFFIX],
-                                matched_tokens=env_tokens,
-                                explanation=f"Suffix: '{infra.name}' ends with '{env.name}'"
-                            )
-                            self._update_best_match(best_matches, infra.id, match)
-
             # Create edges for matches above threshold
             for infra_id, match in best_matches.items():
                 if match.confidence >= self.config.min_confidence:
                     edges.append(Edge(
-                        source_id=env.id,
-                        target_id=infra_id,
+                        source_id=infra_id,
+                        target_id=env.id,
                         type=RelationshipType.PROVIDES,
                         confidence=match.confidence,
                         match_strategy=match.strategy,
@@ -259,7 +337,14 @@ class EnvVarToInfraRule(StitchingRule):
         target_id: str,
         new_match: MatchResult
     ) -> None:
-        """Keep only the highest-confidence match for each target."""
+        """
+        Update the best match dictionary if the new match has higher confidence.
+
+        Args:
+            best_matches: The dictionary tracking best matches per target ID.
+            target_id: The ID of the target node being matched.
+            new_match: The new MatchResult candidate.
+        """
         if target_id not in best_matches:
             best_matches[target_id] = new_match
         elif new_match.confidence > best_matches[target_id].confidence:
@@ -268,13 +353,29 @@ class EnvVarToInfraRule(StitchingRule):
 
 class InfraToInfraRule(StitchingRule):
     """
-    Links infrastructure resources based on naming conventions.
+    Stitching rule that links infrastructure resources to other infrastructure resources.
+
+    This rule identifies dependencies between resources based on naming conventions,
+    such as a Security Group referencing a VPC by name token overlap.
+
+    Directionality:
+        Determined hierarchically (e.g., VPC configures Subnet).
     """
 
     def get_name(self) -> str:
+        """Get the rule name."""
         return "InfraToInfraRule"
 
     def apply(self, graph: DependencyGraph) -> List[Edge]:
+        """
+        Execute the rule logic against the graph.
+
+        Args:
+            graph: The dependency graph.
+
+        Returns:
+            List[Edge]: Discovered edges between infrastructure resources.
+        """
         edges = []
         infra_nodes = graph.get_nodes_by_type(NodeType.INFRA_RESOURCE)
 
@@ -326,7 +427,19 @@ class InfraToInfraRule(StitchingRule):
         return edges
 
     def _determine_direction(self, node1: Node, node2: Node) -> Tuple[Node, Node]:
-        """Determine edge direction based on resource type hierarchy."""
+        """
+        Determine edge direction based on resource type hierarchy.
+
+        Uses a predefined hierarchy to establish parent/child relationships
+        (e.g., VPC is higher level than a Subnet).
+
+        Args:
+            node1: First node candidate.
+            node2: Second node candidate.
+
+        Returns:
+            Tuple[Node, Node]: (Source, Target) ordered pair.
+        """
         hierarchy = {
             "vpc": 10, "subnet": 9, "security_group": 8,
             "iam": 7, "kms": 6, "rds": 5, "db": 5,
@@ -350,16 +463,23 @@ class InfraToInfraRule(StitchingRule):
 
 class Stitcher:
     """
-    Orchestrates cross-domain dependency stitching.
-    
-    Features:
-    - Configurable rule set
-    - Confidence thresholds
-    - Deduplication of edges
-    - Statistics and reporting
+    Orchestrator for cross-domain dependency stitching.
+
+    The Stitcher manages the lifecycle of applying multiple `StitchingRule`s to a graph.
+    It handles configuration, rule execution, and aggregation of results.
+
+    Attributes:
+        config (MatchConfig): Configuration for matching thresholds.
+        rules (List[StitchingRule]): List of active rules to apply.
     """
 
     def __init__(self, config: Optional[MatchConfig] = None):
+        """
+        Initialize the Stitcher.
+
+        Args:
+            config: Optional match configuration. Uses defaults if None.
+        """
         self.config = config or MatchConfig()
         self.rules: List[StitchingRule] = [
             EnvVarToInfraRule(self.config),
@@ -367,16 +487,17 @@ class Stitcher:
         ]
         self._last_results: Dict[str, List[Edge]] = {}
 
-    def add_rule(self, rule: StitchingRule) -> None:
-        """Add a custom stitching rule."""
-        self.rules.append(rule)
-
     def stitch(self, graph: DependencyGraph) -> List[Edge]:
         """
-        Apply all stitching rules and add discovered edges to the graph.
-        
+        Apply all configured stitching rules to the graph.
+
+        Discovered edges are automatically added to the graph if they do not already exist.
+
+        Args:
+            graph: The dependency graph to update.
+
         Returns:
-            List of all newly created edges (for persistence)
+            List[Edge]: A list of all new edges created during this stitching session.
         """
         all_new_edges: List[Edge] = []
         self._last_results = {}
@@ -398,30 +519,3 @@ class Stitcher:
                 print(f"⚠️  Rule {rule.get_name()} failed: {e}")
 
         return all_new_edges
-
-    def get_stats(self) -> Dict[str, Any]:
-        """Get statistics from the last stitch operation."""
-        return {
-            "total_edges_created": sum(
-                len(edges) for edges in self._last_results.values()
-            ),
-            "edges_by_rule": {
-                rule: len(edges) for rule, edges in self._last_results.items()
-            },
-            "confidence_distribution": self._confidence_distribution(),
-        }
-
-    def _confidence_distribution(self) -> Dict[str, int]:
-        """Calculate distribution of confidence scores."""
-        buckets = {"high (>0.8)": 0, "medium (0.6-0.8)": 0, "low (<0.6)": 0}
-
-        for edges in self._last_results.values():
-            for edge in edges:
-                if edge.confidence > 0.8:
-                    buckets["high (>0.8)"] += 1
-                elif edge.confidence >= 0.6:
-                    buckets["medium (0.6-0.8)"] += 1
-                else:
-                    buckets["low (<0.6)"] += 1
-
-        return buckets

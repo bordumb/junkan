@@ -519,7 +519,3 @@ class TestEdgeCases:
         assert suppression.matches("env:DB_HOST", "infra:main") is True
         assert suppression.matches("env:DB-HOST", "infra:main") is True
         assert suppression.matches("env:DBXHOST", "infra:main") is False
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

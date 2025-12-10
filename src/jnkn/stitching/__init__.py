@@ -14,7 +14,7 @@ operations in the stitching system.
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, FrozenSet, List, Optional, Set, Tuple
+from typing import Dict, FrozenSet, List, Optional, Tuple
 
 import yaml
 

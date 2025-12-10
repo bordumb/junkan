@@ -5,11 +5,10 @@ import os
 import platform
 import threading
 import uuid
-import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, List
-from urllib import request, error
+from typing import Any, Dict, List, Optional
+from urllib import request
 
 import yaml
 

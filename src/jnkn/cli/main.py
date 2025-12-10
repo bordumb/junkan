@@ -6,7 +6,6 @@ in its own module under cli/commands/.
 """
 
 import click
-from .utils_telemetry import TelemetryGroup
 
 from .commands import (
     blast_radius,
@@ -24,6 +23,7 @@ from .commands import (
     trace,
 )
 from .commands.initialize import init
+from .utils_telemetry import TelemetryGroup
 
 
 # Use cls=TelemetryGroup to enable automatic tracking

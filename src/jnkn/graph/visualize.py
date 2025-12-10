@@ -14,12 +14,18 @@ if TYPE_CHECKING:
 def generate_html(graph: "LineageGraph") -> str:
     """
     Generate interactive HTML visualization.
-    
+
     Uses vis.js for graph rendering with:
     - Color-coded nodes by type
     - Click to see upstream/downstream
     - Search functionality
     - Zoom and pan
+
+    Args:
+        graph: The LineageGraph object to visualize.
+
+    Returns:
+        str: The complete HTML string.
     """
     data = graph.to_dict()
 
@@ -67,12 +73,15 @@ def generate_html(graph: "LineageGraph") -> str:
         })
 
     for edge in data["edges"]:
+        # Normalize edge type for the frontend
+        edge_type = edge["type"].lower()
         vis_edges.append({
             "from": edge["source"],
             "to": edge["target"],
             "arrows": "to",
-            "dashes": edge["type"] in ("reads", "READS"),
-            "title": edge["type"],
+            # Dashed lines for 'pull' relationships (reads, depends_on)
+            "dashes": edge_type in ("reads", "imports", "depends_on", "consumes", "requires"),
+            "title": edge_type,
         })
 
     return _html_template(vis_nodes, vis_edges, data.get("stats", {}))
@@ -80,7 +89,17 @@ def generate_html(graph: "LineageGraph") -> str:
 
 def _html_template(nodes: List[Dict], edges: List[Dict],
                    stats: Dict[str, Any]) -> str:
-    """Generate the HTML template."""
+    """
+    Generate the HTML template with embedded graph data and traversal logic.
+
+    Args:
+        nodes: List of node dictionaries for vis.js.
+        edges: List of edge dictionaries for vis.js.
+        stats: Graph statistics dictionary.
+
+    Returns:
+        str: The raw HTML content.
+    """
     node_count = len(nodes)
     edge_count = len(edges)
 
@@ -335,28 +354,42 @@ def _html_template(nodes: List[Dict], edges: List[Dict],
             if (!incoming[e.to]) incoming[e.to] = [];
             outgoing[e.from].push(e.to);
             incoming[e.to].push(e.from);
-            edgeTypes[e.from + '|' + e.to] = e.title;
+            edgeTypes[e.from + '|' + e.to] = e.title.toLowerCase();
         }});
+
+        // --- TRAVERSAL LOGIC ---
+        // Matches Python LineageGraph traversal logic
         
-        // Upstream traversal
+        // Types where impact flows Target -> Source (Reverse)
+        const REVERSE_IMPACT_TYPES = new Set([
+            'reads', 'imports', 'depends_on', 'consumes', 'requires'
+        ]);
+
+        // Types where impact flows Source -> Target (Forward)
+        const FORWARD_IMPACT_TYPES = new Set([
+            'writes', 'provides', 'provisions', 'configures', 
+            'transforms', 'triggers', 'calls'
+        ]);
+        
+        // Upstream traversal (Who drives me?)
         function getUpstream(id, visited = new Set()) {{
             if (visited.has(id)) return [];
             visited.add(id);
             let results = [];
             
-            // Things we read from
+            // 1. Outgoing 'pull' edges (We read from X, so X is upstream)
             (outgoing[id] || []).forEach(target => {{
-                const et = (edgeTypes[id + '|' + target] || '').toLowerCase();
-                if (et === 'reads') {{
+                const et = edgeTypes[id + '|' + target];
+                if (REVERSE_IMPACT_TYPES.has(et)) {{
                     results.push(target);
                     results = results.concat(getUpstream(target, visited));
                 }}
             }});
             
-            // Things that write to us
+            // 2. Incoming 'push' edges (X provides to us, so X is upstream)
             (incoming[id] || []).forEach(source => {{
-                const et = (edgeTypes[source + '|' + id] || '').toLowerCase();
-                if (et === 'writes') {{
+                const et = edgeTypes[source + '|' + id];
+                if (FORWARD_IMPACT_TYPES.has(et)) {{
                     results.push(source);
                     results = results.concat(getUpstream(source, visited));
                 }}
@@ -365,25 +398,25 @@ def _html_template(nodes: List[Dict], edges: List[Dict],
             return [...new Set(results)];
         }}
         
-        // Downstream traversal
+        // Downstream traversal (Who do I affect?)
         function getDownstream(id, visited = new Set()) {{
             if (visited.has(id)) return [];
             visited.add(id);
             let results = [];
             
-            // Things that read from us
+            // 1. Incoming 'pull' edges (X reads from us, so X is downstream)
             (incoming[id] || []).forEach(source => {{
-                const et = (edgeTypes[source + '|' + id] || '').toLowerCase();
-                if (et === 'reads') {{
+                const et = edgeTypes[source + '|' + id];
+                if (REVERSE_IMPACT_TYPES.has(et)) {{
                     results.push(source);
                     results = results.concat(getDownstream(source, visited));
                 }}
             }});
             
-            // Things we write to or depend on
+            // 2. Outgoing 'push' edges (We provide to X, so X is downstream)
             (outgoing[id] || []).forEach(target => {{
-                const et = (edgeTypes[id + '|' + target] || '').toLowerCase();
-                if (et === 'writes' || et === 'depends_on') {{
+                const et = edgeTypes[id + '|' + target];
+                if (FORWARD_IMPACT_TYPES.has(et)) {{
                     results.push(target);
                     results = results.concat(getDownstream(target, visited));
                 }}

@@ -29,12 +29,12 @@ class HeuristicExtractor(BaseExtractor):
 
         # Pattern: VAR_NAME = ... where VAR_NAME suggests an env var
         # FIX: Restricted to UPPERCASE start to avoid local variable false positives (e.g. db_host)
-        ENV_LIKE_ASSIGNMENT = re.compile(
+        env_like_assignment = re.compile(
             r'^([A-Z][A-Z0-9_]*(?:_URL|_HOST|_PORT|_KEY|_SECRET|_TOKEN|_PASSWORD|_USER|_PATH|_DIR|_ENDPOINT|_URI|_DSN|_CONN))\s*=',
             re.MULTILINE
         )
 
-        for match in ENV_LIKE_ASSIGNMENT.finditer(text):
+        for match in env_like_assignment.finditer(text):
             var_name = match.group(1)
 
             if var_name in seen_vars:

@@ -9,8 +9,8 @@ a pre-populated issue template.
 
 import platform
 import sys
-import webbrowser
 import urllib.parse
+import webbrowser
 from typing import Optional
 
 import click

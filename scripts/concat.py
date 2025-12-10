@@ -59,7 +59,7 @@ DEFAULT_IGNORE_DIRS = {
 
     # Tests
     "scripts",
-    "tests/unit"
+    "docs"
     "site",
     
 }

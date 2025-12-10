@@ -3,10 +3,10 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Generator, Optional, Set, Union
 
+from ....core.types import Edge, Node
+
 # Type alias for Tree-sitter tree, using Any as strict typing requires the library
 Tree = Any
-
-from ....core.types import Edge, Node
 
 logger = logging.getLogger(__name__)
 
