@@ -1,54 +1,59 @@
 """
-Base classes for jnkn parsers.
+Base classes for the Jnkn parsing framework.
 
-This module defines the abstract base classes and common types used by
-all language-specific parsers in the jnkn framework.
+This module defines the fundamental abstractions used to ingest source code
+and convert it into a dependency graph. It provides the interface that all
+language-specific parsers must implement.
 
 Key Components:
-- LanguageParser: Abstract base class for all parsers
-- ParserCapability: Enum of parser capabilities
-- ParserContext: Context passed during parsing
-- ParseResult: Result of parsing a file
-- ParseError: Exception for parsing errors
+    LanguageParser: Abstract base class for all parsers.
+    ParserContext: Runtime configuration and state shared across parsers.
+    ParseResult: Container for nodes, edges, and errors from a single file.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Union
+from typing import Any, Dict, Iterator, List, Optional, Set, Union
 
-from ..core.types import Edge, Node, NodeType, RelationshipType
+from ..core.types import Edge, Node
 
 
 class ParserCapability(Enum):
     """
-    Capabilities that a parser may support.
-    
-    These capabilities help the engine understand what artifacts
-    a parser can extract from source files.
+    Enumeration of capabilities a parser can support.
+
+    These flags allow the engine to intelligently route files or
+    optimize scanning passes based on what information is needed.
     """
-    IMPORTS = auto()        # Can extract import statements
-    DEFINITIONS = auto()    # Can extract function/class definitions
-    ENV_VARS = auto()       # Can extract environment variable usage
-    RESOURCES = auto()      # Can extract infrastructure resources
-    DEPENDENCIES = auto()   # Can extract dependency relationships
-    DATA_LINEAGE = auto()   # Can extract data lineage (dbt, etc.)
-    CALLS = auto()          # Can extract function calls
-    TYPES = auto()          # Can extract type annotations
+    IMPORTS = auto()        #: Can extract import statements
+    DEFINITIONS = auto()    #: Can extract function/class definitions
+    ENV_VARS = auto()       #: Can extract environment variable usage
+    RESOURCES = auto()      #: Can extract infrastructure resources
+    DEPENDENCIES = auto()   #: Can extract abstract dependency relationships
+    DATA_LINEAGE = auto()   #: Can extract data lineage (e.g., dbt refs)
+    CALLS = auto()          #: Can extract function calls
+    TYPES = auto()          #: Can extract type annotations
+    CONFIGS = auto()        #: Can extract configuration keys
+    SECRETS = auto()        #: Can extract secret references
 
 
 @dataclass
 class ParserContext:
     """
-    Context provided to parsers during parsing operations.
-    
+    Context provided to parsers during execution.
+
+    This object is passed down to every parser instance, allowing them to access
+    global configuration, the project root, or shared state without coupling.
+
     Attributes:
-        root_dir: The root directory of the project being scanned
-        current_file: The file currently being parsed
-        config: Optional configuration dictionary
-        seen_files: Set of files already processed (for cycle detection)
-        encoding: File encoding to use (default: utf-8)
+        root_dir (Path): The root directory of the project being scanned.
+            Defaults to current working directory.
+        current_file (Optional[Path]): The specific file currently being processed.
+        config (Dict[str, Any]): Global configuration dictionary (from config.yaml).
+        seen_files (Set[Path]): Tracks files already processed to prevent cycles.
+        encoding (str): Default file encoding to use when reading files.
     """
     root_dir: Path = field(default_factory=Path.cwd)
     current_file: Optional[Path] = None
@@ -57,7 +62,15 @@ class ParserContext:
     encoding: str = "utf-8"
 
     def relative_path(self, path: Path) -> Path:
-        """Get path relative to root_dir."""
+        """
+        Convert an absolute path to a path relative to the project root.
+
+        Args:
+            path (Path): The absolute path to convert.
+
+        Returns:
+            Path: The relative path if within root_dir, else the original path.
+        """
         try:
             return path.relative_to(self.root_dir)
         except ValueError:
@@ -67,14 +80,17 @@ class ParserContext:
 @dataclass
 class ParseResult:
     """
-    Result of parsing a single file.
-    
+    The result of parsing a single source file.
+
+    Aggregates all discovered nodes, edges, and any errors encountered
+    during the parsing process.
+
     Attributes:
-        file_path: Path to the parsed file
-        nodes: List of nodes extracted from the file
-        edges: List of edges extracted from the file
-        errors: List of any errors encountered during parsing
-        metadata: Additional metadata about the parse operation
+        file_path (Path): Path to the source file that was parsed.
+        nodes (List[Node]): All graph nodes extracted from the file.
+        edges (List[Edge]): All relationships discovered in the file.
+        errors (List[str]): Any non-fatal error messages generated.
+        metadata (Dict[str, Any]): Additional metadata (e.g., parser version, skip reason).
     """
     file_path: Path
     nodes: List[Node] = field(default_factory=list)
@@ -84,31 +100,51 @@ class ParseResult:
 
     @property
     def success(self) -> bool:
-        """Return True if parsing succeeded without errors."""
+        """
+        Check if parsing completed without errors.
+
+        Returns:
+            bool: True if there are no errors, False otherwise.
+        """
         return len(self.errors) == 0
 
     def add_node(self, node: Node) -> None:
-        """Add a node to the result."""
+        """
+        Register a new node in the result.
+
+        Args:
+            node (Node): The node entity to add.
+        """
         self.nodes.append(node)
 
     def add_edge(self, edge: Edge) -> None:
-        """Add an edge to the result."""
+        """
+        Register a new edge in the result.
+
+        Args:
+            edge (Edge): The relationship edge to add.
+        """
         self.edges.append(edge)
 
     def add_error(self, error: str) -> None:
-        """Add an error message."""
+        """
+        Log a non-fatal parsing error.
+
+        Args:
+            error (str): Descriptive error message.
+        """
         self.errors.append(error)
 
 
 class ParseError(Exception):
     """
-    Exception raised when parsing fails.
-    
+    Exception raised when a parser encounters a fatal error.
+
     Attributes:
-        message: Error message
-        file_path: Path to the file that failed to parse
-        line: Optional line number where the error occurred
-        column: Optional column number where the error occurred
+        message (str): The error description.
+        file_path (Optional[Path]): The file being processed when error occurred.
+        line (Optional[int]): Line number of the error.
+        column (Optional[int]): Column number of the error.
     """
     def __init__(
         self,
@@ -135,50 +171,32 @@ class ParseError(Exception):
 
 class LanguageParser(ABC):
     """
-    Abstract base class for language-specific parsers.
-    
-    All parsers must implement this interface to be used with the
-    ParserEngine.
-    
-    Example:
-        class PythonParser(LanguageParser):
-            def __init__(self, context: Optional[ParserContext] = None):
-                super().__init__(context)
-            
-            @property
-            def name(self) -> str:
-                return "python"
-            
-            @property
-            def extensions(self) -> Set[str]:
-                return {".py", ".pyi"}
-            
-            def parse(self, file_path: Path, content: bytes) -> Iterator[Union[Node, Edge]]:
-                # Parse implementation
-                yield Node(...)
+    Abstract base class for all language parsers.
+
+    To support a new language, subclass this and implement the `parse` method.
+    The `can_parse` method serves as a filter to determine if this parser
+    should handle a given file.
+
+    Args:
+        context (Optional[ParserContext]): The execution context.
     """
 
     def __init__(self, context: Optional[ParserContext] = None):
-        """
-        Initialize the parser with optional context.
-        
-        Args:
-            context: Optional parsing context with root directory and config
-        """
         self._context = context or ParserContext()
 
     @property
     def context(self) -> ParserContext:
-        """Get the parser's context."""
+        """Get the current parser context."""
         return self._context
 
     @property
     @abstractmethod
     def name(self) -> str:
         """
-        Return the unique name of this parser.
-        
-        This name is used for registration and logging.
+        Get the unique identifier for this parser.
+
+        Returns:
+            str: A unique slug (e.g., 'python', 'terraform').
         """
         pass
 
@@ -186,11 +204,29 @@ class LanguageParser(ABC):
     @abstractmethod
     def extensions(self) -> Set[str]:
         """
-        Return the file extensions this parser handles.
-        
-        Extensions should include the leading dot (e.g., ".py").
+        Get the file extensions supported by this parser.
+
+        Returns:
+            Set[str]: A set of extensions including the dot (e.g., {'.py', '.pyi'}).
         """
         pass
+
+    def can_parse(self, file_path: Path, content: Optional[bytes] = None) -> bool:
+        """
+        Determine if this parser can handle the given file.
+
+        The default implementation checks the file extension against `self.extensions`.
+        Subclasses may override this to implement heuristic detection (e.g., checking
+        file contents for shebangs or specific keywords).
+
+        Args:
+            file_path (Path): The path to the file.
+            content (Optional[bytes]): The raw file content (if already read).
+
+        Returns:
+            bool: True if the parser can process this file.
+        """
+        return file_path.suffix.lower() in self.extensions
 
     @abstractmethod
     def parse(
@@ -200,32 +236,39 @@ class LanguageParser(ABC):
         context: Optional[ParserContext] = None,
     ) -> Iterator[Union[Node, Edge]]:
         """
-        Parse a file and yield nodes and edges.
-        
+        Parse a file and generate graph elements.
+
+        This is the core logic method that must be implemented by subclasses.
+
         Args:
-            file_path: Path to the file being parsed
-            content: Raw bytes content of the file
-            context: Optional parsing context (overrides instance context)
-        
+            file_path (Path): The path to the source file.
+            content (bytes): The raw file content.
+            context (Optional[ParserContext]): Context override for this specific operation.
+
         Yields:
-            Node or Edge objects extracted from the file
-        
-        Raises:
-            ParseError: If parsing fails
+            Union[Node, Edge]: Extracted nodes and edges.
         """
         pass
 
     def get_capabilities(self) -> Set[ParserCapability]:
         """
-        Return the capabilities this parser supports.
-        
-        Default implementation returns an empty set.
-        Subclasses should override to declare capabilities.
+        Get the set of capabilities supported by this parser.
+
+        Returns:
+            Set[ParserCapability]: A set of capability flags.
         """
         return set()
 
     def supports_capability(self, capability: ParserCapability) -> bool:
-        """Check if this parser supports a specific capability."""
+        """
+        Check if the parser supports a specific capability.
+
+        Args:
+            capability (ParserCapability): The capability to check.
+
+        Returns:
+            bool: True if supported.
+        """
         return capability in self.get_capabilities()
 
     def parse_file(
@@ -234,16 +277,17 @@ class LanguageParser(ABC):
         context: Optional[ParserContext] = None,
     ) -> ParseResult:
         """
-        Parse a file from disk.
-        
-        Convenience method that reads the file and calls parse().
-        
+        Utility method to read and parse a file from disk.
+
+        This wraps the `parse` generator, handles file I/O, and catches exceptions
+        to return a structured `ParseResult` object.
+
         Args:
-            file_path: Path to the file to parse
-            context: Optional parsing context
-        
+            file_path (Path): Path to the file.
+            context (Optional[ParserContext]): Context override.
+
         Returns:
-            ParseResult with nodes, edges, and any errors
+            ParseResult: The result object containing nodes, edges, and errors.
         """
         result = ParseResult(file_path=file_path)
 
@@ -266,17 +310,10 @@ class LanguageParser(ABC):
 
 class CompositeParser(LanguageParser):
     """
-    A parser that combines multiple sub-parsers.
-    
-    This is useful for languages that have multiple parsing strategies
-    (e.g., tree-sitter + regex fallback).
-    
-    Example:
-        parser = CompositeParser(
-            name="python",
-            extensions={".py"},
-            parsers=[TreeSitterPythonParser(), RegexPythonParser()],
-        )
+    A meta-parser that delegates to a list of sub-parsers.
+
+    Useful when a language requires multiple parsing strategies (e.g., trying
+    Tree-sitter first, then falling back to Regex).
     """
 
     def __init__(
@@ -286,6 +323,15 @@ class CompositeParser(LanguageParser):
         parsers: List[LanguageParser],
         context: Optional[ParserContext] = None,
     ):
+        """
+        Initialize the composite parser.
+
+        Args:
+            name (str): Unique name for this composite.
+            extensions (Set[str]): Supported extensions.
+            parsers (List[LanguageParser]): List of sub-parsers to try in order.
+            context (Optional[ParserContext]): Execution context.
+        """
         super().__init__(context)
         self._name = name
         self._extensions = extensions
@@ -306,136 +352,29 @@ class CompositeParser(LanguageParser):
         context: Optional[ParserContext] = None,
     ) -> Iterator[Union[Node, Edge]]:
         """
-        Parse using sub-parsers in order.
-        
-        Each parser is tried in order. Results from all parsers are combined.
+        Execute parsing by delegating to sub-parsers.
+
+        Sub-parsers are tried in the order provided. All successful results are yielded.
+        Nodes are deduplicated by ID to prevent redundancy.
         """
         seen_ids: Set[str] = set()
 
         for parser in self._parsers:
             try:
-                for item in parser.parse(file_path, content, context):
-                    # Deduplicate by ID
-                    item_id = getattr(item, 'id', None) or id(item)
-                    if item_id not in seen_ids:
-                        seen_ids.add(item_id)
-                        yield item
+                if parser.can_parse(file_path, content):
+                    for item in parser.parse(file_path, content, context):
+                        item_id = getattr(item, 'id', None) or id(item)
+                        if item_id not in seen_ids:
+                            seen_ids.add(item_id)
+                            yield item
             except ParseError:
-                # Try next parser
                 continue
             except Exception:
-                # Try next parser on unexpected errors
                 continue
 
     def get_capabilities(self) -> Set[ParserCapability]:
-        """Return union of all sub-parser capabilities."""
+        """Return the union of all sub-parser capabilities."""
         capabilities: Set[ParserCapability] = set()
         for parser in self._parsers:
             capabilities.update(parser.get_capabilities())
         return capabilities
-
-
-# Type alias for parser factories
-ParserFactory = Callable[[], LanguageParser]
-
-
-def create_file_node(
-    file_path: Path,
-    root_dir: Optional[Path] = None,
-    language: Optional[str] = None,
-    file_hash: Optional[str] = None,
-) -> Node:
-    """
-    Create a Node representing a source file.
-    
-    Args:
-        file_path: Path to the file
-        root_dir: Optional root directory for relative path
-        language: Optional language identifier
-        file_hash: Optional content hash
-    
-    Returns:
-        Node with type CODE_FILE
-    """
-    if root_dir:
-        try:
-            rel_path = file_path.relative_to(root_dir)
-        except ValueError:
-            rel_path = file_path
-    else:
-        rel_path = file_path
-
-    return Node(
-        id=f"file://{rel_path}",
-        name=file_path.name,
-        type=NodeType.CODE_FILE,
-        path=str(rel_path),
-        language=language,
-        file_hash=file_hash,
-    )
-
-
-def create_env_var_node(
-    name: str,
-    source_file: Optional[Path] = None,
-    line: Optional[int] = None,
-    pattern: Optional[str] = None,
-) -> Node:
-    """
-    Create a Node representing an environment variable.
-    
-    Args:
-        name: Name of the environment variable
-        source_file: Optional file where it was found
-        line: Optional line number
-        pattern: Optional pattern used to detect it
-    
-    Returns:
-        Node with type ENV_VAR
-    """
-    # Tokenize the env var name for stitching
-    tokens = tuple(
-        t.lower()
-        for t in name.replace("_", " ").replace("-", " ").split()
-        if len(t) >= 2
-    )
-
-    metadata: Dict[str, Any] = {}
-    if source_file:
-        metadata["source_file"] = str(source_file)
-    if line:
-        metadata["line"] = line
-    if pattern:
-        metadata["pattern"] = pattern
-
-    return Node(
-        id=f"env:{name}",
-        name=name,
-        type=NodeType.ENV_VAR,
-        tokens=tokens,
-        metadata=metadata,
-    )
-
-
-def create_import_edge(
-    source_file_id: str,
-    target_module: str,
-    import_type: str = "import",
-) -> Edge:
-    """
-    Create an Edge representing an import relationship.
-    
-    Args:
-        source_file_id: ID of the file doing the import
-        target_module: Module being imported
-        import_type: Type of import (import, from_import, etc.)
-    
-    Returns:
-        Edge with type IMPORTS
-    """
-    return Edge(
-        source_id=source_file_id,
-        target_id=f"module:{target_module}",
-        type=RelationshipType.IMPORTS,
-        metadata={"import_type": import_type},
-    )

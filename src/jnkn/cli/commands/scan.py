@@ -8,12 +8,25 @@ Scans directories for supported file types and extracts:
 - spark.yml job configurations
 """
 
+import importlib
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
 import click
 
 from ..utils import SKIP_DIRS, echo_error, echo_info, echo_low_node_warning, echo_success
+
+# Use absolute imports for stability
+PARSER_REGISTRY = [
+    ("pyspark", "jnkn.parsing.pyspark.parser", "PySparkParser"),
+    ("python", "jnkn.parsing.python.parser", "PythonParser"),
+    ("spark_yaml", "jnkn.parsing.spark_yaml.parser", "SparkYamlParser"),
+    ("terraform", "jnkn.parsing.terraform.parser", "TerraformParser"),
+    ("kubernetes", "jnkn.parsing.kubernetes.parser", "KubernetesParser"),
+]
+
+logger = logging.getLogger(__name__)
 
 
 @click.command()
@@ -34,20 +47,23 @@ def scan(directory: str, output: str, verbose: bool, no_recursive: bool):
         jnkn scan ./jobs --output lineage.json
         jnkn scan . -o graph.html -v
     """
+    # Lazy import to avoid circular dependency
     from ...graph.lineage import LineageGraph
 
     scan_path = Path(directory).absolute()
     click.echo(f"🔍 Scanning {scan_path}")
 
     # Initialize parsers
-    parsers = _load_parsers(scan_path)
+    parsers = _load_parsers(scan_path, verbose)
 
     if not parsers:
-        echo_error("No parsers available. Install with: pip install jnkn[full]")
+        echo_error("No parsers available.")
+        click.echo("This usually means dependencies are missing or imports failed.")
+        click.echo("Try running with --verbose to see specific import errors.")
         return
 
     if verbose:
-        click.echo(f"   Parsers: {', '.join(parsers.keys())}")
+        click.echo(f"   Parsers loaded: {', '.join(parsers.keys())}")
 
     # Find files
     extensions = {".py", ".tf", ".yml", ".yaml", ".json"}
@@ -87,7 +103,9 @@ def scan(directory: str, output: str, verbose: bool, no_recursive: bool):
     
     # NEW: Check for low node count "panic state"
     total_nodes = stats.get('total_nodes', 0)
-    if total_nodes < 5:
+    
+    # Only show warning if we found files but 0 nodes
+    if total_nodes < 5 and len(files) > 0:
         echo_low_node_warning(total_nodes)
     else:
         echo_success("Scan complete")
@@ -103,34 +121,31 @@ def scan(directory: str, output: str, verbose: bool, no_recursive: bool):
         default_path = Path(".jnkn/lineage.json")
         default_path.parent.mkdir(parents=True, exist_ok=True)
         default_path.write_text(graph.to_json())
-        echo_info(f"Saved: {default_path}")
+        if verbose:
+            echo_info(f"Saved: {default_path}")
 
 
-def _load_parsers(root_dir: Path) -> Dict[str, Any]:
+def _load_parsers(root_dir: Path, verbose: bool = False) -> Dict[str, Any]:
     """Load available parsers."""
     parsers = {}
 
     try:
         from ...parsing.base import ParserContext
         context = ParserContext(root_dir=root_dir)
-    except ImportError:
+    except ImportError as e:
+        if verbose:
+            echo_error(f"Failed to load ParserContext: {e}")
         context = None
 
-    parser_modules = [
-        ("pyspark", "...parsing.pyspark.parser", "PySparkParser"),
-        ("python", "...parsing.python.parser", "PythonParser"),
-        ("spark_yaml", "...parsing.spark_yaml.parser", "SparkYamlParser"),
-        ("terraform", "...parsing.terraform.parser", "TerraformParser"),
-    ]
-
-    for name, module_path, class_name in parser_modules:
+    for name, module_path, class_name in PARSER_REGISTRY:
         try:
-            import importlib
-            # Resolve relative import
-            module = importlib.import_module(module_path, package=__name__)
+            # FIX: Use absolute imports instead of relative ones
+            module = importlib.import_module(module_path)
             parser_class = getattr(module, class_name)
             parsers[name] = parser_class(context)
-        except (ImportError, AttributeError):
+        except (ImportError, AttributeError) as e:
+            if verbose:
+                click.echo(click.style(f"   ⚠️  Failed to load {name}: {e}", fg="yellow"))
             pass
 
     return parsers
