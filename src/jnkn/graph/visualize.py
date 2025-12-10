@@ -1,490 +1,237 @@
 """
-Visualization Module - HTML and DOT export for lineage graphs.
+Visualization Engine.
 
-Generates interactive HTML visualizations using vis.js.
+Generates interactive HTML graphs using vis.js.
+Embeds the graph data and semantic traversal logic directly into the HTML
+so it can be viewed offline without a backend server.
 """
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, List
+import webbrowser
+from datetime import datetime, date
+from pathlib import Path
+from typing import Any, Dict
 
-if TYPE_CHECKING:
-    from .lineage import LineageGraph
-
-
-def generate_html(graph: "LineageGraph") -> str:
-    """
-    Generate interactive HTML visualization.
-
-    Uses vis.js for graph rendering with:
-    - Color-coded nodes by type
-    - Click to see upstream/downstream
-    - Search functionality
-    - Zoom and pan
-
-    Args:
-        graph: The LineageGraph object to visualize.
-
-    Returns:
-        str: The complete HTML string.
-    """
-    data = graph.to_dict()
-
-    # Prepare vis.js data
-    vis_nodes = []
-    vis_edges = []
-
-    colors = {
-        "data": "#4CAF50",    # Green
-        "code": "#2196F3",    # Blue
-        "config": "#FF9800",  # Orange
-        "infra": "#9C27B0",   # Purple
-    }
-
-    for node in data["nodes"]:
-        node_id = node.get("id", "")
-        name = node.get("name", node_id)
-
-        # Determine category from ID prefix
-        if node_id.startswith("data:"):
-            category = "data"
-        elif node_id.startswith(("file:", "job:")):
-            category = "code"
-        elif node_id.startswith("env:"):
-            category = "config"
-        elif node_id.startswith("infra:"):
-            category = "infra"
-        else:
-            category = "code"
-
-        # Short label for display
-        if "." in name:
-            label = name.split(".")[-1]
-        elif "/" in name:
-            label = name.split("/")[-1]
-        else:
-            label = name
-
-        vis_nodes.append({
-            "id": node_id,
-            "label": label,
-            "title": f"{node_id}",
-            "color": colors.get(category, "#757575"),
-            "group": category,
-        })
-
-    for edge in data["edges"]:
-        # Normalize edge type for the frontend
-        edge_type = edge["type"].lower()
-        vis_edges.append({
-            "from": edge["source"],
-            "to": edge["target"],
-            "arrows": "to",
-            # Dashed lines for 'pull' relationships (reads, depends_on)
-            "dashes": edge_type in ("reads", "imports", "depends_on", "consumes", "requires"),
-            "title": edge_type,
-        })
-
-    return _html_template(vis_nodes, vis_edges, data.get("stats", {}))
+from ..core.interfaces import IGraph
+from ..core.types import NodeType, RelationshipType
 
 
-def _html_template(nodes: List[Dict], edges: List[Dict],
-                   stats: Dict[str, Any]) -> str:
-    """
-    Generate the HTML template with embedded graph data and traversal logic.
-
-    Args:
-        nodes: List of node dictionaries for vis.js.
-        edges: List of edge dictionaries for vis.js.
-        stats: Graph statistics dictionary.
-
-    Returns:
-        str: The raw HTML content.
-    """
-    node_count = len(nodes)
-    edge_count = len(edges)
-
-    return f'''<!DOCTYPE html>
+# Minimal template with embedded logic
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
 <head>
-    <title>jnkn Lineage Graph</title>
-    <meta charset="utf-8">
-    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <style>
-        * {{ box-sizing: border-box; }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: #1a1a2e;
-            color: #eee;
-        }}
-        #header {{
-            padding: 15px 20px;
-            background: #16213e;
-            border-bottom: 1px solid #0f3460;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }}
-        #header h1 {{
-            margin: 0;
-            font-size: 1.4em;
-            color: #e94560;
-        }}
-        #stats {{
-            display: flex;
-            gap: 15px;
-        }}
-        .stat {{
-            background: #0f3460;
-            padding: 8px 15px;
-            border-radius: 5px;
-            font-size: 0.9em;
-        }}
-        .stat-value {{
-            font-weight: bold;
-            color: #e94560;
-        }}
-        #container {{
-            display: flex;
-            height: calc(100vh - 70px);
-        }}
-        #graph {{
-            flex: 1;
-            background: #1a1a2e;
-        }}
-        #sidebar {{
-            width: 300px;
-            background: #16213e;
-            border-left: 1px solid #0f3460;
-            padding: 15px;
-            overflow-y: auto;
-        }}
-        #search {{
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #0f3460;
-            border-radius: 5px;
-            background: #1a1a2e;
-            color: #eee;
-            font-size: 14px;
-        }}
-        #search:focus {{
-            outline: none;
-            border-color: #e94560;
-        }}
-        .legend {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin: 15px 0;
-        }}
-        .legend-item {{
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.85em;
-        }}
-        .legend-color {{
-            width: 14px;
-            height: 14px;
-            border-radius: 3px;
-        }}
-        #node-info {{
-            display: none;
-            margin-top: 20px;
-        }}
-        #node-info.active {{
-            display: block;
-        }}
-        #node-info h2 {{
-            margin: 0 0 15px 0;
-            font-size: 1.1em;
-            color: #e94560;
-            border-bottom: 1px solid #0f3460;
-            padding-bottom: 10px;
-        }}
-        .info-row {{
-            margin: 12px 0;
-        }}
-        .info-label {{
-            color: #888;
-            font-size: 0.75em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-        .info-value {{
-            color: #eee;
-            word-break: break-all;
-            margin-top: 3px;
-        }}
-        .impact-section {{
-            margin: 15px 0;
-        }}
-        .impact-section h3 {{
-            font-size: 0.9em;
-            color: #e94560;
-            margin: 0 0 8px 0;
-        }}
-        .impact-list {{
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            font-size: 0.85em;
-            max-height: 200px;
-            overflow-y: auto;
-        }}
-        .impact-list li {{
-            padding: 4px 0;
-            color: #ccc;
-            border-bottom: 1px solid #0f3460;
-        }}
-        .impact-list li:last-child {{
-            border-bottom: none;
-        }}
-        .help-text {{
-            font-size: 0.8em;
-            color: #666;
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid #0f3460;
-        }}
-    </style>
+  <title>Jnkn Graph Visualization</title>
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style type="text/css">
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; overflow: hidden; }
+    #mynetwork { width: 100vw; height: 100vh; border: none; background-color: #f5f5f5; }
+    #controls { position: absolute; top: 10px; left: 10px; z-index: 100; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 300px; }
+    h2 { margin-top: 0; font-size: 18px; color: #333; }
+    .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 12px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+    .btn { display: block; width: 100%; padding: 8px; margin-top: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; text-align: center; }
+    .btn:hover { background: #0056b3; }
+    #status { margin-top: 10px; font-size: 12px; color: #666; font-style: italic; }
+  </style>
 </head>
 <body>
-    <div id="header">
-        <h1>🔗 jnkn Lineage Graph</h1>
-        <div id="stats">
-            <div class="stat">Nodes: <span class="stat-value">{node_count}</span></div>
-            <div class="stat">Edges: <span class="stat-value">{edge_count}</span></div>
-        </div>
-    </div>
-    <div id="container">
-        <div id="graph"></div>
-        <div id="sidebar">
-            <input type="text" id="search" placeholder="Search nodes...">
-            
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="legend-color" style="background:#4CAF50"></div> Data
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background:#2196F3"></div> Code
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background:#FF9800"></div> Config
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background:#9C27B0"></div> Infra
-                </div>
-            </div>
-            
-            <div id="node-info">
-                <h2>Node Details</h2>
-                <div class="info-row">
-                    <div class="info-label">ID</div>
-                    <div class="info-value" id="info-id"></div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Name</div>
-                    <div class="info-value" id="info-name"></div>
-                </div>
-                <div class="impact-section">
-                    <h3>⬆️ Upstream</h3>
-                    <ul class="impact-list" id="upstream-list"></ul>
-                </div>
-                <div class="impact-section">
-                    <h3>⬇️ Downstream</h3>
-                    <ul class="impact-list" id="downstream-list"></ul>
-                </div>
-            </div>
-            
-            <div class="help-text">
-                Click a node to see details.<br>
-                Use search to find specific nodes.
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        // Graph data
-        const nodesData = {json.dumps(nodes)};
-        const edgesData = {json.dumps(edges)};
-        
-        // Create vis.js datasets
-        const nodes = new vis.DataSet(nodesData);
-        const edges = new vis.DataSet(edgesData);
-        
-        // Network options
-        const options = {{
-            nodes: {{
-                shape: 'box',
-                font: {{ color: '#fff', size: 12 }},
-                borderWidth: 0,
-                shadow: true,
-            }},
-            edges: {{
-                color: {{ color: '#555', highlight: '#e94560' }},
-                smooth: {{ type: 'cubicBezier' }},
-            }},
-            physics: {{
-                stabilization: {{ iterations: 100 }},
-                barnesHut: {{
-                    gravitationalConstant: -2000,
-                    springLength: 150,
-                }},
-            }},
-            interaction: {{
-                hover: true,
-                tooltipDelay: 100,
-            }},
-        }};
-        
-        // Create network
-        const container = document.getElementById('graph');
-        const network = new vis.Network(container, {{ nodes, edges }}, options);
-        
-        // Build adjacency lists for impact analysis
-        const outgoing = {{}};
-        const incoming = {{}};
-        const edgeTypes = {{}};
-        
-        edgesData.forEach(e => {{
-            if (!outgoing[e.from]) outgoing[e.from] = [];
-            if (!incoming[e.to]) incoming[e.to] = [];
-            outgoing[e.from].push(e.to);
-            incoming[e.to].push(e.from);
-            edgeTypes[e.from + '|' + e.to] = e.title.toLowerCase();
-        }});
+<div id="controls">
+  <h2>Dependency Graph</h2>
+  <div id="legend">
+    <div class="legend-item"><div class="dot" style="background:#FF9800"></div>Config / Env Var</div>
+    <div class="legend-item"><div class="dot" style="background:#E91E63"></div>Infrastructure</div>
+    <div class="legend-item"><div class="dot" style="background:#4CAF50"></div>Code</div>
+    <div class="legend-item"><div class="dot" style="background:#2196F3"></div>Data Asset</div>
+  </div>
+  <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+  <div>
+    <label style="font-size:12px; font-weight:bold;">Impact Analysis</label>
+    <p style="font-size:11px; color:#666; margin: 5px 0;">Click a node to highlight its blast radius.</p>
+  </div>
+  <div id="status">Ready</div>
+</div>
 
-        // --- TRAVERSAL LOGIC ---
-        // Matches Python LineageGraph traversal logic
-        
-        // Types where impact flows Target -> Source (Reverse)
-        const REVERSE_IMPACT_TYPES = new Set([
-            'reads', 'imports', 'depends_on', 'consumes', 'requires'
-        ]);
+<div id="mynetwork"></div>
 
-        // Types where impact flows Source -> Target (Forward)
-        const FORWARD_IMPACT_TYPES = new Set([
-            'writes', 'provides', 'provisions', 'configures', 
-            'transforms', 'triggers', 'calls'
-        ]);
-        
-        // Upstream traversal (Who drives me?)
-        function getUpstream(id, visited = new Set()) {{
-            if (visited.has(id)) return [];
-            visited.add(id);
-            let results = [];
-            
-            // 1. Outgoing 'pull' edges (We read from X, so X is upstream)
-            (outgoing[id] || []).forEach(target => {{
-                const et = edgeTypes[id + '|' + target];
-                if (REVERSE_IMPACT_TYPES.has(et)) {{
-                    results.push(target);
-                    results = results.concat(getUpstream(target, visited));
-                }}
-            }});
-            
-            // 2. Incoming 'push' edges (X provides to us, so X is upstream)
-            (incoming[id] || []).forEach(source => {{
-                const et = edgeTypes[source + '|' + id];
-                if (FORWARD_IMPACT_TYPES.has(et)) {{
-                    results.push(source);
-                    results = results.concat(getUpstream(source, visited));
-                }}
-            }});
-            
-            return [...new Set(results)];
-        }}
-        
-        // Downstream traversal (Who do I affect?)
-        function getDownstream(id, visited = new Set()) {{
-            if (visited.has(id)) return [];
-            visited.add(id);
-            let results = [];
-            
-            // 1. Incoming 'pull' edges (X reads from us, so X is downstream)
-            (incoming[id] || []).forEach(source => {{
-                const et = edgeTypes[source + '|' + id];
-                if (REVERSE_IMPACT_TYPES.has(et)) {{
-                    results.push(source);
-                    results = results.concat(getDownstream(source, visited));
-                }}
-            }});
-            
-            // 2. Outgoing 'push' edges (We provide to X, so X is downstream)
-            (outgoing[id] || []).forEach(target => {{
-                const et = edgeTypes[id + '|' + target];
-                if (FORWARD_IMPACT_TYPES.has(et)) {{
-                    results.push(target);
-                    results = results.concat(getDownstream(target, visited));
-                }}
-            }});
-            
-            return [...new Set(results)];
-        }}
-        
-        // Click handler
-        network.on('click', function(params) {{
-            if (params.nodes.length > 0) {{
-                const nodeId = params.nodes[0];
-                const node = nodesData.find(n => n.id === nodeId);
-                
-                if (node) {{
-                    // Show info panel
-                    document.getElementById('node-info').classList.add('active');
-                    document.getElementById('info-id').textContent = node.id;
-                    document.getElementById('info-name').textContent = node.label;
-                    
-                    // Calculate impact
-                    const upstream = getUpstream(nodeId);
-                    const downstream = getDownstream(nodeId);
-                    
-                    // Update lists
-                    document.getElementById('upstream-list').innerHTML = 
-                        upstream.length 
-                            ? upstream.map(id => '<li>' + id + '</li>').join('') 
-                            : '<li style="color:#666">None</li>';
-                    document.getElementById('downstream-list').innerHTML = 
-                        downstream.length 
-                            ? downstream.map(id => '<li>' + id + '</li>').join('') 
-                            : '<li style="color:#666">None</li>';
-                    
-                    // Highlight connected nodes
-                    const connected = new Set([nodeId, ...upstream, ...downstream]);
-                    nodes.update(nodesData.map(n => ({{
-                        id: n.id,
-                        opacity: connected.has(n.id) ? 1 : 0.2
-                    }})));
-                }}
-            }} else {{
-                // Reset highlighting
-                nodes.update(nodesData.map(n => ({{ id: n.id, opacity: 1 }})));
-            }}
-        }});
-        
-        // Search handler
-        document.getElementById('search').addEventListener('input', function(e) {{
-            const query = e.target.value.toLowerCase();
-            
-            if (query) {{
-                const matching = nodesData.filter(n => 
-                    n.id.toLowerCase().includes(query) || 
-                    n.label.toLowerCase().includes(query)
-                );
-                
-                if (matching.length > 0) {{
-                    network.selectNodes(matching.map(n => n.id));
-                    network.fit({{ 
-                        nodes: matching.map(n => n.id), 
-                        animation: true 
-                    }});
-                }}
-            }} else {{
-                network.unselectAll();
-            }}
-        }});
-    </script>
+<script type="text/javascript">
+  // 1. Data Injection
+  const graphData = __GRAPH_DATA__;
+
+  // 2. Semantic Logic (Mirrors Python IGraph logic)
+  const FORWARD_IMPACT_TYPES = new Set(['provides', 'writes', 'flows_to', 'provisions', 'outputs']);
+  const REVERSE_IMPACT_TYPES = new Set(['reads', 'depends_on', 'calls']);
+
+  // 3. Process Data for Vis.js
+  const nodes = new vis.DataSet(graphData.nodes.map(n => ({
+    id: n.id,
+    label: n.name || n.id,
+    group: inferGroup(n.type, n.id),
+    title: `ID: ${n.id}<br>Type: ${n.type}`
+  })));
+
+  const edges = new vis.DataSet(graphData.edges.map(e => ({
+    from: e.source_id,
+    to: e.target_id,
+    arrows: 'to',
+    title: e.type,
+    color: { color: '#ccc' },
+    dashes: REVERSE_IMPACT_TYPES.has((e.type || '').toLowerCase()) 
+  })));
+
+  function inferGroup(type, id) {
+    const t = (type || "").toLowerCase();
+    const i = (id || "").toLowerCase();
+    if (t.includes('env') || t.includes('config') || i.startsWith('env:')) return 'config';
+    if (t.includes('infra') || i.startsWith('infra:')) return 'infra';
+    if (t.includes('file') || t.includes('code') || i.startsWith('file:')) return 'code';
+    if (t.includes('data') || i.startsWith('data:')) return 'data';
+    return 'other';
+  }
+
+  // 4. Initialize Network
+  const container = document.getElementById('mynetwork');
+  const data = { nodes: nodes, edges: edges };
+  const options = {
+    nodes: { shape: 'dot', size: 16, font: { size: 14 } },
+    groups: {
+      config: { color: { background: '#FF9800', border: '#F57C00' } },
+      infra:  { color: { background: '#E91E63', border: '#C2185B' } },
+      code:   { color: { background: '#4CAF50', border: '#388E3C' } },
+      data:   { color: { background: '#2196F3', border: '#1976D2' } },
+      other:  { color: { background: '#9E9E9E', border: '#757575' } }
+    },
+    physics: {
+      stabilization: false,
+      barnesHut: { gravitationalConstant: -2000, springConstant: 0.04 }
+    }
+  };
+  const network = new vis.Network(container, data, options);
+
+  // 5. Interactive Blast Radius Logic
+  network.on("click", function (params) {
+    if (params.nodes.length === 0) {
+      resetHighlight();
+      return;
+    }
+    const selectedId = params.nodes[0];
+    highlightBlastRadius(selectedId);
+  });
+
+  function resetHighlight() {
+    nodes.forEach(n => {
+      nodes.update({ id: n.id, color: null, opacity: 1 });
+    });
+    edges.forEach(e => {
+      edges.update({ id: e.id, color: { color: '#ccc' }, opacity: 1 });
+    });
+    document.getElementById('status').innerText = "Ready";
+  }
+
+  function highlightBlastRadius(sourceId) {
+    // Perform semantic BFS (Client-side)
+    const impacted = new Set([sourceId]);
+    const queue = [sourceId];
+    const visitedEdgeIds = new Set();
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      
+      // Find connected edges
+      const connectedEdges = edges.get({
+        filter: function (item) {
+          return item.from === current || item.to === current;
+        }
+      });
+
+      connectedEdges.forEach(edge => {
+        const type = (edge.title || "").toLowerCase();
+        let neighbor = null;
+
+        // Forward Impact (Downstream)
+        if (edge.from === current && FORWARD_IMPACT_TYPES.has(type)) {
+          neighbor = edge.to;
+        }
+        // Reverse Impact (Upstream Consumer)
+        else if (edge.to === current && REVERSE_IMPACT_TYPES.has(type)) {
+          neighbor = edge.from;
+        }
+
+        if (neighbor && !impacted.has(neighbor)) {
+          impacted.add(neighbor);
+          queue.push(neighbor);
+          visitedEdgeIds.add(edge.id);
+        } else if (neighbor && impacted.has(neighbor)) {
+           // Edge between already impacted nodes is part of the blast radius visual
+           visitedEdgeIds.add(edge.id);
+        }
+      });
+    }
+
+    // Apply Styles
+    nodes.forEach(n => {
+      if (impacted.has(n.id)) {
+        nodes.update({ id: n.id, opacity: 1 });
+      } else {
+        nodes.update({ id: n.id, color: { background: '#eee', border: '#ddd' }, opacity: 0.3 });
+      }
+    });
+
+    edges.forEach(e => {
+      if (visitedEdgeIds.has(e.id)) {
+        edges.update({ id: e.id, color: { color: '#ff0000' }, width: 2 });
+      } else {
+        edges.update({ id: e.id, color: { color: '#eee' }, opacity: 0.1 });
+      }
+    });
+
+    document.getElementById('status').innerText = `Blast Radius: ${impacted.size} nodes impacted`;
+  }
+</script>
 </body>
-</html>'''
+</html>
+"""
+
+def _json_default(obj: Any) -> Any:
+    """JSON serializer for objects not serializable by default json code"""
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+
+def generate_html(graph: IGraph) -> str:
+    """
+    Generate the HTML content for the graph visualization.
+    """
+    # Serialize graph to dict using the new helper
+    # We use the to_dict method on DependencyGraph if available, or build it manually
+    if hasattr(graph, "to_dict"):
+        graph_data = graph.to_dict()
+    else:
+        # Fallback for generic IGraph
+        graph_data = {
+            "nodes": [n.model_dump() for n in graph.iter_nodes()],
+            "edges": [e.model_dump() for e in graph.iter_edges()]
+        }
+
+    # Dump to JSON string for JS injection, handling datetime objects
+    json_data = json.dumps(graph_data, default=_json_default)
+    
+    # Inject into template
+    return HTML_TEMPLATE.replace("__GRAPH_DATA__", json_data)
+
+
+def open_visualization(graph: IGraph, output_path: str = "graph.html") -> str:
+    """
+    Generate and open the visualization in the browser.
+    """
+    html_content = generate_html(graph)
+    
+    # Save to file
+    out_file = Path(output_path)
+    out_file.write_text(html_content, encoding="utf-8")
+    
+    # Open in browser
+    abs_path = out_file.resolve().as_uri()
+    webbrowser.open(abs_path)
+    
+    return str(out_file)

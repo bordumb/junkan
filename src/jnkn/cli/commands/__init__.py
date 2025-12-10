@@ -18,6 +18,7 @@ from . import (
     stats,
     suppress,
     trace,
+    visualize
 )
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     "check",
     "diff",
     "feedback",
+    "visualize",
 ]
