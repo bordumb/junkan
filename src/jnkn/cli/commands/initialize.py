@@ -113,7 +113,7 @@ def init(force: bool):
     jnkn_dir = root_dir / ".jnkn"
     config_file = jnkn_dir / "config.yaml"
 
-    console.print(Panel.fit("🚀 [bold blue]Jnkan Initialization[/bold blue]", border_style="blue"))
+    console.print(Panel.fit("🚀 [bold blue]Jnkn Initialization[/bold blue]", border_style="blue"))
 
     if config_file.exists() and not force:
         console.print(f"[yellow]Configuration already exists at {config_file}[/yellow]")
