@@ -2,11 +2,11 @@
 Trace Command - Find paths between two nodes.
 """
 
+from typing import Any, List, Optional
+
 import click
-from typing import Optional, Any, List, Set
 
 from ..utils import echo_error, load_graph
-from ...core.types import RelationshipType
 
 
 @click.command()

@@ -12,7 +12,7 @@ It manages:
 """
 
 from collections import defaultdict, deque
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Set
 
 import rustworkx as rx
 

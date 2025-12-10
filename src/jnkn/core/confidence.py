@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Dict, List, Optional, Set
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
 

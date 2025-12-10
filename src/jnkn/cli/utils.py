@@ -10,9 +10,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Set, Union
 
 import click
+
 from jnkn.core.graph import DependencyGraph
-from ..graph.lineage import LineageGraph
+
 from ..core.storage.sqlite import SQLiteStorage
+from ..graph.lineage import LineageGraph
 
 if TYPE_CHECKING:
     from ..graph.lineage import LineageGraph
