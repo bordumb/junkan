@@ -31,7 +31,7 @@ class DotenvExtractor(BaseExtractor):
         # 1. Inline usage: dotenv_values(...)["VAR"]
         inline_pattern = r'dotenv_values\s*\([^)]*\)\s*\[\s*["\']([^"\']+)["\']'
         for match in re.finditer(inline_pattern, text):
-            # FIX: Must use 'yield from' because _yield_match is a generator
+            # Must use 'yield from' because _yield_match is a generator
             yield from self._yield_match(match, 1, text, file_path, file_id, "dotenv_values", seen_vars)
 
         # 2. Assignment tracking: config = dotenv_values(...)
@@ -49,13 +49,13 @@ class DotenvExtractor(BaseExtractor):
             vars_regex = "|".join(re.escape(v) for v in config_vars)
 
             # Match: config["VAR"]
-            # FIX: Use raw f-string (rf) to handle backslashes correctly
+            # Use raw f-string (rf) to handle backslashes correctly
             dict_access_pattern = rf'(?:{vars_regex})\s*\[\s*["\']([^"\']+)["\']'
             for match in re.finditer(dict_access_pattern, text):
                 yield from self._yield_match(match, 1, text, file_path, file_id, "dotenv_values", seen_vars)
 
             # Match: config.get("VAR")
-            # FIX: Use raw f-string (rf)
+            # Use raw f-string (rf)
             get_access_pattern = rf'(?:{vars_regex})\.get\s*\(\s*["\']([^"\']+)["\']'
             for match in re.finditer(get_access_pattern, text):
                 yield from self._yield_match(match, 1, text, file_path, file_id, "dotenv_values", seen_vars)

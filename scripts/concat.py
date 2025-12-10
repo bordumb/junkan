@@ -60,9 +60,9 @@ DEFAULT_IGNORE_DIRS = {
     # Tests
     ".jnkn",
     "scripts",
-    # src
+    "src",
+    # "tests",
     "site",
-    "tests",
     "docs"
 }
 

@@ -111,7 +111,7 @@ class TestSuppression:
         suppression = Suppression(
             source_pattern="env:*",
             target_pattern="infra:*",
-            # FIX: Past date = Expired
+            # Past date = Expired
             expires_at=datetime.now(timezone.utc) - timedelta(days=1)
         )
 
@@ -333,7 +333,7 @@ class TestSuppressionStore:
                 expires_at=datetime.now(timezone.utc) - timedelta(days=1)
             ))
             
-            # FIX: Add one active (future expiration)
+            # Add one active (future expiration)
             store._suppressions.append(Suppression(
                 source_pattern="env:B",
                 target_pattern="infra:B",

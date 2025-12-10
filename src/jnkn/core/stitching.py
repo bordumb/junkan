@@ -241,7 +241,7 @@ class EnvVarToInfraRule(StitchingRule):
             ]
 
         # Get all infra nodes
-        # FIX: Include CONFIG_KEY nodes (Terraform Outputs) as potential providers
+        # Include CONFIG_KEY nodes (Terraform Outputs) as potential providers
         infra_nodes = graph.get_nodes_by_type(NodeType.INFRA_RESOURCE)
         infra_nodes.extend(graph.get_nodes_by_type(NodeType.CONFIG_KEY))
 

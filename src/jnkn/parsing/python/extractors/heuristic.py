@@ -28,7 +28,7 @@ class HeuristicExtractor(BaseExtractor):
     ) -> Generator[Union[Node, Edge], None, None]:
 
         # Pattern: VAR_NAME = ... where VAR_NAME suggests an env var
-        # FIX: Restricted to UPPERCASE start to avoid local variable false positives (e.g. db_host)
+        # Restricted to UPPERCASE start to avoid local variable false positives (e.g. db_host)
         env_like_assignment = re.compile(
             r'^([A-Z][A-Z0-9_]*(?:_URL|_HOST|_PORT|_KEY|_SECRET|_TOKEN|_PASSWORD|_USER|_PATH|_DIR|_ENDPOINT|_URI|_DSN|_CONN))\s*=',
             re.MULTILINE

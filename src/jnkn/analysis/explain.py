@@ -463,7 +463,7 @@ class ExplanationGenerator:
     def _extract_name_from_id(node_id: str) -> str:
         """Extract node name from ID."""
         # Handle common ID formats
-        # FIX: Check for :// first (e.g. file://path/to/file)
+        # Check for :// first (e.g. file://path/to/file)
         if "://" in node_id:
             return node_id.split("://", 1)[1]
         # Then check for : (e.g. env:VAR)
