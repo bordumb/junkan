@@ -46,6 +46,15 @@ full = [
     "httpx>=0.27.0",
     "xxhash>=3.4.1",
 ]
+docs = [
+    "mkdocs-material",
+    "mkdocstrings-python",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-section-index",
+    "mkdocs-redirects",
+    "mike",
+]
 
 [project.scripts]
 jnkn = "jnkn.cli:main"

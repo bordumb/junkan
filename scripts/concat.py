@@ -59,8 +59,9 @@ DEFAULT_IGNORE_DIRS = {
 
     # Tests
     "scripts",
-    "src",
     "tests/unit"
+    "site",
+    
 }
 
 DEFAULT_IGNORE_EXTENSIONS = {
