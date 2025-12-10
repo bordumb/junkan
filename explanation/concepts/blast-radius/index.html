@@ -27,7 +27,7 @@
     
     
       
-        <title>Dependency Graph - Jnkn Documentation</title>
+        <title>Blast Radius - Jnkn Documentation</title>
       
     
     
@@ -82,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#dependency-graph" class="md-skip">
+        <a href="#blast-radius" class="md-skip">
           Skip to content
         </a>
       
@@ -117,7 +117,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Dependency Graph
+              Blast Radius
             
           </span>
         </div>
@@ -4671,7 +4671,7 @@
   <span class="md-ellipsis">
     
   
-    Dependency Graph
+    Blast Radius
   
 
     
@@ -4689,7 +4689,7 @@
   <span class="md-ellipsis">
     
   
-    Dependency Graph
+    Blast Radius
   
 
     
@@ -4715,10 +4715,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-is-it" class="md-nav__link">
+  <a href="#definition" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What Is It?
+        Definition
       
     </span>
   </a>
@@ -4726,10 +4726,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-igraph-interface" class="md-nav__link">
+  <a href="#how-its-calculated" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The IGraph Interface
+        How It's Calculated
       
     </span>
   </a>
@@ -4737,22 +4737,44 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#nodes" class="md-nav__link">
+  <a href="#direct-vs-transitive" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Nodes
+        Direct vs. Transitive
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Nodes">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interpreting-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpreting Results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interpreting Results">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#node-types" class="md-nav__link">
+  <a href="#by-impact-size" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Node Types
+        By Impact Size
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#by-artifact-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        By Artifact Type
       
     </span>
   </a>
@@ -4765,10 +4787,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#edges-semantics" class="md-nav__link">
+  <a href="#limiting-depth" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Edges &amp; Semantics
+        Limiting Depth
       
     </span>
   </a>
@@ -4776,22 +4798,33 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#querying-the-graph" class="md-nav__link">
+  <a href="#multiple-sources" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Querying the Graph
+        Multiple Sources
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Querying the Graph">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Cases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Use Cases">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#impact-analysis-blast-radius" class="md-nav__link">
+  <a href="#pre-merge-review" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Impact Analysis (Blast Radius)
+        Pre-Merge Review
       
     </span>
   </a>
@@ -4799,10 +4832,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#lineage-tracing" class="md-nav__link">
+  <a href="#incident-response" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Lineage Tracing
+        Incident Response
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change Planning
       
     </span>
   </a>
@@ -4815,10 +4859,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#storage" class="md-nav__link">
+  <a href="#limitations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Storage
+        Limitations
       
     </span>
   </a>
@@ -5849,10 +5893,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-is-it" class="md-nav__link">
+  <a href="#definition" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What Is It?
+        Definition
       
     </span>
   </a>
@@ -5860,10 +5904,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-igraph-interface" class="md-nav__link">
+  <a href="#how-its-calculated" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The IGraph Interface
+        How It's Calculated
       
     </span>
   </a>
@@ -5871,22 +5915,44 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#nodes" class="md-nav__link">
+  <a href="#direct-vs-transitive" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Nodes
+        Direct vs. Transitive
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Nodes">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interpreting-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpreting Results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interpreting Results">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#node-types" class="md-nav__link">
+  <a href="#by-impact-size" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Node Types
+        By Impact Size
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#by-artifact-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        By Artifact Type
       
     </span>
   </a>
@@ -5899,10 +5965,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#edges-semantics" class="md-nav__link">
+  <a href="#limiting-depth" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Edges &amp; Semantics
+        Limiting Depth
       
     </span>
   </a>
@@ -5910,22 +5976,33 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#querying-the-graph" class="md-nav__link">
+  <a href="#multiple-sources" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Querying the Graph
+        Multiple Sources
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Querying the Graph">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Cases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Use Cases">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#impact-analysis-blast-radius" class="md-nav__link">
+  <a href="#pre-merge-review" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Impact Analysis (Blast Radius)
+        Pre-Merge Review
       
     </span>
   </a>
@@ -5933,10 +6010,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#lineage-tracing" class="md-nav__link">
+  <a href="#incident-response" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Lineage Tracing
+        Incident Response
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change Planning
       
     </span>
   </a>
@@ -5949,10 +6037,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#storage" class="md-nav__link">
+  <a href="#limitations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Storage
+        Limitations
       
     </span>
   </a>
@@ -6045,134 +6133,113 @@
   
 
 
-<h1 id="dependency-graph">Dependency Graph</h1>
-<p>The core data structure of Jnkn.</p>
-<h2 id="what-is-it">What Is It?</h2>
-<p>The dependency graph is a directed graph that maps the relationships between every artifact in your stack. It serves as the "source of truth" for impact analysis.</p>
-<p>Crucially, Jnkn distinguishes between <strong>Dependency Direction</strong> (structural) and <strong>Impact Direction</strong> (semantic):</p>
-<ul>
-<li><strong>Dependency:</strong> <code>App</code> → <em>reads</em> → <code>Env Var</code> (The App depends on the Env Var)</li>
-<li><strong>Impact:</strong> <code>Env Var</code> → <em>impacts</em> → <code>App</code> (Changing the Env Var breaks the App)</li>
-</ul>
-<pre class="mermaid"><code>graph LR
-    subgraph "Infrastructure Layer"
-        T[infra:aws_db_instance] --"PROVIDES"--&gt; E[env:DB_HOST]
-    end
-    subgraph "Application Layer"
-        C[file://config.py] --"READS"--&gt; E
-    end
+<h1 id="blast-radius">Blast Radius</h1>
+<p>Understanding impact analysis.</p>
+<h2 id="definition">Definition</h2>
+<p><strong>Blast radius</strong> is the set of artifacts affected by a change.</p>
+<p>If you modify <code>env:DATABASE_URL</code>, what else might break?</p>
+<pre class="mermaid"><code>graph TD
+    E[env:DATABASE_URL]:::source --&gt; F1[connection.py]
+    E --&gt; F2[users.py]
+    E --&gt; T[aws_rds.main]
+    F1 --&gt; F3[api.py]
 
-    style E fill:#f9f,stroke:#333,stroke-width:2px</code></pre>
-<h2 id="the-igraph-interface">The IGraph Interface</h2>
-<p>The graph is implemented via a strict <strong>IGraph Protocol</strong>, decoupling the analysis logic from the underlying storage.</p>
-<ul>
-<li><strong>Backend Agnostic:</strong> Currently backed by high-performance <strong>rustworkx</strong> in memory, but swappable for NetworkX or Neo4j.</li>
-<li><strong>Semantic Awareness:</strong> The graph itself understands lineage logic (e.g., traversing <code>READS</code> edges in reverse to find downstream consumers).</li>
-</ul>
-<h2 id="nodes">Nodes</h2>
-<p>Nodes represent unique artifacts across your stack.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;env:DATABASE_URL&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;DATABASE_URL&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;env_var&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">&quot;tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;database&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;url&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;os.getenv&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nt">&quot;file&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;src/config.py&quot;</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">}</span>
+    classDef source fill:#ff6b6b,stroke:#c92a2a</code></pre>
+<p><strong>Blast radius of <code>env:DATABASE_URL</code>:</strong> 4 artifacts</p>
+<h2 id="how-its-calculated">How It's Calculated</h2>
+<p>Jnkn uses <strong>Breadth-First Search (BFS)</strong> from the source node:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>1. Start at source node
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>2. Find all nodes with edges FROM source
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>3. Add to &quot;impacted&quot; set
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>4. Repeat from each impacted node
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>5. Stop at max_depth (if set)
 </code></pre></div>
-<h3 id="node-types">Node Types</h3>
+<h2 id="direct-vs-transitive">Direct vs. Transitive</h2>
+<p><strong>Direct impact (depth 1):</strong>
+- <code>connection.py</code> — directly reads <code>DATABASE_URL</code>
+- <code>users.py</code> — directly reads <code>DATABASE_URL</code>
+- <code>aws_rds.main</code> — directly provides <code>DATABASE_URL</code></p>
+<p><strong>Transitive impact (depth 2+):</strong>
+- <code>api.py</code> — imports <code>connection.py</code>, which reads <code>DATABASE_URL</code></p>
+<h2 id="interpreting-results">Interpreting Results</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;source_artifacts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;env:DATABASE_URL&quot;</span><span class="p">],</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;total_impacted_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;max_depth_reached&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="by-impact-size">By Impact Size</h3>
 <table>
 <thead>
 <tr>
-<th style="text-align: left;">Type</th>
-<th style="text-align: left;">Represents</th>
-<th style="text-align: left;">Example ID</th>
+<th>Impact</th>
+<th>Risk Level</th>
+<th>Action</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><code>code_file</code></td>
-<td style="text-align: left;">Source Code File</td>
-<td style="text-align: left;"><code>file://src/app.py</code></td>
+<td>1-3</td>
+<td>Low</td>
+<td>Normal review</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>env_var</code></td>
-<td style="text-align: left;">Configuration Key</td>
-<td style="text-align: left;"><code>env:DATABASE_URL</code></td>
+<td>4-10</td>
+<td>Medium</td>
+<td>Careful review, notify teams</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>infra_resource</code></td>
-<td style="text-align: left;">Infrastructure Resource</td>
-<td style="text-align: left;"><code>infra:aws_rds:main</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>config_key</code></td>
-<td style="text-align: left;">Terraform Output</td>
-<td style="text-align: left;"><code>infra:output:db_host</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>data_asset</code></td>
-<td style="text-align: left;">Table or S3 Path</td>
-<td style="text-align: left;"><code>data:public.users</code></td>
+<td>10+</td>
+<td>High</td>
+<td>Extra caution, staged rollout</td>
 </tr>
 </tbody>
 </table>
-<h2 id="edges-semantics">Edges &amp; Semantics</h2>
-<p>Edges are directed, but their <em>semantic meaning</em> dictates how analysis tools traverse them.</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">Edge Type</th>
-<th style="text-align: left;">Direction</th>
-<th style="text-align: left;">Semantic Flow</th>
-<th style="text-align: left;">Example</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;"><code>PROVIDES</code></td>
-<td style="text-align: left;">A → B</td>
-<td style="text-align: left;"><strong>Downstream</strong> (A impacts B)</td>
-<td style="text-align: left;">Infra → Env Var</td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>WRITES</code></td>
-<td style="text-align: left;">A → B</td>
-<td style="text-align: left;"><strong>Downstream</strong> (A impacts B)</td>
-<td style="text-align: left;">Job → Table</td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>READS</code></td>
-<td style="text-align: left;">A → B</td>
-<td style="text-align: left;"><strong>Upstream</strong> (B impacts A)</td>
-<td style="text-align: left;">Code → Env Var</td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>DEPENDS_ON</code></td>
-<td style="text-align: left;">A → B</td>
-<td style="text-align: left;"><strong>Upstream</strong> (B impacts A)</td>
-<td style="text-align: left;">Job → Upstream Job</td>
-</tr>
-</tbody>
-</table>
-<h2 id="querying-the-graph">Querying the Graph</h2>
-<h3 id="impact-analysis-blast-radius">Impact Analysis (Blast Radius)</h3>
-<p>Calculates the "Blast Radius" by following data flow, not just dependencies.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Finds everything that breaks if this Env Var changes</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>jnkn<span class="w"> </span>blast<span class="w"> </span>env:DATABASE_URL
+<h3 id="by-artifact-type">By Artifact Type</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;breakdown&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;connection.py&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;users.py&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;api.py&quot;</span><span class="p">],</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">&quot;infra&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;aws_rds.main&quot;</span><span class="p">],</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">}</span>
 </code></pre></div>
-<h3 id="lineage-tracing">Lineage Tracing</h3>
-<p>Traces the full path of data from Infrastructure to Code to Data Assets.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Traces: Infra -&gt; Output -&gt; Env Var -&gt; App Code</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>jnkn<span class="w"> </span>trace<span class="w"> </span>infra:aws_db_instance:main<span class="w"> </span>file://src/app.py
+<p>Infrastructure impact often needs more scrutiny than code impact.</p>
+<h2 id="limiting-depth">Limiting Depth</h2>
+<p>For large graphs, limit traversal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Only direct dependencies</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>jnkn<span class="w"> </span>blast<span class="w"> </span>env:X<span class="w"> </span>--max-depth<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Up to 3 levels</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>jnkn<span class="w"> </span>blast<span class="w"> </span>env:X<span class="w"> </span>--max-depth<span class="w"> </span><span class="m">3</span>
 </code></pre></div>
-<h2 id="storage">Storage</h2>
+<h2 id="multiple-sources">Multiple Sources</h2>
+<p>Analyze combined impact:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>jnkn<span class="w"> </span>blast<span class="w"> </span>env:DATABASE_URL<span class="w"> </span>env:REDIS_URL
+</code></pre></div>
+<p>Returns the <strong>union</strong> of all impacted artifacts.</p>
+<h2 id="use-cases">Use Cases</h2>
+<h3 id="pre-merge-review">Pre-Merge Review</h3>
+<p>"What does this PR affect?"</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>jnkn<span class="w"> </span>blast<span class="w"> </span>file://terraform/rds.tf
+</code></pre></div>
+<h3 id="incident-response">Incident Response</h3>
+<p>"What could have caused this failure?"</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>jnkn<span class="w"> </span>blast<span class="w"> </span>infra:aws_rds.main<span class="w"> </span>--reverse
+</code></pre></div>
+<h3 id="change-planning">Change Planning</h3>
+<p>"If we deprecate this env var, what needs updating?"</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>jnkn<span class="w"> </span>blast<span class="w"> </span>env:LEGACY_API_KEY
+</code></pre></div>
+<h2 id="limitations">Limitations</h2>
+<p>Blast radius shows <strong>potential</strong> impact, not guaranteed breakage:</p>
 <ul>
-<li><strong>Persistence:</strong> Serialized to SQLite (<code>.jnkn/jnkn.db</code>) for caching.</li>
-<li><strong>Runtime:</strong> Hydrated into an in-memory <code>rustworkx</code> graph for sub-millisecond traversal.</li>
+<li>A code file might read an env var but handle missing values gracefully</li>
+<li>Infrastructure might be referenced but not actively used</li>
+<li>Some dependencies may be optional</li>
 </ul>
+<p>Use blast radius as a <strong>signal for investigation</strong>, not absolute truth.</p>
 
 
 

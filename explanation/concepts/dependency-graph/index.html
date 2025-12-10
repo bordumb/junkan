@@ -4698,6 +4698,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-igraph-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The IGraph Interface
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#nodes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4726,38 +4737,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#edges" class="md-nav__link">
+  <a href="#edges-semantics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Edges
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Edges">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#edge-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Edge Types
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#graph-properties" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Graph Properties
+        Edges &amp; Semantics
       
     </span>
   </a>
@@ -4777,10 +4760,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#find-dependencies" class="md-nav__link">
+  <a href="#impact-analysis-blast-radius" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Find Dependencies
+        Impact Analysis (Blast Radius)
       
     </span>
   </a>
@@ -4788,10 +4771,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#view-statistics" class="md-nav__link">
+  <a href="#lineage-tracing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        View Statistics
+        Lineage Tracing
       
     </span>
   </a>
@@ -4808,17 +4791,6 @@
     <span class="md-ellipsis">
       
         Storage
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#why-a-graph" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why a Graph?
       
     </span>
   </a>
@@ -4848,7 +4820,7 @@
   <span class="md-ellipsis">
     
   
-    Dependency Graph
+    Blast Radius
   
 
     
@@ -5888,6 +5860,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-igraph-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The IGraph Interface
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#nodes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5916,38 +5899,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#edges" class="md-nav__link">
+  <a href="#edges-semantics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Edges
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Edges">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#edge-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Edge Types
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#graph-properties" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Graph Properties
+        Edges &amp; Semantics
       
     </span>
   </a>
@@ -5967,10 +5922,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#find-dependencies" class="md-nav__link">
+  <a href="#impact-analysis-blast-radius" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Find Dependencies
+        Impact Analysis (Blast Radius)
       
     </span>
   </a>
@@ -5978,10 +5933,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#view-statistics" class="md-nav__link">
+  <a href="#lineage-tracing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        View Statistics
+        Lineage Tracing
       
     </span>
   </a>
@@ -5998,17 +5953,6 @@
     <span class="md-ellipsis">
       
         Storage
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#why-a-graph" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why a Graph?
       
     </span>
   </a>
@@ -6104,26 +6048,39 @@
 <h1 id="dependency-graph">Dependency Graph</h1>
 <p>The core data structure of Jnkn.</p>
 <h2 id="what-is-it">What Is It?</h2>
-<p>A dependency graph is a directed graph where:</p>
+<p>The dependency graph is a directed graph that maps the relationships between every artifact in your stack. It serves as the "source of truth" for impact analysis.</p>
+<p>Crucially, Jnkn distinguishes between <strong>Dependency Direction</strong> (structural) and <strong>Impact Direction</strong> (semantic):</p>
 <ul>
-<li><strong>Nodes</strong> are artifacts (files, env vars, infrastructure)</li>
-<li><strong>Edges</strong> are dependencies between artifacts</li>
+<li><strong>Dependency:</strong> <code>App</code> → <em>reads</em> → <code>Env Var</code> (The App depends on the Env Var)</li>
+<li><strong>Impact:</strong> <code>Env Var</code> → <em>impacts</em> → <code>App</code> (Changing the Env Var breaks the App)</li>
 </ul>
+<!-- end list -->
+
 <pre class="mermaid"><code>graph LR
-    F[config.py] --&gt; E[env:DATABASE_URL]
-    E --&gt; T[aws_db_instance.main]
-    F --&gt; R[env:REDIS_HOST]
-    R --&gt; C[aws_elasticache.redis]</code></pre>
+    subgraph "Infrastructure Layer"
+        T[infra:aws_db_instance] --"PROVIDES"--&gt; E[env:DB_HOST]
+    end
+    subgraph "Application Layer"
+        C[file://config.py] --"READS"--&gt; E
+    end
+
+    style E fill:#f9f,stroke:#333,stroke-width:2px</code></pre>
+<h2 id="the-igraph-interface">The IGraph Interface</h2>
+<p>The graph is implemented via a strict <strong>IGraph Protocol</strong>, decoupling the analysis logic from the underlying storage.</p>
+<ul>
+<li><strong>Backend Agnostic:</strong> Currently backed by high-performance <strong>rustworkx</strong> in memory, but swappable for NetworkX or Neo4j.</li>
+<li><strong>Semantic Awareness:</strong> The graph itself understands lineage logic (e.g., traversing <code>READS</code> edges in reverse to find downstream consumers).</li>
+</ul>
 <h2 id="nodes">Nodes</h2>
-<p>Each node represents an artifact in your system:</p>
+<p>Nodes represent unique artifacts across your stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;env:DATABASE_URL&quot;</span><span class="p">,</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;DATABASE_URL&quot;</span><span class="p">,</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;env_var&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;os.getenv&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nt">&quot;file&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;src/config.py&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nt">&quot;line&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">&quot;tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;database&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;url&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;os.getenv&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nt">&quot;file&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;src/config.py&quot;</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="p">}</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">}</span>
 </code></pre></div>
@@ -6131,120 +6088,93 @@
 <table>
 <thead>
 <tr>
-<th>Type</th>
-<th>Represents</th>
-<th>Example ID</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Represents</th>
+<th style="text-align: left;">Example ID</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>code_file</code></td>
-<td>Source file</td>
-<td><code>file://src/app.py</code></td>
+<td style="text-align: left;"><code>code_file</code></td>
+<td style="text-align: left;">Source Code File</td>
+<td style="text-align: left;"><code>file://src/app.py</code></td>
 </tr>
 <tr>
-<td><code>code_entity</code></td>
-<td>Function/class</td>
-<td><code>entity:src/app.py:main</code></td>
+<td style="text-align: left;"><code>env_var</code></td>
+<td style="text-align: left;">Configuration Key</td>
+<td style="text-align: left;"><code>env:DATABASE_URL</code></td>
 </tr>
 <tr>
-<td><code>env_var</code></td>
-<td>Environment variable</td>
-<td><code>env:DATABASE_URL</code></td>
+<td style="text-align: left;"><code>infra_resource</code></td>
+<td style="text-align: left;">Infrastructure Resource</td>
+<td style="text-align: left;"><code>infra:aws_rds:main</code></td>
 </tr>
 <tr>
-<td><code>infra_resource</code></td>
-<td>Terraform resource</td>
-<td><code>infra:aws_rds.main</code></td>
+<td style="text-align: left;"><code>config_key</code></td>
+<td style="text-align: left;">Terraform Output</td>
+<td style="text-align: left;"><code>infra:output:db_host</code></td>
 </tr>
 <tr>
-<td><code>k8s_resource</code></td>
-<td>Kubernetes resource</td>
-<td><code>k8s:default/deployment/api</code></td>
-</tr>
-<tr>
-<td><code>data_asset</code></td>
-<td>dbt model</td>
-<td><code>data:fct_orders</code></td>
+<td style="text-align: left;"><code>data_asset</code></td>
+<td style="text-align: left;">Table or S3 Path</td>
+<td style="text-align: left;"><code>data:public.users</code></td>
 </tr>
 </tbody>
 </table>
-<h2 id="edges">Edges</h2>
-<p>Edges represent dependencies:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;file://src/config.py&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;env:DATABASE_URL&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;reads&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">&quot;pattern&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;os.getenv&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">&quot;line&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">}</span>
-</code></pre></div>
-<h3 id="edge-types">Edge Types</h3>
+<h2 id="edges-semantics">Edges &amp; Semantics</h2>
+<p>Edges are directed, but their <em>semantic meaning</em> dictates how analysis tools traverse them.</p>
 <table>
 <thead>
 <tr>
-<th>Type</th>
-<th>Meaning</th>
-<th>Example</th>
+<th style="text-align: left;">Edge Type</th>
+<th style="text-align: left;">Direction</th>
+<th style="text-align: left;">Semantic Flow</th>
+<th style="text-align: left;">Example</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>reads</code></td>
-<td>Source reads from target</td>
-<td>File reads env var</td>
+<td style="text-align: left;"><code>PROVIDES</code></td>
+<td style="text-align: left;">A → B</td>
+<td style="text-align: left;"><strong>Downstream</strong> (A impacts B)</td>
+<td style="text-align: left;">Infra → Env Var</td>
 </tr>
 <tr>
-<td><code>imports</code></td>
-<td>Source imports target</td>
-<td>Python import</td>
+<td style="text-align: left;"><code>WRITES</code></td>
+<td style="text-align: left;">A → B</td>
+<td style="text-align: left;"><strong>Downstream</strong> (A impacts B)</td>
+<td style="text-align: left;">Job → Table</td>
 </tr>
 <tr>
-<td><code>provides</code></td>
-<td>Source provides target</td>
-<td>Terraform outputs value</td>
+<td style="text-align: left;"><code>READS</code></td>
+<td style="text-align: left;">A → B</td>
+<td style="text-align: left;"><strong>Upstream</strong> (B impacts A)</td>
+<td style="text-align: left;">Code → Env Var</td>
 </tr>
 <tr>
-<td><code>configures</code></td>
-<td>Source configures target</td>
-<td>K8s uses ServiceAccount</td>
-</tr>
-<tr>
-<td><code>contains</code></td>
-<td>Source contains target</td>
-<td>File contains function</td>
-</tr>
-<tr>
-<td><code>references</code></td>
-<td>Generic reference</td>
-<td>Cross-domain link</td>
+<td style="text-align: left;"><code>DEPENDS_ON</code></td>
+<td style="text-align: left;">A → B</td>
+<td style="text-align: left;"><strong>Upstream</strong> (B impacts A)</td>
+<td style="text-align: left;">Job → Upstream Job</td>
 </tr>
 </tbody>
 </table>
-<h2 id="graph-properties">Graph Properties</h2>
-<p><strong>Directed</strong> — Edges have direction. <code>A → B</code> means "A depends on B."</p>
-<p><strong>Mostly Acyclic</strong> — Well-designed systems don't have circular dependencies.</p>
-<p><strong>Multi-Domain</strong> — Nodes span different technology domains (Python, Terraform, K8s).</p>
 <h2 id="querying-the-graph">Querying the Graph</h2>
-<h3 id="find-dependencies">Find Dependencies</h3>
-<p>"What does X depend on?"</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>jnkn<span class="w"> </span>blast<span class="w"> </span>env:DATABASE_URL
+<h3 id="impact-analysis-blast-radius">Impact Analysis (Blast Radius)</h3>
+<p>Calculates the "Blast Radius" by following data flow, not just dependencies.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Finds everything that breaks if this Env Var changes</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>jnkn<span class="w"> </span>blast<span class="w"> </span>env:DATABASE_URL
 </code></pre></div>
-<h3 id="view-statistics">View Statistics</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>jnkn<span class="w"> </span>stats
+<h3 id="lineage-tracing">Lineage Tracing</h3>
+<p>Traces the full path of data from Infrastructure to Code to Data Assets.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Traces: Infra -&gt; Output -&gt; Env Var -&gt; App Code</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>jnkn<span class="w"> </span>trace<span class="w"> </span>infra:aws_db_instance:main<span class="w"> </span>file://src/app.py
 </code></pre></div>
 <h2 id="storage">Storage</h2>
-<p>The graph is stored in SQLite at <code>.jnkn/jnkn.db</code>.</p>
-<h2 id="why-a-graph">Why a Graph?</h2>
-<p>Graphs enable:</p>
-<ol>
-<li><strong>Traversal</strong> — Follow dependencies to any depth</li>
-<li><strong>Visualization</strong> — See system structure  </li>
-<li><strong>Algorithms</strong> — Shortest path, cycle detection</li>
-<li><strong>Incremental updates</strong> — Add/remove nodes efficiently</li>
-</ol>
+<ul>
+<li><strong>Persistence:</strong> Serialized to SQLite (<code>.jnkn/jnkn.db</code>) for caching.</li>
+<li><strong>Runtime:</strong> Hydrated into an in-memory <code>rustworkx</code> graph for sub-millisecond traversal.</li>
+</ul>
 
 
 
