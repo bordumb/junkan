@@ -12,6 +12,7 @@ from typing import Callable, Generic, TypeVar, Union
 T = TypeVar("T")
 E = TypeVar("E")
 U = TypeVar("U")
+F = TypeVar("F")
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,16 @@ class Ok(Generic[T]):
     def unwrap(self) -> T:
         return self.value
 
+    def unwrap_err(self):
+        """Panics (raises ValueError) if the result is Ok."""
+        raise ValueError(f"Called unwrap_err on Ok: {self.value}")
+
+    def map(self, func: Callable[[T], U]) -> "Ok[U]":
+        return Ok(func(self.value))
+
+    def map_err(self, func: Callable[[E], F]) -> "Ok[T]":
+        return self
+
 
 @dataclass(frozen=True)
 class Err(Generic[E]):
@@ -48,6 +59,16 @@ class Err(Generic[E]):
 
     def unwrap(self) -> T:
         raise ValueError(f"Called unwrap on Err: {self.error}")
+
+    def unwrap_err(self) -> E:
+        """Returns the contained error."""
+        return self.error
+
+    def map(self, func: Callable[[T], U]) -> "Err[E]":
+        return self
+
+    def map_err(self, func: Callable[[E], F]) -> "Err[F]":
+        return Err(func(self.error))
 
 
 # Type alias for the Result

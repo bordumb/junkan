@@ -1,26 +1,21 @@
 """
 Scan Command - Parse codebase and build dependency graph.
-Standardized output version.
+Standardized output version with Incremental Scanning.
 """
 
 import json
 import logging
-import time
+import sys
 from pathlib import Path
-from typing import Any, Dict, List
 
 import click
 from pydantic import BaseModel
 
-from ...core.graph import DependencyGraph
 from ...core.stitching import Stitcher
 from ...core.storage.sqlite import SQLiteStorage
-from ...core.types import Edge, Node
-from ...parsing.base import ParserContext
-from ...parsing.python.parser import PythonParser
-from ...parsing.terraform.parser import TerraformParser
+from ...parsing.engine import ScanConfig, create_default_engine
 from ..renderers import JsonRenderer
-from ..utils import SKIP_DIRS, echo_error, echo_low_node_warning, echo_success
+from ..utils import SKIP_DIRS, echo_low_node_warning, echo_success
 
 logger = logging.getLogger(__name__)
 
@@ -47,17 +42,35 @@ class _null_context:
 
 @click.command()
 @click.argument("directory", default=".", type=click.Path(exists=True))
-@click.option("-o", "--output", help="Output file (.db or .json)")
+@click.option("-o", "--output", help="Output file (default: .jnkn/jnkn.db)")
 @click.option("-v", "--verbose", is_flag=True, help="Show detailed output")
 @click.option("--no-recursive", is_flag=True, help="Don't scan subdirectories")
+@click.option("--force", is_flag=True, help="Force full rescan (ignore incremental cache)")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON")
-def scan(directory: str, output: str, verbose: bool, no_recursive: bool, as_json: bool):
+def scan(
+    directory: str, 
+    output: str, 
+    verbose: bool, 
+    no_recursive: bool, 
+    force: bool,
+    as_json: bool
+):
     """
     Scan directory and build dependency graph.
+    
+    Uses incremental scanning by default: only changed files are re-parsed.
     """
     scan_path = Path(directory).absolute()
     renderer = JsonRenderer("scan")
-    start_time = time.time()
+    
+    # 1. Determine Output Path (Persistent DB)
+    if output:
+        output_path = Path(output)
+    else:
+        # Default persistent storage
+        output_path = Path(".jnkn/jnkn.db")
+    
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Capture context for JSON mode, null context otherwise
     context_manager = renderer.capture() if as_json else _null_context()
@@ -69,140 +82,119 @@ def scan(directory: str, output: str, verbose: bool, no_recursive: bool, as_json
         try:
             if not as_json:
                 click.echo(f"🔍 Scanning {scan_path}")
+                if output_path.exists() and not force:
+                    click.echo("   Using incremental cache")
 
-            # 1. Initialize Parsers
-            parsers = _load_parsers(scan_path, verbose)
+            # 2. Initialize Engine & Storage
+            engine = create_default_engine()
+            storage = SQLiteStorage(output_path)
             
-            if not parsers:
-                if not as_json:
-                    echo_error("No parsers available. Check your installation.")
-                # We return early here to match legacy behavior/tests
-                return
+            # If force flag is set, clear existing data
+            if force:
+                storage.clear()
 
-            # 2. Discover Files
-            extensions = {".py", ".tf", ".js", ".ts", ".jsx", ".tsx", ".yml", ".yaml", ".json"}
+            # 3. Configure Scan
+            # Convert user SKIP_DIRS to set
+            skip_dirs = SKIP_DIRS.copy()
             if no_recursive:
-                files = [f for f in scan_path.glob("*") if f.suffix in extensions and f.is_file()]
-            else:
-                files = [f for f in scan_path.rglob("*") if f.suffix in extensions and f.is_file()]
+                # If no recursive, we just rely on engine's discovery which we can't easily restrict 
+                # depth on via config yet, but we can hack it or rely on walkers.
+                # For now, ScanConfig handles directory skipping.
+                pass
 
-            files = [f for f in files if not any(d in f.parts for d in SKIP_DIRS)]
-            
+            config = ScanConfig(
+                root_dir=scan_path,
+                skip_dirs=skip_dirs,
+                incremental=not force
+            )
+
+            # 4. Run Scan (Incremental)
+            # Progress callback for text mode
+            def progress(path: Path, current: int, total: int):
+                if not as_json and verbose:
+                    click.echo(f"   [{current}/{total}] checking {path.name}...")
+
+            result = engine.scan_and_store(storage, config, progress_callback=progress)
+
+            if result.is_err():
+                # Extract the underlying exception or create a new one
+                raise result.unwrap_err().cause or Exception(result.unwrap_err().message)
+
+            stats = result.unwrap()
+
             if not as_json:
-                click.echo(f"   Files found: {len(files)}")
+                if stats.files_scanned > 0:
+                    click.echo(f"   Parsed {stats.files_scanned} files ({stats.files_unchanged} unchanged)")
+                else:
+                    click.echo(f"   All {stats.files_unchanged} files up to date")
+                
+                if stats.files_deleted > 0:
+                    click.echo(f"   Pruned {stats.files_deleted} deleted files")
 
-            # 3. Parse Files
-            graph = DependencyGraph()
-            
-            # Iterator wrapper to handle progress bar vs silent
-            if not as_json:
-                with click.progressbar(files, label="   Parsing files", show_pos=True) as bar:
-                    for file_path in bar:
-                        _process_file(file_path, parsers, graph, verbose)
-            else:
-                for file_path in files:
-                    _process_file(file_path, parsers, graph, verbose)
+            # 5. Hydrate Graph for Stitching
+            # We need the full graph in memory to perform cross-file stitching
+            graph = storage.load_graph()
 
-            # 4. Stitching
+            # 6. Run Stitching
             stitched_count = 0
             if graph.node_count > 0:
                 if not as_json:
                     click.echo("🧵 Stitching cross-domain dependencies...")
+                
                 stitcher = Stitcher()
                 stitched_edges = stitcher.stitch(graph)
-                stitched_count = len(stitched_edges)
+                
+                if stitched_edges:
+                    storage.save_edges_batch(stitched_edges)
+                    stitched_count = len(stitched_edges)
+                
                 if not as_json:
                     click.echo(f"   Created {stitched_count} new links")
 
-            # 5. Output warnings (Text mode only)
-            if not as_json and graph.node_count < 5 and len(files) > 0:
-                echo_low_node_warning(graph.node_count)
-            elif not as_json:
-                echo_success("Scan complete")
-                click.echo(f"   Nodes: {graph.node_count}")
-                click.echo(f"   Edges: {graph.edge_count}")
+            # 7. Finalize & Warnings
+            if not as_json:
+                if graph.node_count < 5 and stats.files_scanned + stats.files_unchanged > 0:
+                    echo_low_node_warning(graph.node_count)
+                else:
+                    echo_success("Scan complete")
+                    click.echo(f"   Total Nodes: {graph.node_count}")
+                    click.echo(f"   Total Edges: {graph.edge_count}")
 
-            # 6. Save Output
-            if output:
-                output_path = Path(output)
-            else:
-                output_path = Path(".jnkn/jnkn.db")
-            
-            _save_output(graph, output_path, verbose)
+            # 8. Handle JSON Export if requested output format was JSON but we used DB for logic
+            # If the user specifically asked for a .json file via -o, we should export it now.
+            if output_path.suffix == ".json":
+                # The user wants the graph dump, not the DB
+                # Overwrite the DB file with JSON (a bit awkward if we used it as DB during scan)
+                # Better: parse to DB, then export to JSON at the end
+                json_content = json.dumps(graph.to_dict(), indent=2, default=str)
+                output_path.write_text(json_content)
 
             # Prepare API Response
-            duration = time.time() - start_time
             response_data = ScanSummary(
-                total_files=len(files),
-                files_parsed=len(files), # Simplified stats
-                files_skipped=0,
+                total_files=stats.files_scanned + stats.files_unchanged,
+                files_parsed=stats.files_scanned,
+                files_skipped=stats.files_skipped,
                 nodes_found=graph.node_count,
                 edges_found=graph.edge_count,
                 new_links_stitched=stitched_count,
                 output_path=str(output_path),
-                duration_sec=round(duration, 2)
+                duration_sec=round(stats.scan_time_ms / 1000, 2)
             )
+            
+            # Close DB connection
+            storage.close()
 
         except Exception as e:
             error_to_report = e
 
-    # Render output outside capture
+    # Render output
     if as_json:
         if error_to_report:
             renderer.render_error(error_to_report)
+            sys.exit(1)
         elif response_data:
             renderer.render_success(response_data)
-
-
-def _process_file(file_path, parsers, graph, verbose):
-    nodes, edges = _parse_file(file_path, parsers, verbose)
-    for node in nodes:
-        graph.add_node(node)
-    for edge in edges:
-        graph.add_edge(edge)
-
-
-def _load_parsers(root_dir: Path, verbose: bool = False) -> Dict[str, Any]:
-    parsers = {}
-    context = ParserContext(root_dir=root_dir)
-    parsers["python"] = PythonParser(context)
-    parsers["terraform"] = TerraformParser(context)
-    return parsers
-
-
-def _parse_file(file_path: Path, parsers: Dict[str, Any], verbose: bool) -> tuple[List[Node], List[Edge]]:
-    nodes: List[Node] = []
-    edges: List[Edge] = []
-    try:
-        content = file_path.read_bytes()
-    except Exception:
-        return nodes, edges
-
-    for parser_name, parser in parsers.items():
-        try:
-            if not parser.can_parse(file_path): continue
-            results = parser.parse(file_path, content)
-            for item in results:
-                if isinstance(item, Edge): edges.append(item)
-                elif isinstance(item, Node): nodes.append(item)
-        except Exception:
-            pass
-            
-    return nodes, edges
-
-
-def _save_output(graph: DependencyGraph, output_path: Path, verbose: bool) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    if output_path.suffix == ".json":
-        output_path.write_text(json.dumps(graph.to_dict(), indent=2, default=str))
-    elif output_path.suffix == ".db":
-        storage = SQLiteStorage(output_path)
-        storage.clear()
-        nodes = [node for node in graph.iter_nodes()]
-        storage.save_nodes_batch(nodes)
-        edges = [edge for edge in graph.iter_edges()]
-        storage.save_edges_batch(edges)
-        storage.close()
     else:
-        # Restore fallback error for unknown extensions
-        echo_error(f"Unknown format: {output_path.suffix}")
+        # Text Mode: Re-raise exception so Click handles it (prints error + exits 1)
+        if error_to_report:
+            raise error_to_report

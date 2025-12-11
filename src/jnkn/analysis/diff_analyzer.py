@@ -8,7 +8,7 @@ Identifies:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List
 
@@ -63,7 +63,7 @@ class EdgeChange:
 @dataclass
 class DiffReport:
     """Complete report of graph differences."""
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     
     # Detailed changes
     node_changes: List[NodeChange] = field(default_factory=list)

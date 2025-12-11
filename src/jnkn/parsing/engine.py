@@ -22,7 +22,7 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 
-# Default configurations (abbreviated for clarity but fully functional)
+# Default configurations
 DEFAULT_SKIP_DIRS: Set[str] = {
     ".git", ".jnkn", "__pycache__", "node_modules", ".venv", "venv", "env",
     ".env", "dist", "build", "target", "out", "bin", ".idea", ".vscode",
@@ -56,6 +56,7 @@ class ScanStats:
     files_skipped: int = 0
     files_unchanged: int = 0
     files_failed: int = 0
+    files_deleted: int = 0
     total_nodes: int = 0
     total_edges: int = 0
     scan_time_ms: float = 0.0
@@ -127,15 +128,16 @@ class ParserEngine:
         start_time = time.perf_counter()
         stats = ScanStats()
 
+        # 1. Discover files on disk
         try:
             files_gen = self._discover_files(config)
-            files = list(files_gen)
+            files_on_disk = list(files_gen)
         except Exception as e:
             return Err(ScanError(f"File discovery failed: {e}", cause=e))
 
-        total_files = len(files)
+        total_files = len(files_on_disk)
         
-        # Safe Metadata Fetch
+        # 2. Fetch existing metadata from DB
         try:
             tracked_metadata = {
                 m.file_path: m for m in storage.get_all_scan_metadata()
@@ -145,7 +147,33 @@ class ParserEngine:
             self._logger.warning(f"Failed to read scan metadata: {e}")
             tracked_metadata = {}
 
-        for i, file_path in enumerate(files):
+        # 3. Handle Deletions (Pruning)
+        # Identify files in DB that are no longer on disk
+        # We need absolute paths or consistent relative paths. 
+        # _discover_files yields Paths. ScanMetadata stores paths as strings.
+        # Ideally both are consistent (e.g., relative to project root or absolute).
+        # ScanMetadata usually stores paths as strings provided by parse result.
+        
+        # Convert disk files to string set for comparison
+        # Assuming parse_file_full uses str(path)
+        disk_paths = set(str(f) for f in files_on_disk)
+        
+        if config.incremental:
+            for tracked_path in list(tracked_metadata.keys()):
+                if tracked_path not in disk_paths:
+                    # File was deleted or moved
+                    try:
+                        self._logger.debug(f"Pruning deleted file: {tracked_path}")
+                        storage.delete_nodes_by_file(tracked_path)
+                        storage.delete_scan_metadata(tracked_path)
+                        stats.files_deleted += 1
+                        # Remove from local cache to prevent confusion
+                        del tracked_metadata[tracked_path]
+                    except Exception as e:
+                        self._logger.error(f"Failed to prune {tracked_path}: {e}")
+
+        # 4. Process Files (Add/Update)
+        for i, file_path in enumerate(files_on_disk):
             if progress_callback:
                 progress_callback(file_path, i + 1, total_files)
 
@@ -155,10 +183,6 @@ class ParserEngine:
             
             if config.incremental:
                 hash_res = ScanMetadata.compute_hash(str_path)
-                # Note: compute_hash now might return a Result if we updated it,
-                # but assuming it returns string per previous refactor.
-                # If we updated types.py to return Result[str, HashError], we handle it here.
-                # For compatibility with current types.py, assuming string return.
                 if hash_res:
                     file_hash = hash_res
                     existing_meta = tracked_metadata.get(str_path)
@@ -174,26 +198,25 @@ class ParserEngine:
 
             # --- Parse & Persist ---
             
-            # 1. Clean up old data (Safe op)
-            if config.incremental:
+            # Clean up old data for modified files before re-parsing
+            if config.incremental and str_path in tracked_metadata:
                 try:
                     storage.delete_nodes_by_file(str_path)
                 except Exception as e:
                     self._logger.error(f"Failed to clear old nodes for {str_path}: {e}")
-                    # Continue anyway, worst case is duplicate data
 
-            # 2. Parse
+            # Parse
             result = self._parse_file_full(file_path, file_hash)
 
             if result.success:
                 try:
-                    # 3. Save new data
+                    # Save new data
                     if result.nodes:
                         storage.save_nodes_batch(result.nodes)
                     if result.edges:
                         storage.save_edges_batch(result.edges)
                     
-                    # 4. Update metadata
+                    # Update metadata
                     meta = ScanMetadata(
                         file_path=str_path,
                         file_hash=file_hash,
@@ -228,7 +251,7 @@ class ParserEngine:
             nodes = [i for i in items if isinstance(i, Node)]
             edges = [i for i in items if isinstance(i, Edge)]
             
-            # Inject file_hash
+            # Inject file_hash into file nodes
             for node in nodes:
                 if node.type == "code_file" and not node.file_hash:
                     node.file_hash = file_hash
@@ -252,6 +275,7 @@ class ParserEngine:
     def _discover_files(self, config: ScanConfig) -> Generator[Path, None, None]:
         """Recursive file discovery."""
         for root, dirs, files in config.root_dir.walk():
+            # In-place filtering of directories to prevent recursion into skipped dirs
             dirs[:] = [d for d in dirs if not config.should_skip_dir(d)]
             
             for file in files:
@@ -262,7 +286,11 @@ class ParserEngine:
 
 
 def create_default_engine() -> ParserEngine:
+    """Factory to create a ParserEngine with standard parsers registered."""
     engine = ParserEngine()
+    
+    # Try registering available parsers
+    # We catch ImportError to make dependencies optional
     try:
         from .python.parser import PythonParser
         engine.register(PythonParser())
@@ -271,6 +299,31 @@ def create_default_engine() -> ParserEngine:
     try:
         from .terraform.parser import TerraformParser
         engine.register(TerraformParser())
+    except ImportError: pass
+
+    try:
+        from .javascript.parser import JavaScriptParser
+        engine.register(JavaScriptParser())
+    except ImportError: pass
+
+    try:
+        from .kubernetes.parser import KubernetesParser
+        engine.register(KubernetesParser())
+    except ImportError: pass
+
+    try:
+        from .dbt.manifest_parser import DbtManifestParser
+        engine.register(DbtManifestParser())
+    except ImportError: pass
+
+    try:
+        from .pyspark.parser import PySparkParser
+        engine.register(PySparkParser())
+    except ImportError: pass
+
+    try:
+        from .spark_yaml.parser import SparkYamlParser
+        engine.register(SparkYamlParser())
     except ImportError: pass
     
     return engine
