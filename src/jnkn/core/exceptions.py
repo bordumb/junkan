@@ -4,7 +4,7 @@ Typed Exception Hierarchy.
 Maps internal Python exceptions to standard API ErrorCodes.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from .api.errors import ErrorCode
 

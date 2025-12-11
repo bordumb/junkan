@@ -14,6 +14,7 @@ from . import (
     impact,
     ingest,
     lint,
+    review,
     scan,
     stats,
     suppress,
@@ -36,4 +37,5 @@ __all__ = [
     "diff",
     "feedback",
     "visualize",
+    "review",
 ]

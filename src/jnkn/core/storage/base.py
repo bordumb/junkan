@@ -5,7 +5,7 @@ Defines the contract that all storage backends must implement.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from ..graph import DependencyGraph
 from ..types import Edge, Node, ScanMetadata

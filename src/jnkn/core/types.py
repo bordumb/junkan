@@ -13,7 +13,7 @@ This module defines the fundamental data structures used throughout the system:
 import hashlib
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 

@@ -12,7 +12,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from ..graph import DependencyGraph
 from ..types import Edge, MatchStrategy, Node, NodeType, RelationshipType, ScanMetadata

@@ -2,7 +2,7 @@
 Trace Command - Find paths between two nodes.
 """
 
-from typing import Any, List, Optional
+from typing import Any, List
 
 import click
 

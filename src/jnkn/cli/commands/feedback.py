@@ -11,7 +11,6 @@ import platform
 import sys
 import urllib.parse
 import webbrowser
-from typing import Optional
 
 import click
 

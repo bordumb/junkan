@@ -7,7 +7,6 @@ Allows you to suppress false positive matches that the stitcher creates.
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 import click
 

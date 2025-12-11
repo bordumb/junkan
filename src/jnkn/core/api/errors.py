@@ -5,7 +5,7 @@ Defines the error codes and structure for API error responses.
 """
 
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pydantic import BaseModel
 

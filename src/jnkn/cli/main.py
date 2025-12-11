@@ -17,6 +17,7 @@ from .commands import (
     impact,
     ingest,
     lint,
+    review,
     scan,
     stats,
     suppress,
@@ -49,6 +50,7 @@ main.add_command(ingest.ingest)
 main.add_command(blast_radius.blast_radius, name="blast")
 main.add_command(explain.explain)
 main.add_command(suppress.suppress)
+main.add_command(review.review)
 main.add_command(stats.stats)
 main.add_command(stats.clear)
 main.add_command(check.check)
