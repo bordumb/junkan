@@ -213,7 +213,7 @@ class SQLiteStorage(StorageAdapter):
 
         return len(nodes)
 
-    def load_node(self, node_id: str) -> Optional[Node]:
+    def load_node(self, node_id: str) -> Node | None:
         with self._connection() as conn:
             row = conn.execute(
                 "SELECT * FROM nodes WHERE id = ?", (node_id,)
@@ -356,7 +356,7 @@ class SQLiteStorage(StorageAdapter):
                 metadata.node_count, metadata.edge_count,
             ))
 
-    def get_scan_metadata(self, file_path: str) -> Optional[ScanMetadata]:
+    def get_scan_metadata(self, file_path: str) -> ScanMetadata | None:
         with self._connection() as conn:
             row = conn.execute(
                 "SELECT * FROM scan_metadata WHERE file_path = ?", (file_path,)

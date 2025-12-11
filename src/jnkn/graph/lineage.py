@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 
 class LineageGraph:
@@ -64,7 +64,7 @@ class LineageGraph:
         # Normalize edge type to lowercase for consistent traversal checks
         self._edge_types[(source, target)] = edge_type.lower()
 
-    def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
+    def get_node(self, node_id: str) -> Dict[str, Any] | None:
         """
         Retrieve node attributes by ID.
 
@@ -72,7 +72,7 @@ class LineageGraph:
             node_id (str): The ID to look up.
 
         Returns:
-            Optional[Dict[str, Any]]: Node attributes or None if not found.
+            Dict[str, Any] | None: Node attributes or None if not found.
         """
         return self._nodes.get(node_id)
 

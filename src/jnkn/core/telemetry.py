@@ -23,10 +23,10 @@ class TelemetryClient:
     Handles anonymous usage tracking for the CLI.
     """
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         self.config_path = config_path or Path(".jnkn/config.yaml")
-        self._enabled: Optional[bool] = None
-        self._distinct_id: Optional[str] = None
+        self._enabled: bool | None = None
+        self._distinct_id: str | None = None
         self._threads: List[threading.Thread] = []
 
         # Register cleanup to wait for pending requests on exit

@@ -9,7 +9,7 @@ class PythonEnvVar:
     pattern: str  # Which pattern detected it
     line: int
     column: int
-    default_value: Optional[str] = None
+    default_value: str | None = None
 
     def to_node_id(self) -> str:
         return f"env:{self.name}"

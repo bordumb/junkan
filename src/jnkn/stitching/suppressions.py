@@ -38,8 +38,8 @@ class Suppression(BaseModel):
     reason: str = Field(default="", description="Why this suppression exists")
     created_by: str = Field(default="unknown", description="Who created this suppression")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When created")
-    expires_at: Optional[datetime] = Field(default=None, description="Optional expiration")
-    id: Optional[str] = Field(default=None, description="Unique identifier")
+    expires_at: datetime | None = Field(default=None, description="Optional expiration")
+    id: str | None = Field(default=None, description="Unique identifier")
     enabled: bool = Field(default=True, description="Whether suppression is active")
 
     def model_post_init(self, __context) -> None:
@@ -121,7 +121,7 @@ class Suppression(BaseModel):
 class SuppressionMatch:
     """Result of checking if an edge is suppressed."""
     suppressed: bool
-    suppression: Optional[Suppression] = None
+    suppression: Suppression | None = None
     reason: str = ""
 
 
@@ -150,7 +150,7 @@ class SuppressionStore:
 
     DEFAULT_PATH = Path(".jnkn/suppressions.yaml")
 
-    def __init__(self, path: Optional[Path] = None):
+    def __init__(self, path: Path | None = None):
         """
         Initialize the suppression store.
         
@@ -228,7 +228,7 @@ class SuppressionStore:
         target_pattern: str,
         reason: str = "",
         created_by: str = "user",
-        expires_at: Optional[datetime] = None,
+        expires_at: datetime | None = None,
     ) -> Suppression:
         """
         Add a new suppression.
@@ -349,7 +349,7 @@ class SuppressionStore:
 
         return SuppressionMatch(suppressed=False)
 
-    def get_by_id(self, suppression_id: str) -> Optional[Suppression]:
+    def get_by_id(self, suppression_id: str) -> Suppression | None:
         """Get a suppression by ID."""
         if not self._loaded:
             self.load()
@@ -404,7 +404,7 @@ class SuppressionStore:
         return len([s for s in self._suppressions if s.is_active()])
 
 
-def create_default_store(path: Optional[Path] = None) -> SuppressionStore:
+def create_default_store(path: Path | None = None) -> SuppressionStore:
     """
     Create a SuppressionStore and load from disk.
     
@@ -426,7 +426,7 @@ class SuppressionAwareStitcher:
     This class wraps the Edge creation process to check suppressions.
     """
 
-    def __init__(self, store: Optional[SuppressionStore] = None):
+    def __init__(self, store: SuppressionStore | None = None):
         """
         Initialize with a suppression store.
         

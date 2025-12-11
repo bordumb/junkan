@@ -25,7 +25,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Union
+from typing import Dict, Generator, List, Union
 
 from ...core.types import Edge, Node, NodeType, RelationshipType
 from ..base import (
@@ -168,7 +168,7 @@ class PySparkParser(LanguageParser):
         re.IGNORECASE
     )
 
-    def __init__(self, context: Optional[ParserContext] = None):
+    def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
@@ -200,7 +200,7 @@ class PySparkParser(LanguageParser):
             ParserCapability.IMPORTS,
         ]
 
-    def can_parse(self, file_path: Path, content: Optional[bytes] = None) -> bool:
+    def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
         """
         Determine if this file should be parsed as PySpark.
         
@@ -524,6 +524,6 @@ class PySparkParser(LanguageParser):
             return 'table'
 
 
-def create_pyspark_parser(context: Optional[ParserContext] = None) -> PySparkParser:
+def create_pyspark_parser(context: ParserContext | None = None) -> PySparkParser:
     """Factory function to create a PySpark parser."""
     return PySparkParser(context)

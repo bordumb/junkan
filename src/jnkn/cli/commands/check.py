@@ -6,7 +6,7 @@ Standardized output version.
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import click
 from pydantic import BaseModel, Field
@@ -40,7 +40,7 @@ class CheckResponse(BaseModel):
     critical_count: int
     high_count: int
     violations: List[ApiViolation] = Field(default_factory=list)
-    details_url: Optional[str] = None # For future dashboard links
+    details_url: str | None = None # For future dashboard links
 
 
 # --- Internal Classes (Normally imported from check logic module) ---
@@ -59,7 +59,7 @@ class CheckResult(Enum):
 class ChangedFile:
     path: str
     change_type: str
-    old_path: Optional[str] = None
+    old_path: str | None = None
 
 class _null_context:
     def __enter__(self): pass
@@ -78,8 +78,8 @@ class _null_context:
 @click.option("--format", "output_format", type=click.Choice(["text", "markdown"]), default="text")
 @click.option("--quiet", "-q", is_flag=True)
 def check(
-    diff_file: Optional[str],
-    git_diff: Optional[Tuple[str, str]],
+    diff_file: str | None,
+    git_diff: Tuple[str, str] | None,
     fail_if_critical: bool,
     as_json: bool,
     output_format: str,

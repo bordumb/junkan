@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 class ColumnContext(Enum):
@@ -54,12 +54,12 @@ class Confidence(Enum):
 class ColumnRef:
     """A reference to a column in source code."""
     column: str
-    table: Optional[str] = None
-    alias: Optional[str] = None
+    table: str | None = None
+    alias: str | None = None
     context: ColumnContext = ColumnContext.UNKNOWN
     line_number: int = 0
     confidence: Confidence = Confidence.HIGH
-    transform: Optional[str] = None  # sum, avg, concat, etc.
+    transform: str | None = None  # sum, avg, concat, etc.
 
     @property
     def qualified_name(self) -> str:
@@ -83,9 +83,9 @@ class ColumnRef:
 class ColumnLineageMapping:
     """Maps output column to source columns."""
     output_column: str
-    output_table: Optional[str]
+    output_table: str | None
     source_columns: List[ColumnRef]
-    transform: Optional[str] = None
+    transform: str | None = None
     confidence: Confidence = Confidence.HIGH
 
     def to_dict(self) -> Dict[str, Any]:
@@ -102,7 +102,7 @@ class DynamicReference:
     """A column reference that couldn't be resolved."""
     pattern: str
     line_number: int
-    variable_name: Optional[str] = None
+    variable_name: str | None = None
     note: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
@@ -240,7 +240,7 @@ class ColumnLineageExtractor:
             if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', value):
                 self._variables[var_name] = value
 
-    def _resolve_variable(self, var_name: str) -> Tuple[Optional[List[str]], Confidence]:
+    def _resolve_variable(self, var_name: str) -> Tuple[List[str] | None, Confidence]:
         """Try to resolve a variable to column names."""
         if var_name in self._variables:
             value = self._variables[var_name]

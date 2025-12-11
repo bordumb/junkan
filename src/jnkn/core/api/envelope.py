@@ -6,7 +6,7 @@ This file defines the immutable contract for all CLI JSON outputs.
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -47,8 +47,8 @@ class StandardResponse(BaseModel, Generic[T]):
     """
     meta: Meta
     status: Status
-    data: Optional[T] = None
-    error: Optional[StructuredError] = None
+    data: T | None = None
+    error: StructuredError | None = None
 
     model_config = {
         "json_encoders": {

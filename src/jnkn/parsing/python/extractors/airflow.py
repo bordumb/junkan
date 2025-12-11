@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Generator, Optional, Set, Union
+from typing import Generator, Set, Union
 
 from ....core.types import Edge, Node, NodeType, RelationshipType
 from ..validation import is_valid_env_var_name
@@ -23,7 +23,7 @@ class AirflowExtractor(BaseExtractor):
         self,
         file_path: Path,
         file_id: str,
-        tree: Optional[Tree],
+        tree: Tree | None,
         text: str,
         seen_vars: Set[str],
     ) -> Generator[Union[Node, Edge], None, None]:

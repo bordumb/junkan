@@ -88,7 +88,7 @@ def trace(source: str, target: str, graph_file: str, max_paths: int) -> None:
         click.echo(f"  ... and {len(paths) - max_paths} more paths")
 
 
-def _resolve_node(graph: Any, name: str, label: str) -> Optional[str]:
+def _resolve_node(graph: Any, name: str, label: str) -> str | None:
     """Resolve partial name to full node ID."""
     if graph.has_node(name):
         return name

@@ -34,8 +34,8 @@ class NodeInfo:
     name: str
     type: str
     tokens: List[str]
-    path: Optional[str] = None
-    line_number: Optional[int] = None
+    path: str | None = None
+    line_number: int | None = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -72,8 +72,8 @@ class ExplanationGenerator:
 
     def __init__(
         self,
-        graph: Optional[DependencyGraph] = None,
-        calculator: Optional[ConfidenceCalculator] = None,
+        graph: DependencyGraph | None = None,
+        calculator: ConfidenceCalculator | None = None,
         min_confidence: float = 0.5,
     ):
         """
@@ -497,7 +497,7 @@ class ExplanationGenerator:
 
 
 def create_explanation_generator(
-    graph: Optional[DependencyGraph] = None,
+    graph: DependencyGraph | None = None,
     min_confidence: float = 0.5,
 ) -> ExplanationGenerator:
     """

@@ -44,4 +44,4 @@ class StructuredError(BaseModel):
     code: ErrorCode
     message: str
     details: Dict[str, Any] = {}
-    suggestion: Optional[str] = None
+    suggestion: str | None = None

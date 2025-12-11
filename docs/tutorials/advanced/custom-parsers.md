@@ -35,7 +35,7 @@ Create `my_extractors/internal_config.py`:
 """Extractor for internal @config decorator pattern."""
 
 from pathlib import Path
-from typing import Generator, Optional, Set, Union
+from typing import Generator, Set, Union
 import re
 
 from jnkn.parsing.python.extractors.base import BaseExtractor

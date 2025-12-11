@@ -11,7 +11,7 @@ Defines the core classes and types for the parsing system:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 from ..core.interfaces import IParser
 from ..core.types import Edge, Node
@@ -19,7 +19,7 @@ from ..core.types import Edge, Node
 
 class ParserContext:
     """Context passed to parsers (e.g., root directory)."""
-    def __init__(self, root_dir: Optional[Path] = None):
+    def __init__(self, root_dir: Path | None = None):
         self.root_dir = root_dir or Path.cwd()
         self.encoding = "utf-8"
 
@@ -74,7 +74,7 @@ class LanguageParser(IParser, ABC):
     Enforces strict typing of return values and provides common utilities.
     """
 
-    def __init__(self, context: Optional[ParserContext] = None):
+    def __init__(self, context: ParserContext | None = None):
         self.context = context or ParserContext()
         # Initialize logger for all subclasses
         import logging
@@ -109,7 +109,7 @@ class LanguageParser(IParser, ABC):
         """
         pass
     
-    def parse_full(self, file_path: Path, content: Optional[bytes] = None) -> ParseResult:
+    def parse_full(self, file_path: Path, content: bytes | None = None) -> ParseResult:
         """
         Convenience method to parse and return a full ParseResult object.
         Used by the engine to wrap results.

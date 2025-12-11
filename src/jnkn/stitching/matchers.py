@@ -14,7 +14,7 @@ operations in the stitching system.
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, FrozenSet, List, Optional, Tuple
+from typing import Dict, FrozenSet, List, Tuple
 
 import yaml
 
@@ -128,7 +128,7 @@ class TokenMatcher:
         overlap, score = matcher.calculate_overlap(sig1, sig2)
     """
 
-    def __init__(self, config: Optional[TokenConfig] = None):
+    def __init__(self, config: TokenConfig | None = None):
         """
         Initialize the token matcher.
         
@@ -371,7 +371,7 @@ class TokenMatcher:
         }
 
 
-def load_config_from_yaml(path: Path) -> Optional[TokenConfig]:
+def load_config_from_yaml(path: Path) -> TokenConfig | None:
     """
     Load TokenConfig from a YAML configuration file.
     
@@ -419,7 +419,7 @@ def load_config_from_yaml(path: Path) -> Optional[TokenConfig]:
         return None
 
 
-def create_default_matcher(config_path: Optional[Path] = None) -> TokenMatcher:
+def create_default_matcher(config_path: Path | None = None) -> TokenMatcher:
     """
     Create a TokenMatcher with configuration from file or defaults.
     

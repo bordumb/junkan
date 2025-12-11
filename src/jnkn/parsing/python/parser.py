@@ -3,7 +3,7 @@ Standardized Python Parser.
 """
 
 from pathlib import Path
-from typing import Any, List, Optional, Set, Union
+from typing import Any, List, Set, Union
 
 # Type alias for Tree-sitter tree, using Any as strict typing requires the library
 Tree = Any
@@ -20,7 +20,7 @@ from .extractors import get_extractors
 
 
 class PythonParser(LanguageParser):
-    def __init__(self, context: Optional[ParserContext] = None):
+    def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
         self._extractors = get_extractors()
         self._tree_sitter_initialized = False
@@ -109,6 +109,6 @@ class PythonParser(LanguageParser):
         return results
 
 
-def create_python_parser(context: Optional[ParserContext] = None) -> PythonParser:
+def create_python_parser(context: ParserContext | None = None) -> PythonParser:
     """Factory function to create a Python parser."""
     return PythonParser(context)

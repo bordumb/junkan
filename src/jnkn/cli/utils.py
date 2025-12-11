@@ -7,7 +7,7 @@ including formatted printing, graph loading logic, and user guidance helpers.
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Set, Union
+from typing import TYPE_CHECKING, Set, Union
 
 import click
 
@@ -90,7 +90,7 @@ def echo_low_node_warning(count: int) -> None:
     click.echo()
 
 
-def load_graph(graph_file: str) -> Optional[Union[DependencyGraph, LineageGraph]]:
+def load_graph(graph_file: str) -> Union[DependencyGraph, LineageGraph] | None:
     """
     Load a graph from file.
     

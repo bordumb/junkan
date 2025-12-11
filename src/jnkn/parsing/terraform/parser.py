@@ -10,7 +10,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Union
 
 from ...core.types import Edge, Node, NodeType, RelationshipType
 from ..base import LanguageParser, ParserContext
@@ -31,7 +31,7 @@ class TerraformResource:
 class TerraformOutput:
     """Represents a Terraform output block."""
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     line: int = 0
 
 @dataclass
@@ -190,10 +190,10 @@ class TerraformPlanParser(LanguageParser):
 # Factory Functions (Required by __init__.py)
 # =============================================================================
 
-def create_terraform_parser(context: Optional[ParserContext] = None) -> TerraformParser:
+def create_terraform_parser(context: ParserContext | None = None) -> TerraformParser:
     """Factory for TerraformParser."""
     return TerraformParser(context)
 
-def create_terraform_plan_parser(context: Optional[ParserContext] = None) -> TerraformPlanParser:
+def create_terraform_plan_parser(context: ParserContext | None = None) -> TerraformPlanParser:
     """Factory for TerraformPlanParser."""
     return TerraformPlanParser(context)

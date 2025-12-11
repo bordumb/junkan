@@ -43,7 +43,7 @@ class StorageAdapter(ABC):
         pass
 
     @abstractmethod
-    def load_node(self, node_id: str) -> Optional[Node]:
+    def load_node(self, node_id: str) -> Node | None:
         """Load a node by ID."""
         pass
 
@@ -83,7 +83,7 @@ class StorageAdapter(ABC):
         pass
 
     @abstractmethod
-    def get_scan_metadata(self, file_path: str) -> Optional[ScanMetadata]:
+    def get_scan_metadata(self, file_path: str) -> ScanMetadata | None:
         """Get scan metadata for a file."""
         pass
 

@@ -15,8 +15,8 @@ class JnknError(Exception):
         self, 
         message: str, 
         code: ErrorCode = ErrorCode.INTERNAL_ERROR,
-        details: Optional[Dict[str, Any]] = None,
-        suggestion: Optional[str] = None
+        details: Dict[str, Any] | None = None,
+        suggestion: str | None = None
     ):
         super().__init__(message)
         self.message = message
@@ -46,7 +46,7 @@ class NodeNotFoundError(JnknError):
 
 
 class ConfigError(JnknError):
-    def __init__(self, message: str, details: Optional[Dict] = None):
+    def __init__(self, message: str, details: Dict | None = None):
         super().__init__(
             message, 
             code=ErrorCode.CONFIG_INVALID, 

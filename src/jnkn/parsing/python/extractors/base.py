@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Generator, Optional, Set, Union
+from typing import Any, Generator, Set, Union
 
 from ....core.types import Edge, Node
 
@@ -35,7 +35,7 @@ class BaseExtractor(ABC):
         self,
         file_path: Path,
         file_id: str,
-        tree: Optional[Tree],  # tree-sitter AST
+        tree: Tree | None,  # tree-sitter AST
         text: str,
         seen_vars: Set[str],
     ) -> Generator[Union[Node, Edge], None, None]:
