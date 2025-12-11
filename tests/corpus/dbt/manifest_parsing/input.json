@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v10.json"
+  },
+  "nodes": {
+    "model.analytics.dim_users": {
+      "resource_type": "model",
+      "name": "dim_users",
+      "schema": "analytics",
+      "database": "warehouse",
+      "package_name": "analytics",
+      "original_file_path": "models/dims/dim_users.sql",
+      "depends_on": {
+        "nodes": [
+          "source.analytics.raw.users",
+          "model.analytics.stg_users"
+        ]
+      },
+      "columns": {
+        "user_id": {"name": "user_id", "data_type": "integer"},
+        "email": {"name": "email", "data_type": "varchar"}
+      }
+    },
+    "model.analytics.stg_users": {
+      "resource_type": "model",
+      "name": "stg_users",
+      "schema": "staging",
+      "database": "warehouse",
+      "package_name": "analytics",
+      "original_file_path": "models/staging/stg_users.sql"
+    }
+  },
+  "sources": {
+    "source.analytics.raw.users": {
+      "resource_type": "source",
+      "name": "users",
+      "source_name": "raw",
+      "schema": "raw_data",
+      "database": "warehouse",
+      "package_name": "analytics",
+      "original_file_path": "models/sources.yml"
+    }
+  },
+  "exposures": {
+    "exposure.analytics.weekly_dashboard": {
+      "resource_type": "exposure",
+      "name": "weekly_dashboard",
+      "type": "dashboard",
+      "depends_on": {
+        "nodes": ["model.analytics.dim_users"]
+      }
+    }
+  }
+}

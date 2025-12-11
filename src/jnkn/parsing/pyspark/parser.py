@@ -261,7 +261,6 @@ class PySparkParser(LanguageParser):
 
         # Decode content
         try:
-            # FIX: Use self.context instead of self._context
             text = content.decode(self.context.encoding)
         except UnicodeDecodeError:
             try:

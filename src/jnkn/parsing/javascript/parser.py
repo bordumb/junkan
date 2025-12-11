@@ -335,7 +335,7 @@ class JavaScriptParser(LanguageParser):
 
         # Decode content
         try:
-            text = content.decode(self._context.encoding)
+            text = content.decode(self.context.encoding)
         except UnicodeDecodeError:
             try:
                 text = content.decode("latin-1")

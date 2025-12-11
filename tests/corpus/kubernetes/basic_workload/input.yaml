@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: production
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: payment:v1
+          env:
+            - name: DB_HOST
+              value: "postgres.prod"
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: api_key
+          envFrom:
+            - configMapRef:
+                name: app-config

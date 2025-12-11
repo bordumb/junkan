@@ -175,7 +175,7 @@ class DbtManifestParser(LanguageParser):
         """
         # Parse JSON
         try:
-            text = content.decode(self._context.encoding)
+            text = content.decode(self.context.encoding)
             manifest = json.loads(text)
         except (UnicodeDecodeError, json.JSONDecodeError) as e:
             self._logger.error(f"Failed to parse manifest {file_path}: {e}")

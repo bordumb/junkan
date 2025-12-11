@@ -38,6 +38,9 @@ class DjangoExtractor(BaseExtractor):
 
             if not is_valid_env_var_name(var_name):
                 continue
+            
+            if var_name in seen_vars:
+                continue
 
             line = text[:match.start()].count('\n') + 1
             env_id = f"env:{var_name}"

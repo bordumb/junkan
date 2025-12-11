@@ -37,10 +37,11 @@ class HeuristicExtractor(BaseExtractor):
         for match in env_like_assignment.finditer(text):
             var_name = match.group(1)
 
+            # CRITICAL: Skip if a better parser already found this variable
             if var_name in seen_vars:
                 continue
 
-            # Context check
+            # Context check: Look for environment-related keywords nearby
             line_start = text.rfind('\n', 0, match.start()) + 1
             line_end = text.find('\n', match.end())
             if line_end == -1:
@@ -52,6 +53,7 @@ class HeuristicExtractor(BaseExtractor):
                 'config', 'settings', 'env', 'ENV',
             ]
 
+            # Only proceed if we see indicators that this isn't just a constant
             if not any(ind in line_content for ind in env_indicators):
                 continue
 

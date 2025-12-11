@@ -1,0 +1,9 @@
+{
+  "description": "JavaScript/TypeScript imports",
+  "resources": [
+    {"id": "file://node_modules/react", "name": "react", "type": "unknown"},
+    {"id": "file://node_modules/axios", "name": "axios", "type": "unknown"},
+    {"id": "file://./components/Button", "name": "./components/Button", "type": "unknown"},
+    {"id": "file://../utils/logger", "name": "../utils/logger", "type": "unknown"}
+  ]
+}

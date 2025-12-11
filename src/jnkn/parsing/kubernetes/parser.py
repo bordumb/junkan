@@ -200,7 +200,8 @@ class KubernetesParser(LanguageParser):
 
         # 2. Parse YAML content
         try:
-            text = content.decode(self._context.encoding)
+            # FIX: Use self.context instead of self._context
+            text = content.decode(self.context.encoding)
         except UnicodeDecodeError:
             try:
                 text = content.decode("latin-1")
@@ -296,6 +297,13 @@ class KubernetesParser(LanguageParser):
                         # Link to referenced ConfigMaps/Secrets
                         if env_var.is_config_map_ref and env_var.config_map_name:
                             cm_id = f"k8s:{namespace}/configmap/{env_var.config_map_name}"
+                            # Emit virtual node for the referenced ConfigMap
+                            yield Node(
+                                id=cm_id,
+                                name=env_var.config_map_name,
+                                type=NodeType.CONFIG_KEY,
+                                metadata={"virtual": True}
+                            )
                             yield Edge(
                                 source_id=env_id,
                                 target_id=cm_id,
@@ -304,6 +312,13 @@ class KubernetesParser(LanguageParser):
                         
                         if env_var.is_secret_ref and env_var.secret_name:
                             secret_id = f"k8s:{namespace}/secret/{env_var.secret_name}"
+                            # Emit virtual node for the referenced Secret
+                            yield Node(
+                                id=secret_id,
+                                name=env_var.secret_name,
+                                type=NodeType.SECRET,
+                                metadata={"virtual": True}
+                            )
                             yield Edge(
                                 source_id=env_id,
                                 target_id=secret_id,
@@ -316,11 +331,25 @@ class KubernetesParser(LanguageParser):
                             cm_name = env_from["configMapRef"].get("name")
                             if cm_name:
                                 cm_id = f"k8s:{namespace}/configmap/{cm_name}"
+                                # Emit virtual node
+                                yield Node(
+                                    id=cm_id,
+                                    name=cm_name,
+                                    type=NodeType.CONFIG_KEY,
+                                    metadata={"virtual": True}
+                                )
                                 yield Edge(source_id=k8s_id, target_id=cm_id, type=RelationshipType.READS)
                         if "secretRef" in env_from:
                             secret_name = env_from["secretRef"].get("name")
                             if secret_name:
                                 secret_id = f"k8s:{namespace}/secret/{secret_name}"
+                                # Emit virtual node
+                                yield Node(
+                                    id=secret_id,
+                                    name=secret_name,
+                                    type=NodeType.SECRET,
+                                    metadata={"virtual": True}
+                                )
                                 yield Edge(source_id=k8s_id, target_id=secret_id, type=RelationshipType.READS)
 
     def _get_pod_spec(self, doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:

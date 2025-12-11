@@ -1,0 +1,26 @@
+{
+  "description": "dbt manifest parsing for models, sources, and exposures",
+  "resources": [
+    {"id": "data:model:analytics.dim_users", "name": "dim_users", "type": "data_asset"},
+    {"id": "data:model:staging.stg_users", "name": "stg_users", "type": "data_asset"},
+    {"id": "data:source:raw.users", "name": "users", "type": "data_asset"},
+    {"id": "data:exposure:weekly_dashboard", "name": "weekly_dashboard", "type": "data_asset"}
+  ],
+  "edges": [
+    {
+      "source": "data:model:analytics.dim_users",
+      "target": "data:source:raw.users",
+      "type": "reads"
+    },
+    {
+      "source": "data:model:analytics.dim_users",
+      "target": "data:model:staging.stg_users",
+      "type": "depends_on"
+    },
+    {
+      "source": "data:exposure:weekly_dashboard",
+      "target": "data:model:analytics.dim_users",
+      "type": "consumes"
+    }
+  ]
+}

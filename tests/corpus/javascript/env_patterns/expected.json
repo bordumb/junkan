@@ -1,0 +1,11 @@
+{
+  "description": "JavaScript environment variable patterns",
+  "env_vars": [
+    {"name": "DB_HOST", "pattern": "process.env.", "line": 2},
+    {"name": "API_KEY", "pattern": "destructuring", "line": 5},
+    {"name": "API_SECRET", "pattern": "destructuring", "line": 5},
+    {"name": "REACT_APP_API_URL", "pattern": "process.env.", "line": 8, "is_public": true},
+    {"name": "VITE_API_ENDPOINT", "pattern": "import.meta.env", "line": 11, "framework": "vite"},
+    {"name": "NEXT_PUBLIC_ANALYTICS_ID", "pattern": "process.env.", "line": 14, "framework": "nextjs"}
+  ]
+}
