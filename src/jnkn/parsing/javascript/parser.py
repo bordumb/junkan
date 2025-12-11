@@ -250,7 +250,6 @@ class JavaScriptParser(LanguageParser):
 
     def __init__(self, context: Optional[ParserContext] = None):
         super().__init__(context)
-        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._tree_sitter_initialized = False
         self._ts_parser = None
         self._ts_language = None
@@ -273,6 +272,13 @@ class JavaScriptParser(LanguageParser):
             ParserCapability.ENV_VARS,
             ParserCapability.DEFINITIONS,
         ]
+
+    # --- FIX: Implemented abstract method can_parse ---
+    def can_parse(self, file_path: Path) -> bool:
+        """
+        Determine if this parser supports the given file.
+        """
+        return file_path.suffix.lower() in self.extensions
 
     def _init_tree_sitter(self, file_path: Path) -> bool:
         """Initialize tree-sitter parser lazily."""
@@ -642,6 +648,7 @@ class JavaScriptParser(LanguageParser):
                     type=NodeType.UNKNOWN,
                     metadata={
                         "virtual": True,
+                        "import_name": module_name,
                         "is_commonjs": is_commonjs,
                     },
                 )

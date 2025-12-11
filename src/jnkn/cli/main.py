@@ -21,6 +21,7 @@ from .commands import (
     stats,
     suppress,
     trace,
+    visualize,
 )
 from .commands.initialize import init
 from .utils_telemetry import TelemetryGroup
@@ -53,6 +54,7 @@ main.add_command(stats.clear)
 main.add_command(check.check)
 main.add_command(diff.diff)
 main.add_command(feedback.feedback)
+main.add_command(visualize.visualize)
 main.add_command(init)
 
 if __name__ == "__main__":

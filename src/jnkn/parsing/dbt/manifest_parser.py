@@ -113,14 +113,6 @@ class DbtManifestParser(LanguageParser):
     - Column definitions and lineage
     - Exposures
     - Tests
-    
-    Usage:
-        parser = DbtManifestParser()
-        result = parser.parse_full(Path("target/manifest.json"))
-        
-        # Or use the higher-level extraction methods
-        nodes = parser.extract_nodes(manifest_path)
-        lineage = parser.extract_lineage(manifest_path)
     """
 
     # Node types we care about
@@ -147,7 +139,8 @@ class DbtManifestParser(LanguageParser):
             ParserCapability.OUTPUTS,
         ]
 
-    def supports_file(self, file_path: Path) -> bool:
+    # --- FIX: Renamed supports_file to can_parse to implement abstract method ---
+    def can_parse(self, file_path: Path) -> bool:
         """Check if this is a dbt manifest file."""
         name = file_path.name.lower()
 
