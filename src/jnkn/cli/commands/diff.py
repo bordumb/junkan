@@ -49,7 +49,7 @@ def diff(
     head_ref: str,
     repo: str,
     output_format: str,
-    output: Optional[str],
+    output: str | None,
     breaking_only: bool,
     columns_only: bool,
     fail_on_breaking: bool,

@@ -24,7 +24,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generator, List, Optional, Set, Union
+from typing import Generator, List, Set, Union
 
 from ...core.types import Edge, Node, NodeType, RelationshipType
 from ..base import (
@@ -169,7 +169,7 @@ class JSEnvVar:
     line: int
     column: int
     is_public: bool = False  # For NEXT_PUBLIC_ or VITE_ prefixes
-    framework: Optional[str] = None  # nextjs, vite, etc.
+    framework: str | None = None  # nextjs, vite, etc.
 
     def to_node_id(self) -> str:
         return f"env:{self.name}"
@@ -248,7 +248,7 @@ class JavaScriptParser(LanguageParser):
         re.MULTILINE
     )
 
-    def __init__(self, context: Optional[ParserContext] = None):
+    def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
         self._tree_sitter_initialized = False
         self._ts_parser = None
@@ -335,7 +335,7 @@ class JavaScriptParser(LanguageParser):
 
         # Decode content
         try:
-            text = content.decode(self._context.encoding)
+            text = content.decode(self.context.encoding)
         except UnicodeDecodeError:
             try:
                 text = content.decode("latin-1")
@@ -719,7 +719,7 @@ class JavaScriptParser(LanguageParser):
             )
 
     @staticmethod
-    def _detect_framework(var_name: str) -> Optional[str]:
+    def _detect_framework(var_name: str) -> str | None:
         """Detect framework from env var naming convention."""
         if var_name.startswith("NEXT_PUBLIC_") or var_name.startswith("NEXT_"):
             return "nextjs"
@@ -734,6 +734,6 @@ class JavaScriptParser(LanguageParser):
         return None
 
 
-def create_javascript_parser(context: Optional[ParserContext] = None) -> JavaScriptParser:
+def create_javascript_parser(context: ParserContext | None = None) -> JavaScriptParser:
     """Factory function to create a JavaScript parser."""
     return JavaScriptParser(context)

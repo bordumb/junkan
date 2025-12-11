@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 
 # ANSI colors for terminal output
@@ -60,7 +60,7 @@ class DetectionResult:
     """Result of comparing a single expected item against actual detections."""
     item_type: str            # "env_var", "resource", "edge", etc.
     expected: Dict[str, Any]  # The expected item from ground truth
-    actual: Optional[Dict[str, Any]]  # The matched actual item (if found)
+    actual: Dict[str, Any] | None  # The matched actual item (if found)
     status: MatchStatus
     notes: str = ""           # Additional context (e.g., why it didn't match)
 
@@ -283,7 +283,7 @@ class CorpusScorer:
             print("  uv run python -m tests.utils.score_corpus")
             sys.exit(1)
 
-    def discover_cases(self, parser_filter: Optional[str] = None) -> Dict[str, List[Path]]:
+    def discover_cases(self, parser_filter: str | None = None) -> Dict[str, List[Path]]:
         """Discover test cases in the corpus directory."""
         cases: Dict[str, List[Path]] = {}
 
@@ -317,7 +317,7 @@ class CorpusScorer:
 
         return cases
 
-    def _get_input_file(self, case_dir: Path, parser_name: str) -> Optional[Path]:
+    def _get_input_file(self, case_dir: Path, parser_name: str) -> Path | None:
         """Find the input file for a test case."""
         # Map parser to expected extensions
         extension_map = {
@@ -404,7 +404,7 @@ class CorpusScorer:
         self,
         expected: Dict[str, Any],
         actual_nodes: List[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any] | None:
         """Find a matching env var node."""
         expected_name = expected.get("name", "")
 
@@ -430,7 +430,7 @@ class CorpusScorer:
         self,
         expected: Dict[str, Any],
         actual_nodes: List[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any] | None:
         """Find a matching resource node."""
         expected_name = expected.get("name", "")
         expected_type = expected.get("type", "")
@@ -475,7 +475,7 @@ class CorpusScorer:
         expected: Dict[str, Any],
         actual_nodes: List[Dict[str, Any]],
         operation: str = "read",
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any] | None:
         """Find a matching data asset (table/file) node."""
         expected_name = expected.get("name", "")
 
@@ -507,7 +507,7 @@ class CorpusScorer:
         self,
         expected: Dict[str, Any],
         actual_edges: List[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any] | None:
         """Find a matching edge."""
         expected_source = expected.get("source", "")
         expected_target = expected.get("target", "")
@@ -742,8 +742,8 @@ class CorpusScorer:
 
     def score_all(
         self,
-        parser_filter: Optional[str] = None,
-        case_filter: Optional[str] = None,
+        parser_filter: str | None = None,
+        case_filter: str | None = None,
     ) -> CorpusReport:
         """Score all parsers against the corpus."""
         report = CorpusReport(

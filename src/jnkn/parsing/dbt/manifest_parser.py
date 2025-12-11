@@ -23,7 +23,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Union
+from typing import Any, Dict, Generator, List, Union
 
 from ...core.types import Edge, Node, NodeType, RelationshipType
 from ..base import (
@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 class DbtColumn:
     """Represents a column in a dbt model."""
     name: str
-    description: Optional[str] = None
-    data_type: Optional[str] = None
+    description: str | None = None
+    data_type: str | None = None
     tags: List[str] = field(default_factory=list)
     meta: Dict[str, Any] = field(default_factory=dict)
 
@@ -56,13 +56,13 @@ class DbtNode:
     name: str                   # The node name
     resource_type: str          # model, source, seed, snapshot, test, etc.
     schema_name: str            # Database schema
-    database: Optional[str]     # Database name
+    database: str | None     # Database name
     package_name: str           # dbt project name
-    original_file_path: Optional[str] = None
+    original_file_path: str | None = None
     columns: List[DbtColumn] = field(default_factory=list)
     depends_on: List[str] = field(default_factory=list)
-    raw_sql: Optional[str] = None
-    description: Optional[str] = None
+    raw_sql: str | None = None
+    description: str | None = None
     tags: List[str] = field(default_factory=list)
     meta: Dict[str, Any] = field(default_factory=dict)
 
@@ -93,10 +93,10 @@ class DbtExposure:
     unique_id: str
     name: str
     type: str  # dashboard, notebook, analysis, ml, application
-    owner: Optional[str] = None
-    description: Optional[str] = None
+    owner: str | None = None
+    description: str | None = None
     depends_on: List[str] = field(default_factory=list)
-    url: Optional[str] = None
+    url: str | None = None
 
     @property
     def node_id(self) -> str:
@@ -118,7 +118,7 @@ class DbtManifestParser(LanguageParser):
     # Node types we care about
     NODE_TYPES = {"model", "source", "seed", "snapshot", "analysis"}
 
-    def __init__(self, context: Optional[ParserContext] = None):
+    def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
 
     @property
@@ -175,7 +175,7 @@ class DbtManifestParser(LanguageParser):
         """
         # Parse JSON
         try:
-            text = content.decode(self._context.encoding)
+            text = content.decode(self.context.encoding)
             manifest = json.loads(text)
         except (UnicodeDecodeError, json.JSONDecodeError) as e:
             self._logger.error(f"Failed to parse manifest {file_path}: {e}")
@@ -444,7 +444,7 @@ class DbtManifestParser(LanguageParser):
         self,
         dbt_id: str,
         manifest: Dict[str, Any],
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Convert a dbt unique_id to a jnkn node ID.
         
@@ -597,6 +597,6 @@ class DbtManifestParser(LanguageParser):
         return result
 
 
-def create_dbt_manifest_parser(context: Optional[ParserContext] = None) -> DbtManifestParser:
+def create_dbt_manifest_parser(context: ParserContext | None = None) -> DbtManifestParser:
     """Factory function to create a dbt manifest parser."""
     return DbtManifestParser(context)

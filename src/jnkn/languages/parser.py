@@ -15,7 +15,7 @@ Supports incremental parsing via file hash tracking.
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Set
+from typing import Dict, Generator, List, Set
 
 try:
     from tree_sitter_languages import get_language, get_parser
@@ -38,9 +38,9 @@ class LanguageConfig:
         self,
         name: str,
         extensions: List[str],
-        query_path: Optional[Path] = None,
-        tree_sitter_name: Optional[str] = None,
-        query_paths: Optional[List[Path]] = None
+        query_path: Path | None = None,
+        tree_sitter_name: str | None = None,
+        query_paths: List[Path] | None = None
     ):
         self.name = name
         self.tree_sitter_name = tree_sitter_name or name
@@ -84,7 +84,7 @@ class TreeSitterEngine:
         for ext in config.extensions:
             self._extension_map[ext.lower()] = config.name
 
-    def supports(self, file_path: Path) -> Optional[str]:
+    def supports(self, file_path: Path) -> str | None:
         """Check if a file is supported."""
         ext = file_path.suffix.lower()
         return self._extension_map.get(ext)

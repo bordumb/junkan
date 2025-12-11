@@ -2,15 +2,31 @@
 Standardized Python Parser.
 """
 
-import ast
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Any, List, Set, Union
 
-from ...core.types import Edge, Node, NodeType, RelationshipType
+# Type alias for Tree-sitter tree, using Any as strict typing requires the library
+Tree = Any
+
+try:
+    from tree_sitter_languages import get_language, get_parser
+    TREE_SITTER_AVAILABLE = True
+except ImportError:
+    TREE_SITTER_AVAILABLE = False
+
+from ...core.types import Edge, Node, NodeType
 from ..base import LanguageParser, ParserContext
+from .extractors import get_extractors
 
 
 class PythonParser(LanguageParser):
+    def __init__(self, context: ParserContext | None = None):
+        super().__init__(context)
+        self._extractors = get_extractors()
+        self._tree_sitter_initialized = False
+        self._ts_parser = None
+        self._ts_language = None
+
     @property
     def name(self) -> str:
         return "python"
@@ -22,13 +38,34 @@ class PythonParser(LanguageParser):
     def can_parse(self, file_path: Path) -> bool:
         return file_path.suffix == ".py"
 
+    def _init_tree_sitter(self) -> bool:
+        """Initialize tree-sitter parser lazily."""
+        if not TREE_SITTER_AVAILABLE:
+            return False
+        
+        if self._tree_sitter_initialized:
+            return True
+
+        try:
+            self._ts_parser = get_parser("python")
+            self._ts_language = get_language("python")
+            self._tree_sitter_initialized = True
+            return True
+        except Exception as e:
+            self._logger.warning(f"Failed to initialize tree-sitter: {e}")
+            return False
+
     def parse(self, file_path: Path, content: bytes) -> List[Union[Node, Edge]]:
         results: List[Union[Node, Edge]] = []
         
         try:
-            tree = ast.parse(content)
-        except SyntaxError:
-            return []
+            # Decode content
+            text = content.decode(self.context.encoding)
+        except Exception:
+            try:
+                text = content.decode("latin-1")
+            except Exception:
+                return []
 
         rel_path = self._relativize(file_path)
         file_id = f"file://{rel_path}"
@@ -43,53 +80,35 @@ class PythonParser(LanguageParser):
         )
         results.append(file_node)
 
-        # 2. Walk the AST to find env vars
-        for node in ast.walk(tree):
-            env_var_name = self._extract_env_var(node)
-            if env_var_name:
-                env_id = f"env:{env_var_name}"
+        # 2. Parse with tree-sitter if available (for better AST analysis)
+        tree = None
+        if self._init_tree_sitter():
+            try:
+                tree = self._ts_parser.parse(content)
+            except Exception:
+                pass
+
+        # 3. Run all registered extractors
+        seen_vars: Set[str] = set()
+        
+        for extractor in self._extractors:
+            if not extractor.can_extract(text):
+                continue
                 
-                # Create the EnvVar node
-                env_node = Node(
-                    id=env_id,
-                    name=env_var_name,
-                    type=NodeType.ENV_VAR,
-                    tokens=[t.lower() for t in env_var_name.split("_")]
-                )
-                results.append(env_node)
-                
-                # Create the Edge (File READS EnvVar)
-                edge = Edge(
-                    source_id=file_id,
-                    target_id=env_id,
-                    type=RelationshipType.READS,
-                    metadata={"line": getattr(node, "lineno", 0)}
-                )
-                results.append(edge)
+            try:
+                for item in extractor.extract(file_path, file_id, tree, text, seen_vars):
+                    results.append(item)
+                    
+                    # Track seen env vars to prevent duplicates across extractors
+                    # (Higher priority extractors take precedence)
+                    if isinstance(item, Node) and item.type == NodeType.ENV_VAR:
+                        seen_vars.add(item.name)
+            except Exception as e:
+                self._logger.debug(f"Extractor {extractor.name} failed on {file_path}: {e}")
 
         return results
 
-    def _extract_env_var(self, node: ast.AST) -> str | None:
-        """
-        Detect `os.getenv('VAR')` or `os.environ['VAR']`.
-        """
-        # Case: os.getenv("VAR")
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Attribute):
-                if getattr(node.func.value, "id", "") == "os" and node.func.attr == "getenv":
-                    if node.args and isinstance(node.args[0], ast.Constant):
-                        return node.args[0].value
-        
-        # Case: os.environ["VAR"]
-        if isinstance(node, ast.Subscript):
-            if isinstance(node.value, ast.Attribute):
-                if getattr(node.value.value, "id", "") == "os" and node.value.attr == "environ":
-                    if isinstance(node.slice, ast.Constant):
-                        return node.slice.value
-                        
-        return None
 
-
-def create_python_parser(context: Optional[ParserContext] = None) -> PythonParser:
+def create_python_parser(context: ParserContext | None = None) -> PythonParser:
     """Factory function to create a Python parser."""
     return PythonParser(context)

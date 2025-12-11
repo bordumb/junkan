@@ -46,14 +46,14 @@ def _get_system_info() -> str:
     return "\n".join(lines)
 
 
-def _build_issue_url(title: str, body: str, labels: Optional[str] = None) -> str:
+def _build_issue_url(title: str, body: str, labels: str | None = None) -> str:
     """
     Construct a GitHub issue URL with pre-filled fields.
 
     Args:
         title (str): The initial title for the issue.
         body (str): The initial body text (markdown supported).
-        labels (Optional[str]): Comma-separated list of labels to apply.
+        labels (str | None): Comma-separated list of labels to apply.
 
     Returns:
         str: A fully qualified HTTPS URL to the GitHub new issue page.

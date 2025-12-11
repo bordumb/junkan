@@ -22,7 +22,7 @@ Supported Configuration Patterns:
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Set, Union
+from typing import Any, Dict, Generator, List, Set, Union
 
 try:
     import yaml
@@ -62,7 +62,7 @@ class SparkYamlParser(LanguageParser):
     OUTPUT_KEYS = {'outputs', 'output_tables', 'target_tables', 'writes', 'targets', 'sink'}
     ENTRY_POINT_KEYS = {'entry_point', 'main', 'script', 'main_class', 'main_file', 'py_file'}
 
-    def __init__(self, context: Optional[ParserContext] = None):
+    def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
@@ -85,7 +85,7 @@ class SparkYamlParser(LanguageParser):
             ParserCapability.DATA_LINEAGE,
         ]
 
-    def can_parse(self, file_path: Path, content: Optional[bytes] = None) -> bool:
+    def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
         """
         Determine if this file should be parsed as Spark YAML.
         
@@ -154,7 +154,7 @@ class SparkYamlParser(LanguageParser):
 
         # Decode and parse YAML
         try:
-            text = content.decode(self._context.encoding)
+            text = content.decode(self.context.encoding)
             config = yaml.safe_load(text)
         except yaml.YAMLError as e:
             self._logger.error(f"Failed to parse YAML {file_path}: {e}")
@@ -328,7 +328,7 @@ class SparkYamlParser(LanguageParser):
         job_id: str,
         file_path: Path,
         config: Dict[str, Any],
-        seen: Optional[Set[str]] = None,
+        seen: Set[str] | None = None,
     ) -> Generator[Union[Node, Edge], None, None]:
         """Extract ${VAR} style environment variable references from config values."""
         if seen is None:
@@ -443,6 +443,6 @@ class SparkYamlParser(LanguageParser):
                     )
 
 
-def create_spark_yaml_parser(context: Optional[ParserContext] = None) -> SparkYamlParser:
+def create_spark_yaml_parser(context: ParserContext | None = None) -> SparkYamlParser:
     """Factory function to create a Spark YAML parser."""
     return SparkYamlParser(context)

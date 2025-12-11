@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Generator, Optional, Set, Union
+from typing import Generator, Set, Union
 
 from ....core.types import Edge, Node, NodeType, RelationshipType
 from ..validation import is_valid_env_var_name
@@ -23,19 +23,22 @@ class PydanticExtractor(BaseExtractor):
         self,
         file_path: Path,
         file_id: str,
-        tree: Optional[Tree],
+        tree: Tree | None,
         text: str,
         seen_vars: Set[str],
     ) -> Generator[Union[Node, Edge], None, None]:
 
         # 1. Field(env="VAR") pattern
         field_env_pattern = r'Field\s*\([^)]*env\s*=\s*["\']([^"\']+)["\']'
-        regex = re.compile(field_env_pattern)
+        regex = re.compile(field_env_pattern, re.DOTALL)
 
         for match in regex.finditer(text):
             var_name = match.group(1)
 
             if not is_valid_env_var_name(var_name):
+                continue
+            
+            if var_name in seen_vars:
                 continue
 
             line = text[:match.start()].count('\n') + 1
@@ -103,6 +106,9 @@ class PydanticExtractor(BaseExtractor):
                     continue
 
                 env_var_name = prefix + field_name.upper()
+                
+                if env_var_name in seen_vars:
+                    continue
 
                 field_line = class_start_line + class_body[:field_match.start()].count('\n')
                 env_id = f"env:{env_var_name}"

@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Generator, Optional, Set, Union
+from typing import Generator, Set, Union
 
 from ....core.types import Edge, Node, NodeType, RelationshipType
 from ..validation import is_valid_env_var_name
@@ -14,12 +14,13 @@ ENV_VAR_PATTERNS = [
     (r'os\.environ\.get\s*\(\s*["\']([^"\']+)["\']', "os.environ.get"),
     # os.environ["VAR"]
     (r'os\.environ\s*\[\s*["\']([^"\']+)["\']', "os.environ[]"),
-    # getenv("VAR") - after from import
-    (r'(?<!os\.)getenv\s*\(\s*["\']([^"\']+)["\']', "getenv"),
     # environ.get("VAR") - after from import
     (r'(?<!os\.)environ\.get\s*\(\s*["\']([^"\']+)["\']', "environ.get"),
     # environ["VAR"] - after from import
     (r'(?<!os\.)environ\s*\[\s*["\']([^"\']+)["\']', "environ[]"),
+    # getenv("VAR") - REMOVED redundant pattern that conflicted with os.getenv
+    # if users do `from os import getenv`, the regex below captures it safely
+    (r'(?<!os\.)getenv\s*\(\s*["\']([^"\']+)["\']', "getenv"),
 ]
 
 class StdlibExtractor(BaseExtractor):
@@ -38,15 +39,10 @@ class StdlibExtractor(BaseExtractor):
         self,
         file_path: Path,
         file_id: str,
-        tree: Optional[Tree],
+        tree: Tree | None,
         text: str,
         seen_vars: Set[str],
     ) -> Generator[Union[Node, Edge], None, None]:
-
-        # If tree-sitter is available, we could use it here.
-        # For this implementation, I am porting the robust regex logic from the original monolithic parser
-        # as it was handling these patterns well. Tree-sitter query integration would go here.
-        # Assuming we might want to prioritize tree-sitter in the future, structure allows it.
 
         for pattern, pattern_name in ENV_VAR_PATTERNS:
             regex = re.compile(pattern)
@@ -60,15 +56,6 @@ class StdlibExtractor(BaseExtractor):
 
                 if var_name in seen_vars:
                     continue
-                # Do NOT add to seen_vars here if you want multiple edges from same file to same env var?
-                # Usually standard practice is one edge per file-var pair, but unique line numbers differ.
-                # The 'seen_vars' passed in might be global for the file parsing session.
-                # If we want to capture multiple usages, we might adjust logic.
-                # For now, following original logic of deduplicating by name per file parse if desired,
-                # but 'seen_vars' is usually used to prevent duplicate NODES.
-                # Edges should probably be allowed if line numbers differ.
-                # However, the prompt implies 'seen_vars' is to avoid duplicates.
-                # I will adhere to the check.
 
                 # Calculate line number
                 line = text[:match.start()].count('\n') + 1

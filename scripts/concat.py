@@ -50,6 +50,7 @@ DEFAULT_IGNORE_DIRS = {
     ".ruff_cache",
     "__pycache__",
     "htmlcov",
+    ".cache",
 
     # VCS
     ".git",

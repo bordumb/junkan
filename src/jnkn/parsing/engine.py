@@ -20,7 +20,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, List, Optional, Set, Type, Union
+from typing import Any, Callable, Dict, Generator, List, Set, Type, Union
 
 from ..core.types import Edge, Node, ScanMetadata
 from .base import (
@@ -197,7 +197,7 @@ class ParserRegistry:
 
         return True
 
-    def get_parser(self, name: str) -> Optional[LanguageParser]:
+    def get_parser(self, name: str) -> LanguageParser | None:
         """
         Get a parser by name.
         
@@ -219,7 +219,7 @@ class ParserRegistry:
 
         return None
 
-    def get_parser_for_extension(self, extension: str) -> Optional[LanguageParser]:
+    def get_parser_for_extension(self, extension: str) -> LanguageParser | None:
         """
         Get the parser registered for a file extension.
         
@@ -238,7 +238,7 @@ class ParserRegistry:
 
         return None
 
-    def get_parser_for_file(self, file_path: Path) -> Optional[LanguageParser]:
+    def get_parser_for_file(self, file_path: Path) -> LanguageParser | None:
         """
         Get the appropriate parser for a file.
         
@@ -330,7 +330,7 @@ class ParserEngine:
             print(f"Parsed {result.file_path}: {len(result.nodes)} nodes")
     """
 
-    def __init__(self, context: Optional[ParserContext] = None):
+    def __init__(self, context: ParserContext | None = None):
         """
         Initialize the parser engine.
         
@@ -382,7 +382,7 @@ class ParserEngine:
         """
         return self._registry.get_parser_for_file(file_path) is not None
 
-    def get_parser(self, file_path: Path) -> Optional[LanguageParser]:
+    def get_parser(self, file_path: Path) -> LanguageParser | None:
         """
         Get the parser for a file.
         
@@ -397,7 +397,7 @@ class ParserEngine:
     def parse_file(
         self,
         file_path: Path,
-        content: Optional[bytes] = None,
+        content: bytes | None = None,
     ) -> Generator[Union[Node, Edge], None, None]:
         """
         Parse a file and yield nodes and edges.
@@ -429,7 +429,7 @@ class ParserEngine:
     def parse_file_full(
         self,
         file_path: Path,
-        content: Optional[bytes] = None,
+        content: bytes | None = None,
     ) -> ParseResult:
         """
         Parse a file and return complete ParseResult.
@@ -513,8 +513,8 @@ class ParserEngine:
 
     def scan(
         self,
-        config: Optional[ScanConfig] = None,
-        progress_callback: Optional[Callable[[Path, int, int], None]] = None,
+        config: ScanConfig | None = None,
+        progress_callback: Callable[[Path, int, int], None] | None = None,
     ) -> Generator[ParseResult, None, None]:
         """
         Scan a directory and parse all supported files.
@@ -562,8 +562,8 @@ class ParserEngine:
 
     def scan_all(
         self,
-        config: Optional[ScanConfig] = None,
-        progress_callback: Optional[Callable[[Path, int, int], None]] = None,
+        config: ScanConfig | None = None,
+        progress_callback: Callable[[Path, int, int], None] | None = None,
     ) -> tuple[List[Node], List[Edge], ScanStats]:
         """
         Scan and collect all results.

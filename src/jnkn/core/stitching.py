@@ -14,7 +14,7 @@ Key capabilities include:
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from .confidence import create_default_calculator
 from .graph import DependencyGraph
@@ -75,7 +75,7 @@ class TokenMatcher:
 class StitchingRule(ABC):
     """Abstract base class for all stitching rules."""
 
-    def __init__(self, config: Optional[MatchConfig] = None):
+    def __init__(self, config: MatchConfig | None = None):
         self.config = config or MatchConfig()
         self.calculator = create_default_calculator()
 
@@ -140,7 +140,7 @@ class EnvVarToInfraRule(StitchingRule):
                     for infra in infra_by_token.get(t, []):
                         candidates.add(infra)
 
-            best_match: Optional[MatchResult] = None
+            best_match: MatchResult | None = None
             
             # Evaluate all candidates
             for infra in candidates:
@@ -253,7 +253,7 @@ class InfraToInfraRule(StitchingRule):
 
 class Stitcher:
     """Orchestrator for stitching rules."""
-    def __init__(self, config: Optional[MatchConfig] = None):
+    def __init__(self, config: MatchConfig | None = None):
         self.config = config or MatchConfig()
         self.rules = [
             EnvVarToInfraRule(self.config),

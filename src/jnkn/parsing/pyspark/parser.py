@@ -25,7 +25,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Union
+from typing import Dict, Generator, List, Union
 
 from ...core.types import Edge, Node, NodeType, RelationshipType
 from ..base import (
@@ -168,7 +168,7 @@ class PySparkParser(LanguageParser):
         re.IGNORECASE
     )
 
-    def __init__(self, context: Optional[ParserContext] = None):
+    def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
@@ -200,7 +200,7 @@ class PySparkParser(LanguageParser):
             ParserCapability.IMPORTS,
         ]
 
-    def can_parse(self, file_path: Path, content: Optional[bytes] = None) -> bool:
+    def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
         """
         Determine if this file should be parsed as PySpark.
         
@@ -261,7 +261,7 @@ class PySparkParser(LanguageParser):
 
         # Decode content
         try:
-            text = content.decode(self._context.encoding)
+            text = content.decode(self.context.encoding)
         except UnicodeDecodeError:
             try:
                 text = content.decode("latin-1")
@@ -379,7 +379,7 @@ class PySparkParser(LanguageParser):
                         source_type="table",
                     )
 
-            # Extract tables from CREATE TABLE AS (writes)
+            # Extract tables from CREATE TABLE AS SELECT (writes)
             for ctas_match in self.SQL_CTAS_PATTERN.finditer(sql_query):
                 table_name = ctas_match.group(1)
                 if self._is_valid_table_name(table_name):
@@ -524,6 +524,6 @@ class PySparkParser(LanguageParser):
             return 'table'
 
 
-def create_pyspark_parser(context: Optional[ParserContext] = None) -> PySparkParser:
+def create_pyspark_parser(context: ParserContext | None = None) -> PySparkParser:
     """Factory function to create a PySpark parser."""
     return PySparkParser(context)

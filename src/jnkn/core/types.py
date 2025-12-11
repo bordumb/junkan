@@ -80,9 +80,9 @@ class Node(BaseModel):
     id: str
     name: str
     type: NodeType
-    path: Optional[str] = None
-    language: Optional[str] = None
-    file_hash: Optional[str] = None
+    path: str | None = None
+    language: str | None = None
+    file_hash: str | None = None
     tokens: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -182,7 +182,7 @@ class Edge(BaseModel):
     target_id: str
     type: RelationshipType
     confidence: float = 1.0
-    match_strategy: Optional[MatchStrategy] = None
+    match_strategy: MatchStrategy | None = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -202,7 +202,7 @@ class Edge(BaseModel):
         """Extract explanation from metadata if present."""
         return self.metadata.get("explanation", "")
 
-    def get_rule_name(self) -> Optional[str]:
+    def get_rule_name(self) -> str | None:
         """Extract the stitching rule name that created this edge."""
         return self.metadata.get("rule")
 

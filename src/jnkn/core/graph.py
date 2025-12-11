@@ -4,7 +4,7 @@ Graph Implementation backed by rustworkx.
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, List, Optional, Set
+from typing import Any, Dict, Iterator, List, Set
 
 import rustworkx as rx
 
@@ -91,7 +91,7 @@ class DependencyGraph(IGraph):
         if not existing:
             self._graph.add_edge(src_idx, tgt_idx, edge)
 
-    def get_node(self, node_id: str) -> Optional[Node]:
+    def get_node(self, node_id: str) -> Node | None:
         idx = self._id_to_idx.get(node_id)
         if idx is not None:
             return self._idx_to_node[idx]
@@ -149,7 +149,7 @@ class DependencyGraph(IGraph):
         idx = self._id_to_idx[node_id]
         return [edge_tuple[2] for edge_tuple in self._graph.in_edges(idx)]
         
-    def get_edge(self, source_id: str, target_id: str) -> Optional[Edge]:
+    def get_edge(self, source_id: str, target_id: str) -> Edge | None:
         if source_id not in self._id_to_idx or target_id not in self._id_to_idx:
             return None
         src_idx = self._id_to_idx[source_id]

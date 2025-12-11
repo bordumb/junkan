@@ -9,7 +9,7 @@ with semantic heuristics (provider/consumer validation) to minimize false positi
 import logging
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Set
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -134,7 +134,7 @@ class ConfidenceCalculator:
     Engine for calculating match confidence scores.
     """
 
-    def __init__(self, config: Optional[ConfidenceConfig] = None):
+    def __init__(self, config: ConfidenceConfig | None = None):
         self.config = config or ConfidenceConfig()
 
     def _normalize(self, name: str) -> str:
@@ -150,9 +150,9 @@ class ConfidenceCalculator:
         target_name: str,
         source_tokens: List[str],
         target_tokens: List[str],
-        source_type: Optional[NodeType] = None,
-        target_type: Optional[NodeType] = None,
-        matched_tokens: Optional[List[str]] = None,
+        source_type: NodeType | None = None,
+        target_type: NodeType | None = None,
+        matched_tokens: List[str] | None = None,
         alternative_match_count: int = 0,
         source_node_id: str = "",
         target_node_id: str = "",
@@ -294,8 +294,8 @@ class ConfidenceCalculator:
         target_name: str,
         matched_tokens: List[str],
         alternative_match_count: int,
-        source_type: Optional[NodeType],
-        target_type: Optional[NodeType],
+        source_type: NodeType | None,
+        target_type: NodeType | None,
     ) -> List[PenaltyResult]:
         """Evaluate negative penalties."""
         results = []

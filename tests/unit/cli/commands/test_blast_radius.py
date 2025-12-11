@@ -26,7 +26,9 @@ class TestBlastRadiusCommand:
         mock_analyzer = mock_analyzer_cls.return_value
         mock_result = {
             "source_artifacts": ["env:TEST"],
-            "impacted_artifacts": ["file://a.py"]
+            "impacted_artifacts": ["file://a.py"],
+            "count": 1,
+            "breakdown": {}
         }
         mock_analyzer.calculate.return_value = mock_result
         
@@ -49,14 +51,21 @@ class TestBlastRadiusCommand:
         mock_load.return_value = mock_graph
 
         mock_analyzer = mock_analyzer_cls.return_value
-        mock_result = {"test": "data"}
+        # UPDATED: Mock result must match BlastRadiusResponse schema
+        mock_result = {
+            "source_artifacts": ["env:TEST"],
+            "impacted_artifacts": ["file://a.py"],
+            "count": 1,
+            "breakdown": {"code": ["file://a.py"]}
+        }
         mock_analyzer.calculate.return_value = mock_result
 
         result = runner.invoke(blast_radius, ["env:TEST", "--json"])
 
         assert result.exit_code == 0
-        # Check raw JSON output
-        assert '"test": "data"' in result.output
+        # Check for specific data in the JSON envelope
+        assert "file://a.py" in result.output
+        assert "impacted_artifacts" in result.output
 
     @patch("jnkn.cli.commands.blast_radius.load_graph")
     def test_blast_radius_node_resolution_failure(self, mock_load):

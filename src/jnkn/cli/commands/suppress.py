@@ -31,7 +31,7 @@ def suppress():
 @click.option("--config", "config_path", default=".jnkn/suppressions.yaml",
               help="Path to suppressions file")
 def suppress_add(source_pattern: str, target_pattern: str, reason: str,
-                 created_by: str, expires_days: Optional[int], config_path: str):
+                 created_by: str, expires_days: int | None, config_path: str):
     """
     Add a new suppression rule.
     

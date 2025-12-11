@@ -5,7 +5,7 @@ Fast, ephemeral storage for testing and CI pipelines.
 """
 
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 from ..graph import DependencyGraph
 from ..types import Edge, Node, NodeType, ScanMetadata
@@ -42,7 +42,7 @@ class MemoryStorage(StorageAdapter):
             self.save_node(node)
         return len(nodes)
 
-    def load_node(self, node_id: str) -> Optional[Node]:
+    def load_node(self, node_id: str) -> Node | None:
         """Load a node by ID."""
         return self._nodes.get(node_id)
 
@@ -166,7 +166,7 @@ class MemoryStorage(StorageAdapter):
         """Save scan metadata."""
         self._scan_metadata[metadata.file_path] = metadata
 
-    def get_scan_metadata(self, file_path: str) -> Optional[ScanMetadata]:
+    def get_scan_metadata(self, file_path: str) -> ScanMetadata | None:
         """Get scan metadata for a file."""
         return self._scan_metadata.get(file_path)
 

@@ -7,7 +7,7 @@ Defines the contracts for:
 """
 
 from pathlib import Path
-from typing import Iterator, List, Optional, Protocol, Set, Union
+from typing import Iterator, List, Protocol, Set, Union
 
 from .types import Edge, Node
 
@@ -38,7 +38,7 @@ class IGraph(Protocol):
         """Add a directed edge between two nodes."""
         ...
 
-    def get_node(self, node_id: str) -> Optional[Node]:
+    def get_node(self, node_id: str) -> Node | None:
         """Retrieve a node by its ID."""
         ...
 

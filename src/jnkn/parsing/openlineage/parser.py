@@ -37,7 +37,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterator, List, Set, Tuple, Union
 
 try:
     import requests
@@ -78,9 +78,9 @@ class Node:
     id: str
     name: str
     type: NodeType
-    path: Optional[str] = None
-    language: Optional[str] = None
-    file_hash: Optional[str] = None
+    path: str | None = None
+    language: str | None = None
+    file_hash: str | None = None
     tokens: Tuple[str, ...] = field(default_factory=tuple)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -143,7 +143,7 @@ class OpenLineageParser:
             graph.add(item)
     """
 
-    def __init__(self, namespace_filter: Optional[str] = None):
+    def __init__(self, namespace_filter: str | None = None):
         """
         Initialize the parser.
         
@@ -457,7 +457,7 @@ class OpenLineageParser:
     def fetch_from_marquez(
         self,
         base_url: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         limit: int = 1000,
     ) -> List[Dict[str, Any]]:
         """
@@ -511,7 +511,7 @@ class OpenLineageParser:
         self,
         job: Dict[str, Any],
         run: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any] | None:
         """Convert a Marquez run to OpenLineage event format."""
 
         if run.get("state") != "COMPLETED":
@@ -569,7 +569,7 @@ def parse_openlineage_file(file_path: str) -> Tuple[List[Node], List[Edge]]:
 
 def fetch_and_parse_marquez(
     base_url: str,
-    namespace: Optional[str] = None,
+    namespace: str | None = None,
 ) -> Tuple[List[Node], List[Edge]]:
     """
     Fetch from Marquez API and parse into nodes and edges.

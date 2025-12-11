@@ -11,7 +11,7 @@ It supports both single-document and multi-document (--- separated) YAML files.
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Set, Union
+from typing import Any, Dict, Generator, List, Set, Union
 
 try:
     import yaml
@@ -36,20 +36,20 @@ class K8sEnvVar:
 
     Attributes:
         name (str): The name of the environment variable.
-        value (Optional[str]): Hardcoded string value, if present.
-        config_map_name (Optional[str]): Name of the referenced ConfigMap.
-        config_map_key (Optional[str]): Key within the ConfigMap.
-        secret_name (Optional[str]): Name of the referenced Secret.
-        secret_key (Optional[str]): Key within the Secret.
-        field_ref (Optional[str]): Field reference (e.g. status.podIP).
+        value (str | None): Hardcoded string value, if present.
+        config_map_name (str | None): Name of the referenced ConfigMap.
+        config_map_key (str | None): Key within the ConfigMap.
+        secret_name (str | None): Name of the referenced Secret.
+        secret_key (str | None): Key within the Secret.
+        field_ref (str | None): Field reference (e.g. status.podIP).
     """
     name: str
-    value: Optional[str] = None
-    config_map_name: Optional[str] = None
-    config_map_key: Optional[str] = None
-    secret_name: Optional[str] = None
-    secret_key: Optional[str] = None
-    field_ref: Optional[str] = None
+    value: str | None = None
+    config_map_name: str | None = None
+    config_map_key: str | None = None
+    secret_name: str | None = None
+    secret_key: str | None = None
+    field_ref: str | None = None
 
     @property
     def is_direct_value(self) -> bool:
@@ -81,7 +81,7 @@ class KubernetesParser(LanguageParser):
         "DaemonSet", "ReplicaSet", "Pod",
     }
 
-    def __init__(self, context: Optional[ParserContext] = None):
+    def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
         if not YAML_AVAILABLE:
             self._logger = logging.getLogger(__name__)
@@ -107,7 +107,7 @@ class KubernetesParser(LanguageParser):
             ParserCapability.DEPENDENCIES,
         }
 
-    def can_parse(self, file_path: Path, content: Optional[bytes] = None) -> bool:
+    def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
         """
         Heuristically check if a file is a Kubernetes manifest.
 
@@ -118,7 +118,7 @@ class KubernetesParser(LanguageParser):
 
         Args:
             file_path (Path): Path to the file.
-            content (Optional[bytes]): File content for deep inspection.
+            content (bytes | None): File content for deep inspection.
 
         Returns:
             bool: True if the file appears to be a Kubernetes manifest.
@@ -161,7 +161,7 @@ class KubernetesParser(LanguageParser):
         self,
         file_path: Path,
         content: bytes,
-        context: Optional[ParserContext] = None,
+        context: ParserContext | None = None,
     ) -> Generator[Union[Node, Edge], None, None]:
         """
         Parse a Kubernetes YAML file and extract graph elements.
@@ -171,7 +171,7 @@ class KubernetesParser(LanguageParser):
         Args:
             file_path (Path): Path to the file.
             content (bytes): File content.
-            context (Optional[ParserContext]): Context override.
+            context (ParserContext | None): Context override.
 
         Yields:
             Union[Node, Edge]: Nodes for resources (Deployments, ConfigMaps) and
@@ -200,7 +200,8 @@ class KubernetesParser(LanguageParser):
 
         # 2. Parse YAML content
         try:
-            text = content.decode(self._context.encoding)
+            # FIX: Use self.context instead of self._context
+            text = content.decode(self.context.encoding)
         except UnicodeDecodeError:
             try:
                 text = content.decode("latin-1")
@@ -296,6 +297,13 @@ class KubernetesParser(LanguageParser):
                         # Link to referenced ConfigMaps/Secrets
                         if env_var.is_config_map_ref and env_var.config_map_name:
                             cm_id = f"k8s:{namespace}/configmap/{env_var.config_map_name}"
+                            # Emit virtual node for the referenced ConfigMap
+                            yield Node(
+                                id=cm_id,
+                                name=env_var.config_map_name,
+                                type=NodeType.CONFIG_KEY,
+                                metadata={"virtual": True}
+                            )
                             yield Edge(
                                 source_id=env_id,
                                 target_id=cm_id,
@@ -304,6 +312,13 @@ class KubernetesParser(LanguageParser):
                         
                         if env_var.is_secret_ref and env_var.secret_name:
                             secret_id = f"k8s:{namespace}/secret/{env_var.secret_name}"
+                            # Emit virtual node for the referenced Secret
+                            yield Node(
+                                id=secret_id,
+                                name=env_var.secret_name,
+                                type=NodeType.SECRET,
+                                metadata={"virtual": True}
+                            )
                             yield Edge(
                                 source_id=env_id,
                                 target_id=secret_id,
@@ -316,14 +331,28 @@ class KubernetesParser(LanguageParser):
                             cm_name = env_from["configMapRef"].get("name")
                             if cm_name:
                                 cm_id = f"k8s:{namespace}/configmap/{cm_name}"
+                                # Emit virtual node
+                                yield Node(
+                                    id=cm_id,
+                                    name=cm_name,
+                                    type=NodeType.CONFIG_KEY,
+                                    metadata={"virtual": True}
+                                )
                                 yield Edge(source_id=k8s_id, target_id=cm_id, type=RelationshipType.READS)
                         if "secretRef" in env_from:
                             secret_name = env_from["secretRef"].get("name")
                             if secret_name:
                                 secret_id = f"k8s:{namespace}/secret/{secret_name}"
+                                # Emit virtual node
+                                yield Node(
+                                    id=secret_id,
+                                    name=secret_name,
+                                    type=NodeType.SECRET,
+                                    metadata={"virtual": True}
+                                )
                                 yield Edge(source_id=k8s_id, target_id=secret_id, type=RelationshipType.READS)
 
-    def _get_pod_spec(self, doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _get_pod_spec(self, doc: Dict[str, Any]) -> Dict[str, Any] | None:
         """Extract PodSpec from various workload kinds."""
         kind = doc.get("kind", "")
         spec = doc.get("spec", {})
@@ -360,6 +389,6 @@ class KubernetesParser(LanguageParser):
         return result
 
 
-def create_kubernetes_parser(context: Optional[ParserContext] = None) -> KubernetesParser:
+def create_kubernetes_parser(context: ParserContext | None = None) -> KubernetesParser:
     """Factory function for KubernetesParser."""
     return KubernetesParser(context)

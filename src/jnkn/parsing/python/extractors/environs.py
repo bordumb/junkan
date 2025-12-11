@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Generator, Optional, Set, Union
+from typing import Generator, Set, Union
 
 from ....core.types import Edge, Node, NodeType, RelationshipType
 from ..validation import is_valid_env_var_name
@@ -23,19 +23,23 @@ class EnvironsExtractor(BaseExtractor):
         self,
         file_path: Path,
         file_id: str,
-        tree: Optional[Tree],
+        tree: Tree | None,
         text: str,
         seen_vars: Set[str],
     ) -> Generator[Union[Node, Edge], None, None]:
 
         # env.str("VAR"), env.int("VAR"), etc.
-        pattern = r'env\.(str|int|bool|float|list|dict|json|url|path)\s*\(\s*["\']([^"\']+)["\']'
+        pattern = r'env\.(str|int|bool|float|list|dict|json|url|path|db|cache|email_url|search_url)\s*\(\s*["\']([^"\']+)["\']'
         regex = re.compile(pattern)
 
         for match in regex.finditer(text):
             var_name = match.group(2) # group 1 is method name
 
             if not is_valid_env_var_name(var_name):
+                continue
+            
+            # Prevent duplicates if DjangoExtractor (priority 60) already found this
+            if var_name in seen_vars:
                 continue
 
             line = text[:match.start()].count('\n') + 1
