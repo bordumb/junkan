@@ -1,3 +1,10 @@
+"""
+Telemetry Core Module.
+
+Refactored to remove global singletons in favor of Dependency Injection.
+This aligns with Rust's ownership model where shared mutable state is restricted.
+"""
+
 import atexit
 import json
 import logging
@@ -7,7 +14,8 @@ import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from queue import Queue
+from typing import Any, Dict, Protocol
 from urllib import request
 
 import yaml
@@ -18,68 +26,68 @@ POSTHOG_HOST = os.getenv("JNKN_POSTHOG_HOST", "https://app.posthog.com")
 
 logger = logging.getLogger(__name__)
 
-class TelemetryClient:
+
+class TelemetryBackend(Protocol):
+    """Protocol for sending telemetry events."""
+    def send(self, payload: Dict[str, Any]) -> None:
+        ...
+
+
+class HttpBackend:
+    """Standard HTTP implementation for PostHog."""
+    def send(self, payload: Dict[str, Any]) -> None:
+        try:
+            data = json.dumps(payload).encode("utf-8")
+            req = request.Request(
+                f"{POSTHOG_HOST}/capture/",
+                data=data,
+                headers={"Content-Type": "application/json"}
+            )
+            with request.urlopen(req, timeout=5.0) as _:
+                pass
+        except Exception:
+            # Silent fail for telemetry
+            pass
+
+
+class TelemetryService:
     """
-    Handles anonymous usage tracking for the CLI.
+    Handles anonymous usage tracking via message passing.
+    
+    Architecture:
+    - Uses a thread-safe Queue for events (Actor model style).
+    - A background worker thread consumes the queue.
+    - No global state; instances must be passed to consumers.
     """
 
-    def __init__(self, config_path: Path | None = None):
+    def __init__(self, config_path: Path | None = None, backend: TelemetryBackend | None = None):
         self.config_path = config_path or Path(".jnkn/config.yaml")
-        self._enabled: bool | None = None
-        self._distinct_id: str | None = None
-        self._threads: List[threading.Thread] = []
-
-        # Register cleanup to wait for pending requests on exit
-        atexit.register(self._flush)
-
-    def _flush(self):
-        """Wait for pending telemetry requests to finish."""
-        pending = [t for t in self._threads if t.is_alive()]
-        if pending:
-            for t in pending:
-                t.join(timeout=2.0)
+        self._backend = backend or HttpBackend()
+        self._queue: Queue[Dict[str, Any] | None] = Queue()
+        self._worker_thread: threading.Thread | None = None
+        
+        # Load config once
+        self._config = self._load_config()
+        self._distinct_id = self._get_or_create_id()
+        
+        # Start worker if enabled
+        if self.is_enabled:
+            self._start_worker()
+            atexit.register(self.shutdown)
 
     @property
     def is_enabled(self) -> bool:
-        """Check if telemetry is enabled in config."""
-        # Always re-read config in dev/beta to catch 'init' changes immediately
-        if not self.config_path.exists():
-            return False
-
-        try:
-            with open(self.config_path, "r") as f:
-                data = yaml.safe_load(f) or {}
-                # Default to False if not explicitly set
-                enabled = data.get("telemetry", {}).get("enabled", False)
-                return enabled
-        except Exception:
-            return False
+        return self._config.get("telemetry", {}).get("enabled", False)
 
     @property
     def distinct_id(self) -> str:
-        """Get or generate persistent anonymous ID."""
-        if self._distinct_id:
-            return self._distinct_id
-
-        try:
-            if self.config_path.exists():
-                with open(self.config_path, "r") as f:
-                    data = yaml.safe_load(f) or {}
-                    self._distinct_id = data.get("telemetry", {}).get("distinct_id")
-        except Exception:
-            pass
-
-        if not self._distinct_id:
-            self._distinct_id = str(uuid.uuid4())
-
         return self._distinct_id
 
-    def track(self, event_name: str, properties: Dict[str, Any] = None):
-        """Fire and forget an event."""
-        if not self.is_enabled:
-            return
-
-        if not POSTHOG_API_KEY:
+    def track(self, event_name: str, properties: Dict[str, Any] | None = None) -> None:
+        """
+        Enqueue an event for tracking. Non-blocking.
+        """
+        if not self.is_enabled or not POSTHOG_API_KEY:
             return
 
         payload = {
@@ -94,31 +102,43 @@ class TelemetryClient:
                 **(properties or {})
             }
         }
+        self._queue.put(payload)
 
-        # Track thread so we can join it at exit
-        thread = threading.Thread(target=self._send_request, args=(payload,))
-        thread.daemon = False  # Important: Let it finish if possible
-        self._threads.append(thread)
-        thread.start()
+    def shutdown(self) -> None:
+        """Gracefully shut down the worker thread."""
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._queue.put(None)  # Sentinel
+            self._worker_thread.join(timeout=2.0)
 
-    def _send_request(self, payload: Dict[str, Any]):
-        """Internal method to send HTTP request via urllib."""
+    def _start_worker(self) -> None:
+        def worker():
+            while True:
+                item = self._queue.get()
+                if item is None:
+                    break
+                self._backend.send(item)
+                self._queue.task_done()
+
+        self._worker_thread = threading.Thread(target=worker, daemon=True)
+        self._worker_thread.start()
+
+    def _load_config(self) -> Dict[str, Any]:
+        if not self.config_path.exists():
+            return {}
         try:
-            data = json.dumps(payload).encode("utf-8")
-            req = request.Request(
-                f"{POSTHOG_HOST}/capture/",
-                data=data,
-                headers={"Content-Type": "application/json"}
-            )
-            with request.urlopen(req, timeout=5.0) as _:
-                pass
+            with open(self.config_path, "r") as f:
+                return yaml.safe_load(f) or {}
         except Exception:
-            # Silent fail for telemetry
-            pass
+            return {}
 
-# Singleton instance
-_client = TelemetryClient()
+    def _get_or_create_id(self) -> str:
+        # Check config first
+        if "telemetry" in self._config and "distinct_id" in self._config["telemetry"]:
+            return self._config["telemetry"]["distinct_id"]
+        # Fallback to ephemeral ID
+        return str(uuid.uuid4())
 
-def track_event(name: str, properties: Dict[str, Any] = None):
-    """Public API for tracking events."""
-    _client.track(name, properties)
+
+# Helper factory for DI
+def create_telemetry(path: Path | None = None) -> TelemetryService:
+    return TelemetryService(path)

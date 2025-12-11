@@ -4,7 +4,7 @@ Unit tests for the CLI Telemetry Middleware.
 
 import click
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 
 from jnkn.cli.utils_telemetry import TelemetryGroup
@@ -13,12 +13,12 @@ class TestTelemetryGroup:
     """Test the TelemetryGroup middleware."""
 
     @pytest.fixture
-    def mock_track_event(self):
-        """Fixture to mock the telemetry tracking function."""
-        with patch("jnkn.cli.utils_telemetry.track_event") as mock:
+    def mock_service(self):
+        """Fixture to mock the global telemetry service used by CLI."""
+        with patch("jnkn.cli.utils_telemetry._service") as mock:
             yield mock
 
-    def test_successful_command_tracking(self, mock_track_event):
+    def test_successful_command_tracking(self, mock_service):
         """Test that a successful command triggers a success event."""
         
         @click.group(cls=TelemetryGroup)
@@ -31,14 +31,19 @@ class TestTelemetryGroup:
         result = runner.invoke(cli, ["hello"])
 
         assert result.exit_code == 0
-        assert mock_track_event.called
+        assert mock_service.track.called
         
-        props = mock_track_event.call_args.kwargs.get("properties")
+        call_args = mock_service.track.call_args
+        # track(event_name="...", properties={...})
+        kwargs = call_args.kwargs
+        assert kwargs["event_name"] == "command_run"
+        
+        props = kwargs["properties"]
         assert props["command"] == "hello"
         assert props["success"] is True
         assert props["exit_code"] == 0
 
-    def test_explicit_exit_code_tracking(self, mock_track_event):
+    def test_explicit_exit_code_tracking(self, mock_service):
         """
         Test that ctx.exit(10) is captured correctly.
         """
@@ -57,12 +62,11 @@ class TestTelemetryGroup:
         # ClickRunner catches SystemExit(10) and sets exit_code=10
         assert result.exit_code == 10
         
-        assert mock_track_event.called
-        props = mock_track_event.call_args.kwargs.get("properties")
-        assert props["command"] == "exit_cmd"
-        assert props["success"] is False
+        assert mock_service.track.called
+        kwargs = mock_service.track.call_args.kwargs
+        props = kwargs["properties"]
         
-        # Telemetry middleware likely captured the exception code.
-        # Depending on implementation, it might capture 10, or a generic 1 if handling exception.
-        # We assert it captured A failure code.
+        assert props["command"] == "exit_cmd"
+        # Success is False because exit code != 0
+        assert props["success"] is False
         assert props["exit_code"] != 0

@@ -1,24 +1,34 @@
 """
 Cross-domain dependency stitching.
 
-This module implements the core "glue" logic that connects disparate domains:
-- Environment variables to infrastructure resources
-- Code references to data assets
-- Configuration keys to their providers
-
-Key capabilities include:
-- Linking environment variables to infrastructure resources.
-- Linking infrastructure resources to each other.
-- Configurable confidence scoring to minimize false positives.
+Refactored to use the Collect-then-Apply pattern.
+Phase 1: Read-only analysis creates a StitchingPlan.
+Phase 2: Write-only application mutates the graph.
+This prevents "mutation during iteration" errors common in Rust.
 """
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import List, Tuple
 
 from .confidence import create_default_calculator
 from .graph import DependencyGraph
 from .types import Edge, MatchResult, MatchStrategy, Node, NodeType, RelationshipType
+
+
+@dataclass
+class StitchingPlan:
+    """
+    Immutable plan of edges to add to the graph.
+    """
+    edges_to_add: List[Edge] = field(default_factory=list)
+
+    def merge(self, other: "StitchingPlan") -> "StitchingPlan":
+        """Combine two plans into a new one."""
+        return StitchingPlan(
+            edges_to_add=self.edges_to_add + other.edges_to_add
+        )
 
 
 class MatchConfig:
@@ -51,26 +61,6 @@ class TokenMatcher:
             normalized = normalized.replace(sep, " ")
         return [t.strip() for t in normalized.split() if t.strip()]
 
-    @staticmethod
-    def significant_token_overlap(
-        tokens1: List[str],
-        tokens2: List[str],
-        min_length: int = 2
-    ) -> Tuple[List[str], float]:
-        sig1 = [t for t in tokens1 if len(t) >= min_length]
-        sig2 = [t for t in tokens2 if len(t) >= min_length]
-        
-        set1 = set(sig1)
-        set2 = set(sig2)
-        overlap = set1 & set2
-        union = set1 | set2
-
-        if not union:
-            return [], 0.0
-
-        jaccard = len(overlap) / len(union)
-        return list(overlap), jaccard
-
 
 class StitchingRule(ABC):
     """Abstract base class for all stitching rules."""
@@ -80,7 +70,11 @@ class StitchingRule(ABC):
         self.calculator = create_default_calculator()
 
     @abstractmethod
-    def apply(self, graph: DependencyGraph) -> List[Edge]:
+    def plan(self, graph: DependencyGraph) -> StitchingPlan:
+        """
+        Analyze the graph and return a plan of edges to add.
+        MUST NOT mutate the graph.
+        """
         pass
 
     @abstractmethod
@@ -91,14 +85,12 @@ class StitchingRule(ABC):
 class EnvVarToInfraRule(StitchingRule):
     """
     Stitching rule that links environment variables to infrastructure resources.
-    
-    Direction: Infra Resource (Provider) -> PROVIDES -> Environment Variable (Consumer)
     """
 
     def get_name(self) -> str:
         return "EnvVarToInfraRule"
 
-    def apply(self, graph: DependencyGraph) -> List[Edge]:
+    def plan(self, graph: DependencyGraph) -> StitchingPlan:
         edges = []
         
         # Get targets (Consumers)
@@ -109,7 +101,7 @@ class EnvVarToInfraRule(StitchingRule):
         infra_nodes.extend(graph.get_nodes_by_type(NodeType.CONFIG_KEY))
 
         if not env_nodes or not infra_nodes:
-            return edges
+            return StitchingPlan()
 
         # Index infra nodes for performance
         infra_by_norm = defaultdict(list)
@@ -144,7 +136,6 @@ class EnvVarToInfraRule(StitchingRule):
             
             # Evaluate all candidates
             for infra in candidates:
-                # [UPDATE] Pass node types to calculator for heuristic validation
                 result = self.calculator.calculate(
                     source_name=infra.name,
                     target_name=env.name,
@@ -169,26 +160,24 @@ class EnvVarToInfraRule(StitchingRule):
             if best_match:
                 edges.append(best_match.to_edge(RelationshipType.PROVIDES, self.get_name()))
 
-        return edges
+        return StitchingPlan(edges_to_add=edges)
 
 
 class InfraToInfraRule(StitchingRule):
     """
     Stitching rule that links infrastructure resources to other resources.
-    e.g., Security Group -> VPC
     """
 
     def get_name(self) -> str:
         return "InfraToInfraRule"
 
-    def apply(self, graph: DependencyGraph) -> List[Edge]:
+    def plan(self, graph: DependencyGraph) -> StitchingPlan:
         edges = []
         infra_nodes = graph.get_nodes_by_type(NodeType.INFRA_RESOURCE)
 
         if len(infra_nodes) < 2:
-            return edges
+            return StitchingPlan()
 
-        # Pairwise comparison optimization via tokens
         nodes_by_token = defaultdict(list)
         for node in infra_nodes:
             tokens = node.tokens or TokenMatcher.tokenize(node.name)
@@ -207,7 +196,6 @@ class InfraToInfraRule(StitchingRule):
                     if pair in seen_pairs: continue
                     seen_pairs.add(pair)
 
-                    # [UPDATE] Determine provider/consumer relationship
                     source, target = self._determine_direction(n1, n2)
                     
                     result = self.calculator.calculate(
@@ -232,10 +220,9 @@ class InfraToInfraRule(StitchingRule):
                                 "matched_tokens": result.matched_tokens
                             }
                         ))
-        return edges
+        return StitchingPlan(edges_to_add=edges)
 
     def _determine_direction(self, n1: Node, n2: Node) -> Tuple[Node, Node]:
-        # Hierarchy: VPC > Subnet > SG > Resource
         hierarchy = {
             "vpc": 10, "subnet": 9, "security_group": 8, "iam": 7,
             "rds": 5, "db": 5, "instance": 4, "lambda": 3, "s3": 3
@@ -252,7 +239,8 @@ class InfraToInfraRule(StitchingRule):
 
 
 class Stitcher:
-    """Orchestrator for stitching rules."""
+    """Orchestrator for stitching rules using Two-Phase Commit."""
+    
     def __init__(self, config: MatchConfig | None = None):
         self.config = config or MatchConfig()
         self.rules = [
@@ -261,14 +249,26 @@ class Stitcher:
         ]
 
     def stitch(self, graph: DependencyGraph) -> List[Edge]:
-        new_edges = []
+        """
+        Run the stitching process in two phases.
+        
+        1. Collect: Run all rules to generate a plan.
+        2. Apply: Mutate the graph in one go.
+        """
+        # Phase 1: Collect (Read-Only)
+        plan = StitchingPlan()
         for rule in self.rules:
             try:
-                edges = rule.apply(graph)
-                for e in edges:
-                    if not graph.has_edge(e.source_id, e.target_id):
-                        graph.add_edge(e)
-                        new_edges.append(e)
+                rule_plan = rule.plan(graph)
+                plan = plan.merge(rule_plan)
             except Exception as e:
                 print(f"Rule {rule.get_name()} failed: {e}")
-        return new_edges
+
+        # Phase 2: Apply (Write-Only)
+        added_edges = []
+        for edge in plan.edges_to_add:
+            if not graph.has_edge(edge.source_id, edge.target_id):
+                graph.add_edge(edge)
+                added_edges.append(edge)
+        
+        return added_edges

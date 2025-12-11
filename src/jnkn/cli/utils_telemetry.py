@@ -1,9 +1,22 @@
+"""
+CLI Telemetry Middleware.
+
+Wraps Click commands to track execution metrics.
+Refactored to use the TelemetryService via dependency injection
+instead of a global core singleton.
+"""
+
 import time
 from typing import Any
 
 import click
 
-from ..core.telemetry import track_event
+from ..core.telemetry import create_telemetry
+
+# Instantiate the service for the CLI application lifespan.
+# This keeps the "singleton" logic at the application edge (CLI),
+# keeping the core logic pure and testable.
+_service = create_telemetry()
 
 
 class TelemetryGroup(click.Group):
@@ -47,24 +60,14 @@ class TelemetryGroup(click.Group):
         finally:
             # Telemetry logic runs in finally to ensure it sends even on crash
             try:
-                # Resolve subcommand name. 
+                # Resolve subcommand name.
                 # ctx.invoked_subcommand is populated by super().invoke()
-                # If it's None (e.g. group called without command), use "main" or similar
                 subcommand = ctx.invoked_subcommand or "unknown"
-                
-                # Fallback: if invoke failed before resolution, try to peek at args
-                # (This mimics the previous logic but as a fallback only)
-                if subcommand == "unknown":
-                    # Access protected_args safely to avoid warnings if possible, 
-                    # but it's the only reliable way to see what was passed if invoke crashed early.
-                    # For now, we rely on the fact that if invoke crashed early, 
-                    # it was likely an args error, so "unknown" is acceptable.
-                    pass
 
                 duration_ms = (time.perf_counter() - start_time) * 1000
-                
-                track_event(
-                    name="command_run",
+
+                _service.track(
+                    event_name="command_run",
                     properties={
                         "command": subcommand,
                         "duration_ms": round(duration_ms, 2),
@@ -74,9 +77,9 @@ class TelemetryGroup(click.Group):
                     }
                 )
             except Exception:
-                # Telemetry failures must be silent
+                # Telemetry failures must be silent to not disrupt the user
                 pass
-        
+
         # Re-raise the exception to allow the CLI to handle it (print error, exit)
         if caught_exception:
             raise caught_exception
