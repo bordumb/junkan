@@ -21,6 +21,8 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 
 from ...core.demo import DemoManager
+from ...core.mode import ModeManager
+from ...core.packs import detect_and_suggest_pack, get_available_packs, load_pack
 
 console = Console()
 
@@ -28,6 +30,8 @@ console = Console()
 DEFAULT_CONFIG = {
     "version": "1.0",
     "project_name": "my-project",
+    "mode": "discovery",  # Start in discovery mode
+    "pack": None,  # Framework pack name
     "scan": {
         "include": [],
         "exclude": [
@@ -38,7 +42,7 @@ DEFAULT_CONFIG = {
             "**/dist/**",
             "**/build/**",
         ],
-        "min_confidence": 0.5,
+        "min_confidence": 0.3,  # Lower default for discovery mode
     },
     "telemetry": {"enabled": False, "distinct_id": ""},
 }
@@ -105,7 +109,11 @@ Jnkan is built for security-conscious environments. We want to be hyper-transpar
 
 
 def _init_project(
-    root_dir: Path, force: bool, is_demo: bool = False, telemetry_opt_in: bool | None = None
+    root_dir: Path,
+    force: bool,
+    is_demo: bool = False,
+    telemetry_opt_in: bool | None = None,
+    pack_name: str | None = None,
 ):
     """Internal helper to initialize a project."""
     jnkn_dir = root_dir / ".jnkn"
@@ -128,6 +136,28 @@ def _init_project(
     # Config Builder
     config = DEFAULT_CONFIG.copy()
     config["project_name"] = root_dir.name
+
+    # === Pack Detection/Selection (add after stack detection) ===
+    if pack_name:
+        pack = load_pack(pack_name)
+        if pack:
+            config["pack"] = pack_name
+            console.print(f"✅ Using pack: [cyan]{pack_name}[/cyan]")
+        else:
+            available = get_available_packs()
+            console.print(f"[yellow]Pack '{pack_name}' not found.[/yellow]")
+            console.print(f"Available packs: {', '.join(available)}")
+    elif not is_demo:
+        # Auto-detect
+        suggested = detect_and_suggest_pack(root_dir)
+        if suggested:
+            console.print(f"\n💡 Detected project type: [cyan]{suggested}[/cyan]")
+            pack = load_pack(suggested)
+            if pack:
+                console.print(f"   {pack.description.split(chr(10))[0]}")
+            if Confirm.ask(f"Use the {suggested} framework pack?", default=True):
+                config["pack"] = suggested
+                console.print(f"✅ Pack enabled: [cyan]{suggested}[/cyan]")
 
     includes = []
     if "python" in stack:
@@ -172,6 +202,10 @@ def _init_project(
 
     create_gitignore(jnkn_dir)
 
+    # Initialize mode manager with discovery mode
+    mode_manager = ModeManager()
+    mode_manager.reset_to_discovery()
+
     console.print("\n✨ [bold green]Initialized successfully![/bold green]")
     console.print(f"   Config created at: [dim]{config_file}[/dim]")
 
@@ -184,14 +218,50 @@ def _init_project(
     default=None,
     help="Explicitly enable or disable telemetry (skips prompt)",
 )
-def init(force: bool, demo: bool, telemetry: bool | None):
+@click.option(
+    "--pack",
+    "pack_name",
+    help="Use a specific framework pack (e.g., django-aws, fastapi-aws)",
+)
+@click.option(
+    "--list-packs",
+    is_flag=True,
+    help="List available framework packs and exit",
+)
+def init(
+    force: bool,
+    demo: bool,
+    telemetry: bool | None,
+    pack_name: str | None,
+    list_packs: bool,
+):
     """
     Initialize Jnkan in the current directory.
 
-    If --demo is used, a sample project structure is created in ./jnkn-demo
-    and initialized automatically.
+    \b
+    Framework Packs:
+      Packs are pre-tuned configurations for specific technology stacks.
+      They reduce false positives and improve accuracy out-of-the-box.
+
+    \b
+    Examples:
+        jnkn init                      # Auto-detect and configure
+        jnkn init --pack django-aws    # Use Django+AWS pack
+        jnkn init --demo               # Try with sample project
+        jnkn init --list-packs         # See available packs
     """
     console.print(Panel.fit("🚀 [bold blue]Jnkan Initialization[/bold blue]", border_style="blue"))
+
+    # Handle --list-packs
+    if list_packs:
+        console.print("\n[bold]Available Framework Packs:[/bold]\n")
+        for name in get_available_packs():
+            pack = load_pack(name)
+            if pack:
+                console.print(f"  [cyan]{name}[/cyan]")
+                console.print(f"    {pack.description.split(chr(10))[0]}")
+                console.print()
+        return
 
     if demo:
         console.print("[cyan]Provisioning demo environment...[/cyan]")
@@ -201,7 +271,9 @@ def init(force: bool, demo: bool, telemetry: bool | None):
         console.print(f"📂 Created demo project at: [bold]{demo_dir}[/bold]")
 
         # Initialize inside the new demo directory
-        _init_project(demo_dir, force=True, is_demo=True, telemetry_opt_in=True)
+        _init_project(
+            demo_dir, force=True, is_demo=True, telemetry_opt_in=True, pack_name=pack_name
+        )
 
         console.print("\n[bold green]Ready to go! Try these commands:[/bold green]")
         console.print(f"1. cd {demo_dir.name}")
@@ -219,4 +291,4 @@ def init(force: bool, demo: bool, telemetry: bool | None):
             console.print("Aborted.")
             return
 
-    _init_project(root_dir, force, telemetry_opt_in=telemetry)
+    _init_project(root_dir, force, telemetry_opt_in=telemetry, pack_name=pack_name)

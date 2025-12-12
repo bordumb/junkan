@@ -1,0 +1,123 @@
+# Express.js + AWS Framework Pack
+# Optimized for Express/Node.js applications deployed on AWS
+
+name: express-aws
+version: "1.0.0"
+description: |
+  Pre-tuned settings for Express.js applications running on AWS.
+  Handles dotenv patterns and common Node.js configurations.
+
+technologies:
+  - javascript
+  - typescript
+  - nodejs
+  - express
+  - terraform
+  - aws
+
+detection_patterns:
+  - "package.json:express"
+  - "*.tf"
+
+boost_patterns:
+  - pattern: "*_DATABASE_*"
+    boost: 0.15
+    reason: "Database configuration is almost always real"
+  
+  - pattern: "*_DB_*"
+    boost: 0.12
+    reason: "DB-related env vars typically connect to database infra"
+  
+  - pattern: "*_MONGO*"
+    boost: 0.12
+    reason: "MongoDB references are specific infrastructure"
+  
+  - pattern: "*_REDIS_*"
+    boost: 0.12
+    reason: "Redis references are specific infrastructure"
+  
+  - pattern: "*_AWS_*"
+    boost: 0.08
+    reason: "AWS-prefixed vars often reference infrastructure"
+
+auto_suppress:
+  - source: "env:NODE_ENV"
+    target: "infra:*"
+    reason: "NODE_ENV is runtime environment flag"
+  
+  - source: "env:PORT"
+    target: "infra:*"
+    reason: "PORT is usually server bind port"
+  
+  - source: "env:HOST"
+    target: "infra:*"
+    reason: "HOST is usually server bind address"
+  
+  - source: "env:DEBUG"
+    target: "infra:*"
+    reason: "Debug flag is application config"
+  
+  - source: "env:LOG_LEVEL"
+    target: "infra:*"
+    reason: "Log level is application config"
+  
+  - source: "env:SESSION_SECRET"
+    target: "infra:*"
+    reason: "Session secret is app-level, not infra"
+  
+  - source: "env:JWT_*"
+    target: "infra:*"
+    reason: "JWT settings are app-level authentication"
+  
+  - source: "env:CORS_*"
+    target: "infra:*"
+    reason: "CORS settings are application security"
+
+token_weights:
+  # Framework tokens
+  express: 0.2
+  node: 0.2
+  npm: 0.1
+  aws: 0.2
+  
+  # AWS Infrastructure
+  rds: 0.9
+  documentdb: 0.9
+  dynamodb: 0.85
+  elasticache: 0.9
+  sqs: 0.85
+  sns: 0.85
+  s3: 0.7
+  lambda: 0.75
+  ecs: 0.8
+  
+  # Database
+  postgres: 0.8
+  mysql: 0.8
+  mongo: 0.8
+  mongodb: 0.8
+  database: 0.6
+  
+  # Cache
+  redis: 0.8
+  cache: 0.5
+
+blocked_tokens:
+  - app
+  - api
+  - server
+  - middleware
+  - router
+  - routes
+  - controller
+  - controllers
+  - model
+  - models
+  - util
+  - utils
+  - helper
+  - helpers
+  - lib
+  - src
+  - dist
+  - build

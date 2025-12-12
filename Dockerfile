@@ -7,12 +7,15 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Install the package dependencies
-# We copy everything to install the tool itself
 COPY . .
 RUN pip install .
 
 # Make sure we trust the workspace directory (safe for CI)
 RUN git config --global --add safe.directory /github/workspace
 
-# The entrypoint is the jnkn CLI
-ENTRYPOINT ["jnkn"]
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Use entrypoint script instead of jnkn directly
+ENTRYPOINT ["/entrypoint.sh"]

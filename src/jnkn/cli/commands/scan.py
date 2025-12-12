@@ -1,6 +1,6 @@
 """
 Scan Command - Parse codebase and build dependency graph.
-Standardized output version with Incremental Scanning.
+Enhanced with Discovery/Enforcement modes and manager-readable output.
 """
 
 import json
@@ -10,21 +10,24 @@ from pathlib import Path
 
 import click
 from pydantic import BaseModel
+from rich.console import Console
 
+from ...analysis.top_findings import TopFindingsExtractor
+from ...core.mode import ScanMode, get_mode_manager
+from ...core.packs import detect_and_suggest_pack, load_pack
 from ...core.stitching import Stitcher
 from ...core.storage.sqlite import SQLiteStorage
 from ...parsing.engine import ScanConfig, create_default_engine
+from ..formatters.scan_summary import ScanSummaryFormatter
 from ..renderers import JsonRenderer
-from ..utils import SKIP_DIRS, echo_low_node_warning, echo_success
+from ..utils import SKIP_DIRS, echo_low_node_warning
 
 logger = logging.getLogger(__name__)
+console = Console()
 
 
-# --- API Models ---
-class ScanSummary(BaseModel):
-    """
-    Structured response for the scan command.
-    """
+class ScanSummaryResponse(BaseModel):
+    """Structured response for the scan command."""
 
     total_files: int
     files_parsed: int
@@ -34,6 +37,8 @@ class ScanSummary(BaseModel):
     new_links_stitched: int
     output_path: str
     duration_sec: float
+    mode: str
+    pack: str | None = None
 
 
 class _null_context:
@@ -53,132 +58,206 @@ class _null_context:
 @click.option("--no-recursive", is_flag=True, help="Don't scan subdirectories")
 @click.option("--force", is_flag=True, help="Force full rescan (ignore incremental cache)")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON")
+@click.option(
+    "--mode",
+    type=click.Choice(["discovery", "enforcement"]),
+    help="Override scan mode (default: auto from config)",
+)
+@click.option("--pack", "pack_name", help="Use a specific framework pack")
+@click.option("--summary-only", is_flag=True, help="Show only summary, not full details")
 def scan(
-    directory: str, output: str, verbose: bool, no_recursive: bool, force: bool, as_json: bool
+    directory: str,
+    output: str,
+    verbose: bool,
+    no_recursive: bool,
+    force: bool,
+    as_json: bool,
+    mode: str | None,
+    pack_name: str | None,
+    summary_only: bool,
 ):
     """
     Scan directory and build dependency graph.
 
     Uses incremental scanning by default: only changed files are re-parsed.
+
+    \b
+    Modes:
+      discovery    - Show more connections (lower threshold), great for first scan
+      enforcement  - Show validated connections only, respect suppressions
+
+    \b
+    Examples:
+        jnkn scan                           # Scan current directory
+        jnkn scan ./src --mode discovery    # Force discovery mode
+        jnkn scan --pack django-aws         # Use Django+AWS framework pack
+        jnkn scan --summary-only            # Brief output
     """
     scan_path = Path(directory).absolute()
     renderer = JsonRenderer("scan")
 
-    # 1. Determine Output Path (Persistent DB)
+    # 1. Initialize Mode Manager
+    mode_manager = get_mode_manager()
+
+    # Override mode if specified
+    if mode:
+        mode_manager.set_mode(ScanMode(mode))
+
+    current_mode = mode_manager.current_mode
+    min_confidence = mode_manager.min_confidence
+
+    # 2. Handle Framework Pack
+    active_pack = None
+    active_pack_name = None
+
+    if pack_name:
+        active_pack = load_pack(pack_name)
+        if active_pack:
+            active_pack_name = active_pack.name
+        else:
+            console.print(f"[yellow]Warning: Pack '{pack_name}' not found[/yellow]")
+    else:
+        # Auto-detect pack
+        suggested = detect_and_suggest_pack(scan_path)
+        if suggested:
+            active_pack = load_pack(suggested)
+            if active_pack:
+                active_pack_name = active_pack.name
+                if not as_json:
+                    console.print(f"[dim]Auto-detected framework pack: {active_pack_name}[/dim]")
+
+    # 3. Determine Output Path and Format
     if output:
         output_path = Path(output)
     else:
-        # Default persistent storage
         output_path = Path(".jnkn/jnkn.db")
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # If explicit JSON output requested via -o file.json, we'll need to export at the end
+    export_to_json = output_path.suffix.lower() == ".json"
 
-    # Capture context for JSON mode, null context otherwise
+    # We always use a DB for the scanning process
+    if export_to_json:
+        # Use a temporary DB or default DB location for the scan
+        db_path = output_path.with_suffix(".db")
+    else:
+        db_path = output_path
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Capture context for JSON mode
     context_manager = renderer.capture() if as_json else _null_context()
 
     error_to_report = None
     response_data = None
+    findings_summary = None
 
     with context_manager:
         try:
-            if not as_json:
-                click.echo(f"🔍 Scanning {scan_path}")
-                if output_path.exists() and not force:
-                    click.echo("   Using incremental cache")
+            if not as_json and not summary_only:
+                console.print(f"🔍 Scanning [cyan]{scan_path}[/cyan]")
+                console.print(
+                    f"   Mode: [yellow]{current_mode.value}[/yellow] "
+                    f"(min_confidence: {min_confidence})"
+                )
+                if db_path.exists() and not force:
+                    console.print("   [dim]Using incremental cache[/dim]")
 
-            # 2. Initialize Engine & Storage
+            # 4. Initialize Engine & Storage
             engine = create_default_engine()
-            storage = SQLiteStorage(output_path)
+            storage = SQLiteStorage(db_path)
 
-            # If force flag is set, clear existing data
             if force:
                 storage.clear()
 
-            # 3. Configure Scan
-            # Convert user SKIP_DIRS to set
+            # 5. Configure Scan
             skip_dirs = SKIP_DIRS.copy()
-            if no_recursive:
-                # If no recursive, we just rely on engine's discovery which we can't easily restrict
-                # depth on via config yet, but we can hack it or rely on walkers.
-                # For now, ScanConfig handles directory skipping.
-                pass
+            config = ScanConfig(
+                root_dir=scan_path,
+                skip_dirs=skip_dirs,
+                incremental=not force,
+            )
 
-            config = ScanConfig(root_dir=scan_path, skip_dirs=skip_dirs, incremental=not force)
-
-            # 4. Run Scan (Incremental)
-            # Progress callback for text mode
+            # 6. Run Scan
             def progress(path: Path, current: int, total: int):
-                if not as_json and verbose:
-                    click.echo(f"   [{current}/{total}] checking {path.name}...")
+                if not as_json and verbose and not summary_only:
+                    console.print(f"   [{current}/{total}] {path.name}")
 
             result = engine.scan_and_store(storage, config, progress_callback=progress)
 
             if result.is_err():
-                # Extract the underlying exception or create a new one
                 raise result.unwrap_err().cause or Exception(result.unwrap_err().message)
 
             stats = result.unwrap()
 
-            if not as_json:
+            if not as_json and verbose and not summary_only:
                 if stats.files_scanned > 0:
-                    click.echo(
+                    console.print(
                         f"   Parsed {stats.files_scanned} files ({stats.files_unchanged} unchanged)"
                     )
-                else:
-                    click.echo(f"   All {stats.files_unchanged} files up to date")
-
-                if stats.files_deleted > 0:
-                    click.echo(f"   Pruned {stats.files_deleted} deleted files")
-
-                # Explicitly report failures so users don't think they are safe when parsing failed
                 if stats.files_failed > 0:
-                    click.echo(
-                        click.style(
-                            f"   ❌ Failed to parse {stats.files_failed} files (run with -v to see details)",
-                            fg="red",
-                        )
-                    )
+                    console.print(f"   [red]❌ Failed: {stats.files_failed} files[/red]")
 
-            # 5. Hydrate Graph for Stitching
-            # We need the full graph in memory to perform cross-file stitching
+            # 7. Hydrate Graph for Stitching
             graph = storage.load_graph()
 
-            # 6. Run Stitching
+            # 8. Run Stitching (with pack integration)
             stitched_count = 0
             if graph.node_count > 0:
-                if not as_json:
-                    click.echo("🧵 Stitching cross-domain dependencies...")
+                # FIX: Show stitching message by default (removed 'verbose' constraint)
+                # This ensures the user knows cross-domain analysis is happening
+                if not as_json and not summary_only:
+                    console.print("🧵 Stitching cross-domain dependencies...")
 
+                # Create stitcher with mode-aware confidence
                 stitcher = Stitcher()
+
+                if active_pack:
+                    stitcher.apply_pack(active_pack)
+
+                # Run the newly implemented stitch method
                 stitched_edges = stitcher.stitch(graph)
 
-                if stitched_edges:
-                    storage.save_edges_batch(stitched_edges)
-                    stitched_count = len(stitched_edges)
+                # Filter by mode confidence
+                filtered_edges = [
+                    e for e in stitched_edges if (e.confidence or 0.5) >= min_confidence
+                ]
 
-                if not as_json:
-                    click.echo(f"   Created {stitched_count} new links")
+                if filtered_edges:
+                    storage.save_edges_batch(filtered_edges)
+                    stitched_count = len(filtered_edges)
 
-            # 7. Finalize & Warnings
+            # 9. Extract Top Findings
+            graph = storage.load_graph()  # Reload with new edges
+
+            if graph.node_count > 0:
+                extractor = TopFindingsExtractor(graph)
+                findings_summary = extractor.extract()
+
+            # 10. Format Output
             if not as_json:
-                if graph.node_count < 5 and stats.files_scanned + stats.files_unchanged > 0:
-                    echo_low_node_warning(graph.node_count)
-                else:
-                    echo_success("Scan complete")
-                    click.echo(f"   Total Nodes: {graph.node_count}")
-                    click.echo(f"   Total Edges: {graph.edge_count}")
+                formatter = ScanSummaryFormatter(console)
+                formatter.format_summary(
+                    nodes_found=graph.node_count,
+                    edges_found=graph.edge_count,
+                    stitched_count=stitched_count,
+                    files_parsed=stats.files_scanned + stats.files_unchanged,
+                    duration_sec=stats.scan_time_ms / 1000,
+                    mode=current_mode,
+                    findings_summary=findings_summary,
+                    pack_name=active_pack_name,
+                )
 
-            # 8. Handle JSON Export if requested output format was JSON but we used DB for logic
-            # If the user specifically asked for a .json file via -o, we should export it now.
-            if output_path.suffix == ".json":
-                # The user wants the graph dump, not the DB
-                # Overwrite the DB file with JSON (a bit awkward if we used it as DB during scan)
-                # Better: parse to DB, then export to JSON at the end
-                json_content = json.dumps(graph.to_dict(), indent=2, default=str)
-                output_path.write_text(json_content)
+                # Check for low node count warning
+                if graph.node_count < 5:
+                    echo_low_node_warning(graph.node_count)
+
+            # Handle JSON export if requested via -o file.json
+            if export_to_json:
+                with open(output_path, "w") as f:
+                    json.dump(graph.to_dict(), f, indent=2)
 
             # Prepare API Response
-            response_data = ScanSummary(
+            response_data = ScanSummaryResponse(
                 total_files=stats.files_scanned + stats.files_unchanged,
                 files_parsed=stats.files_scanned,
                 files_skipped=stats.files_skipped,
@@ -187,9 +266,10 @@ def scan(
                 new_links_stitched=stitched_count,
                 output_path=str(output_path),
                 duration_sec=round(stats.scan_time_ms / 1000, 2),
+                mode=current_mode.value,
+                pack=active_pack_name,
             )
 
-            # Close DB connection
             storage.close()
 
         except Exception as e:
@@ -203,6 +283,5 @@ def scan(
         elif response_data:
             renderer.render_success(response_data)
     else:
-        # Text Mode: Re-raise exception so Click handles it (prints error + exits 1)
         if error_to_report:
             raise error_to_report

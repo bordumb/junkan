@@ -259,7 +259,7 @@ class CorpusScorer:
                 pass
 
             try:
-                from jnkn.parsing.dbt.manifest_parser import DbtManifestParser
+                from jnkn.parsing.dbt.parser import DbtManifestParser
                 self._parsers["dbt"] = DbtManifestParser(self._context)
             except ImportError:
                 pass

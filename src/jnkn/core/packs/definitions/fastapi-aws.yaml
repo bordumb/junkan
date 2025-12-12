@@ -1,0 +1,124 @@
+# FastAPI + AWS Framework Pack
+# Optimized for FastAPI applications deployed on AWS infrastructure
+
+name: fastapi-aws
+version: "1.0.0"
+description: |
+  Pre-tuned settings for FastAPI applications running on AWS.
+  Handles pydantic-settings patterns and common AWS service connections.
+
+technologies:
+  - python
+  - fastapi
+  - pydantic
+  - terraform
+  - aws
+
+detection_patterns:
+  - "requirements.txt:fastapi"
+  - "pyproject.toml:fastapi"
+  - "*.tf"
+
+boost_patterns:
+  - pattern: "*_DATABASE_*"
+    boost: 0.15
+    reason: "Database configuration is almost always a real connection"
+  
+  - pattern: "*_DB_*"
+    boost: 0.12
+    reason: "DB-related env vars typically connect to RDS/database infra"
+  
+  - pattern: "*_BUCKET_*"
+    boost: 0.12
+    reason: "Bucket references usually map to S3 infrastructure"
+  
+  - pattern: "*_REDIS_*"
+    boost: 0.12
+    reason: "Redis references are specific infrastructure"
+  
+  - pattern: "*_QUEUE_*"
+    boost: 0.12
+    reason: "Queue references usually map to SQS infrastructure"
+  
+  - pattern: "*_API_*URL*"
+    boost: 0.08
+    reason: "API URLs may reference load balancers or API Gateway"
+
+auto_suppress:
+  - source: "env:DEBUG"
+    target: "infra:*"
+    reason: "Debug flag is application config"
+  
+  - source: "env:LOG_LEVEL"
+    target: "infra:*"
+    reason: "Log level is application config"
+  
+  - source: "env:WORKERS"
+    target: "infra:*"
+    reason: "Worker count is deployment config"
+  
+  - source: "env:HOST"
+    target: "infra:*"
+    reason: "Generic HOST is usually bind address, not infra reference"
+  
+  - source: "env:PORT"
+    target: "infra:*"
+    reason: "Generic PORT is usually bind port, not infra reference"
+  
+  - source: "env:RELOAD"
+    target: "infra:*"
+    reason: "Reload flag is development config"
+  
+  - source: "env:CORS_*"
+    target: "infra:*"
+    reason: "CORS settings are application security config"
+  
+  - source: "env:OPENAPI_*"
+    target: "infra:*"
+    reason: "OpenAPI settings are documentation config"
+
+token_weights:
+  # Framework tokens
+  fastapi: 0.2
+  pydantic: 0.2
+  aws: 0.2
+  settings: 0.1
+  config: 0.1
+  
+  # AWS Infrastructure
+  rds: 0.9
+  elasticache: 0.9
+  dynamodb: 0.85
+  sqs: 0.85
+  sns: 0.85
+  s3: 0.7
+  lambda: 0.75
+  ecs: 0.8
+  alb: 0.8
+  apigateway: 0.85
+  
+  # Database
+  postgres: 0.8
+  postgresql: 0.8
+  mysql: 0.8
+  database: 0.6
+  sqlalchemy: 0.3
+  
+  # Cache
+  redis: 0.8
+  cache: 0.5
+
+blocked_tokens:
+  - app
+  - api
+  - v1
+  - v2
+  - docs
+  - openapi
+  - schema
+  - model
+  - models
+  - router
+  - routers
+  - dependency
+  - dependencies

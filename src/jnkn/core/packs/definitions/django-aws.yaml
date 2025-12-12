@@ -1,0 +1,140 @@
+# Django + AWS Framework Pack
+# Optimized for Django applications deployed on AWS infrastructure
+
+name: django-aws
+version: "1.0.0"
+description: |
+  Pre-tuned settings for Django applications running on AWS.
+  Reduces false positives from common Django settings and AWS resource names.
+
+technologies:
+  - python
+  - django
+  - terraform
+  - aws
+
+detection_patterns:
+  - "requirements.txt:django"
+  - "pyproject.toml:django"
+  - "*.tf"
+
+# Patterns that boost confidence (these are usually real connections)
+boost_patterns:
+  - pattern: "*_DATABASE_*"
+    boost: 0.15
+    reason: "Database configuration is almost always a real connection"
+  
+  - pattern: "*_DB_*"
+    boost: 0.12
+    reason: "DB-related env vars typically connect to RDS/database infra"
+  
+  - pattern: "*_BUCKET_*"
+    boost: 0.12
+    reason: "Bucket references usually map to S3 infrastructure"
+  
+  - pattern: "*_QUEUE_*"
+    boost: 0.12
+    reason: "Queue references usually map to SQS infrastructure"
+  
+  - pattern: "*_CACHE_*"
+    boost: 0.10
+    reason: "Cache references usually map to ElastiCache/Redis"
+  
+  - pattern: "*_REDIS_*"
+    boost: 0.12
+    reason: "Redis references are specific infrastructure"
+  
+  - pattern: "*_CELERY_*"
+    boost: 0.10
+    reason: "Celery config typically connects to message broker infra"
+
+# Known false positives - auto-suppress these
+auto_suppress:
+  - source: "env:DEBUG"
+    target: "infra:*"
+    reason: "Django DEBUG setting is application config, not infrastructure"
+  
+  - source: "env:SECRET_KEY"
+    target: "infra:*"
+    reason: "Django SECRET_KEY is app-level encryption, not infra secret"
+  
+  - source: "env:ALLOWED_HOSTS"
+    target: "infra:*"
+    reason: "Django ALLOWED_HOSTS is web server config"
+  
+  - source: "env:DJANGO_*"
+    target: "infra:*debug*"
+    reason: "Django settings rarely connect to debug infrastructure"
+  
+  - source: "env:CSRF_*"
+    target: "infra:*"
+    reason: "CSRF settings are Django security config"
+  
+  - source: "env:SESSION_*"
+    target: "infra:*"
+    reason: "Session settings are usually app-level unless using Redis"
+  
+  - source: "env:STATIC_*"
+    target: "infra:*"
+    reason: "Static file settings are usually app config"
+  
+  - source: "env:MEDIA_*"
+    target: "infra:*bucket*"
+    reason: "Media may connect to S3, but MEDIA_URL/ROOT are app config"
+
+# Token weight overrides - how much each token contributes to matching
+token_weights:
+  # Framework tokens (low weight - too common)
+  django: 0.2
+  aws: 0.2
+  settings: 0.1
+  config: 0.1
+  base: 0.1
+  default: 0.1
+  
+  # Specific infrastructure tokens (high weight)
+  rds: 0.9
+  elasticache: 0.9
+  dynamodb: 0.85
+  sqs: 0.85
+  sns: 0.85
+  s3: 0.7
+  ec2: 0.7
+  lambda: 0.75
+  ecs: 0.8
+  fargate: 0.85
+  
+  # Database tokens (medium-high weight)
+  postgres: 0.8
+  postgresql: 0.8
+  mysql: 0.8
+  database: 0.6
+  
+  # Cache tokens
+  redis: 0.8
+  memcached: 0.8
+  cache: 0.5
+  
+  # Environment tokens (low weight)
+  prod: 0.2
+  production: 0.2
+  staging: 0.2
+  dev: 0.2
+  development: 0.2
+  test: 0.2
+  local: 0.1
+
+# Additional tokens to completely block (too noisy)
+blocked_tokens:
+  - app
+  - apps
+  - installed
+  - middleware
+  - template
+  - templates
+  - static
+  - admin
+  - auth
+  - content
+  - contenttypes
+  - sessions

@@ -4,7 +4,6 @@ Cross-domain dependency stitching.
 Refactored to use the Collect-then-Apply pattern.
 Phase 1: Read-only analysis creates a StitchingPlan.
 Phase 2: Write-only application mutates the graph.
-This prevents "mutation during iteration" errors common in Rust.
 """
 
 from abc import ABC, abstractmethod
@@ -12,8 +11,14 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
-from .confidence import create_default_calculator
+from .confidence import (
+    ConfidenceCalculator,
+    ConfidenceConfig,
+    ConfidenceResult,
+    create_default_calculator,
+)
 from .graph import DependencyGraph
+from .packs import FrameworkPack
 from .types import Edge, MatchResult, MatchStrategy, Node, NodeType, RelationshipType
 
 
@@ -251,33 +256,116 @@ class InfraToInfraRule(StitchingRule):
 
 
 class Stitcher:
-    """Orchestrator for stitching rules using Two-Phase Commit."""
+    """Cross-domain dependency stitcher."""
 
-    def __init__(self, config: MatchConfig | None = None):
-        self.config = config or MatchConfig()
-        self.rules = [EnvVarToInfraRule(self.config), InfraToInfraRule(self.config)]
+    def __init__(
+        self,
+        config: ConfidenceConfig | None = None,
+        pack: FrameworkPack | None = None,
+    ):
+        self.config = config or ConfidenceConfig()
+        self.pack = pack
+        self.calculator = ConfidenceCalculator(self.config)
+        self.rules: List[StitchingRule] = [
+            EnvVarToInfraRule(MatchConfig()),
+            InfraToInfraRule(MatchConfig()),
+        ]
+
+    def apply_pack(self, pack: FrameworkPack) -> None:
+        """Apply a framework pack to this stitcher."""
+        self.pack = pack
+
+        # Merge pack token weights into config
+        for token, weight in pack.token_weights.items():
+            # Lower weight = more penalty for common tokens
+            if weight < 0.5:
+                self.config.common_tokens.add(token)
+            elif weight < 0.3:
+                self.config.low_value_tokens.add(token)
 
     def stitch(self, graph: DependencyGraph) -> List[Edge]:
         """
-        Run the stitching process in two phases.
-
-        1. Collect: Run all rules to generate a plan.
-        2. Apply: Mutate the graph in one go.
+        Run all stitching rules and return new edges.
+        Applies pack logic (boosts and suppressions) if a pack is configured.
         """
-        # Phase 1: Collect (Read-Only)
-        plan = StitchingPlan()
+        all_edges = []
+
+        # 1. Collect potential edges from all rules
         for rule in self.rules:
-            try:
-                rule_plan = rule.plan(graph)
-                plan = plan.merge(rule_plan)
-            except Exception as e:
-                print(f"Rule {rule.get_name()} failed: {e}")
+            plan = rule.plan(graph)
 
-        # Phase 2: Apply (Write-Only)
-        added_edges = []
-        for edge in plan.edges_to_add:
-            if not graph.has_edge(edge.source_id, edge.target_id):
-                graph.add_edge(edge)
-                added_edges.append(edge)
+            for edge in plan.edges_to_add:
+                # 2. Check for suppression
+                if self.pack:
+                    should_suppress, reason = self.pack.should_auto_suppress(
+                        edge.source_id, edge.target_id
+                    )
+                    if should_suppress:
+                        # Skip this edge
+                        continue
 
-        return added_edges
+                # 3. Apply Pack Boosts
+                if self.pack:
+                    source_node = graph.get_node(edge.source_id)
+                    target_node = graph.get_node(edge.target_id)
+
+                    if source_node and target_node:
+                        boost = self.pack.get_boost_for_pattern(source_node.name, target_node.name)
+
+                        if boost > 0:
+                            # Apply boost
+                            new_conf = min(1.0, edge.confidence + boost)
+                            edge.confidence = new_conf
+
+                            # Record boost in metadata
+                            if not edge.metadata:
+                                edge.metadata = {}
+
+                            prev_expl = edge.metadata.get("explanation", "")
+                            edge.metadata["explanation"] = f"{prev_expl} [Pack boost: +{boost:.2f}]"
+
+                all_edges.append(edge)
+
+        return all_edges
+
+    def _calculate_confidence_with_pack(
+        self,
+        source_name: str,
+        target_name: str,
+        source_tokens: list[str],
+        target_tokens: list[str],
+        **kwargs,
+    ) -> ConfidenceResult:
+        """Calculate confidence with pack boosts applied."""
+        # Get base confidence
+        result = self.calculator.calculate(
+            source_name=source_name,
+            target_name=target_name,
+            source_tokens=source_tokens,
+            target_tokens=target_tokens,
+            **kwargs,
+        )
+
+        # Apply pack boost if available
+        if self.pack:
+            boost = self.pack.get_boost_for_pattern(source_name, target_name)
+            if boost > 0:
+                # Add boost to score (capped at 1.0)
+                new_score = min(1.0, result.score + boost)
+                result = ConfidenceResult(
+                    score=new_score,
+                    signals=result.signals + [{"signal": "pack_boost", "weight": boost}],
+                    penalties=result.penalties,
+                    explanation=result.explanation + f" [Pack boost: +{boost:.2f}]",
+                    matched_tokens=result.matched_tokens,
+                    source_node_id=result.source_node_id,
+                    target_node_id=result.target_node_id,
+                )
+
+        return result
+
+    def should_suppress(self, source_id: str, target_id: str) -> tuple[bool, str]:
+        """Check if a connection should be suppressed."""
+        if self.pack:
+            return self.pack.should_auto_suppress(source_id, target_id)
+        return False, ""

@@ -357,7 +357,7 @@ def create_default_engine() -> ParserEngine:
         pass
 
     try:
-        from .dbt.manifest_parser import DbtManifestParser
+        from .dbt.parser import DbtManifestParser
 
         engine.register(DbtManifestParser())
     except ImportError:

@@ -127,6 +127,8 @@ class TestStitcher:
         # Verify rule was planned
         mock_rule.plan.assert_called_once_with(graph)
         
-        # Verify graph was mutated
-        graph.add_edge.assert_called_once_with(mock_edge)
+        # Verify correctness: the stitcher should RETURN the planned edges.
+        # It does NOT mutate the graph directly (Collect-then-Apply pattern).
+        # Persistence is handled by the caller (scan.py).
         assert len(new_edges) == 1
+        assert new_edges[0] == mock_edge

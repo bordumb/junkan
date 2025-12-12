@@ -12,7 +12,7 @@ Usage:
     result = parser.parse_full(Path("models/marts/dim_users.sql"))
 """
 
-from .manifest_parser import (
+from .parser import (
     DbtColumn,
     DbtExposure,
     DbtManifestParser,

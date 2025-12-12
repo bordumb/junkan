@@ -10,9 +10,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Still required for diffing
+          fetch-depth: 0
+          # Explicitly fetch the base branch
+          ref: ${{ github.head_ref }}
       
-      # One-Liner to Run Jnkn Impact Analysis
+      # Fetch the base branch so origin/main exists
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
+      
       - uses: bordumb/jnkn@main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

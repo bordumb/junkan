@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 
 from ...analysis.explain import create_explanation_generator
+from ...core.mode import get_mode_manager
 from ...stitching.patterns import suggest_patterns
 from ...stitching.suppressions import SuppressionStore
 from ..utils import load_graph
@@ -126,6 +127,19 @@ def review(min_confidence: float, max_confidence: float, graph_file: str):
             i += 1
 
     console.print(f"\n✨ Review complete. Processed {processed_count} items.")
+
+    # Auto-transition to enforcement mode
+    if processed_count > 0:
+        mode_manager = get_mode_manager()
+        mode_manager.mark_review_completed()
+
+        console.print(
+            "\n   [bold yellow]Switched to Enforcement Mode[/bold yellow]. "
+            "Future scans will use higher confidence thresholds."
+        )
+        console.print(
+            "   Use [cyan]jnkn scan --mode discovery[/cyan] to see all potential connections again."
+        )
 
 
 def _print_edge_panel(edge, current, total):
