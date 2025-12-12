@@ -28,7 +28,8 @@ class NextJSExtractor:
         path_str = str(ctx.file_path)
 
         # API Routes detection
-        if "/pages/api/" in path_str or "/app/api/" in path_str:
+        # FIX: Removed leading slash to handle relative paths
+        if "pages/api/" in path_str or "app/api/" in path_str:
             route_path = self._path_to_route(ctx.file_path)
 
             api_node_id = f"api:{route_path}"
@@ -81,10 +82,10 @@ class NextJSExtractor:
         path_str = str(file_path)
 
         # pages/api/users/[id].ts -> /api/users/[id]
-        if "/pages/api/" in path_str:
-            route = path_str.split("/pages/api/")[1]
-        elif "/app/api/" in path_str:
-            route = path_str.split("/app/api/")[1]
+        if "pages/api/" in path_str:
+            route = path_str.split("pages/api/")[1]
+        elif "app/api/" in path_str:
+            route = path_str.split("app/api/")[1]
         else:
             return str(file_path)
 

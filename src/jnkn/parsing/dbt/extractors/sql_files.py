@@ -31,13 +31,18 @@ class SQLFileExtractor:
         model_name = ctx.file_path.stem
         model_id = f"data:model:{model_name}"
 
-        # Simplistic config parse to check tags/materialization
-        # A full Jinja parser would be better, but regex suffices for simple metadata
+        # Parse config block
         config_meta = {}
         if cm := self.CONFIG_PATTERN.search(ctx.text):
             config_str = cm.group(1)
-            if "materialized" in config_str:
-                config_meta["materialized"] = "derived"  # placeholder
+            # FIX: Parse materialized value dynamically
+            # Matches: materialized='table' or materialized="view"
+            mat_match = re.search(r"materialized\s*=\s*['\"]([^'\"]+)['\"]", config_str)
+            if mat_match:
+                config_meta["materialized"] = mat_match.group(1)
+            elif "materialized" in config_str:
+                # Fallback if present but regex misses (e.g. variable ref)
+                config_meta["materialized"] = "derived"
 
         yield Node(
             id=model_id,

@@ -11,6 +11,8 @@ class RelationshipType(StrEnum):
     CONFIGURES = "configures"
     DEPENDS_ON = "depends_on"
     TRIGGERS = "triggers"
+    PROVIDES = "provides"
+    CONSUMES = "consumes"
 
 
 class ImpactRelationship(BaseModel):
