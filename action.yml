@@ -1,19 +1,56 @@
-name: 'jnkn Impact Analysis'
-description: 'Analyze Pull Requests for cross-domain breaking changes (Infra -> Code -> Data)'
-author: 'jnkn'
+name: 'Jnkn Impact Analysis'
+description: 'Prevents breaking changes by analyzing cross-domain dependencies (Infra <-> Code <-> Data)'
+author: 'Bordumb'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
 inputs:
-  github-token:
-    description: 'GitHub Token for fetching diffs'
+  token:
+    description: 'GitHub Token for posting comments (secrets.GITHUB_TOKEN)'
     required: true
-  working-directory:
+  
+  # Git Context
+  base-ref:
+    description: 'Base branch to compare against'
+    required: false
+    default: 'origin/main'
+  head-ref:
+    description: 'Head branch containing changes'
+    required: false
+    default: 'HEAD'
+  
+  # Behavior Configuration
+  fail-on:
+    description: 'Severity level that triggers a build failure (critical, high, medium, none)'
+    required: false
+    default: 'critical'
+  
+  scan-dir:
     description: 'Root directory to scan'
     required: false
     default: '.'
-outputs:
-  risk-score:
-    description: 'Calculated risk score (0-100)'
-  impact-json:
-    description: 'JSON summary of impacted artifacts'
+    
+  config-file:
+    description: 'Path to custom jnkn configuration file'
+    required: false
+    default: '.jnkn/config.yaml'
+
 runs:
   using: 'docker'
   image: 'Dockerfile'
+  args:
+    - "jnkn"
+    - "action"
+    - "--token"
+    - "${{ inputs.token }}"
+    - "--base"
+    - "${{ inputs.base-ref }}"
+    - "--head"
+    - "${{ inputs.head-ref }}"
+    - "--fail-on"
+    - "${{ inputs.fail-on }}"
+    - "--scan-dir"
+    - "${{ inputs.scan-dir }}"
+    - "--config"
+    - "${{ inputs.config-file }}"

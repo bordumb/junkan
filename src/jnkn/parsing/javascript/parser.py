@@ -1,7 +1,8 @@
 """
-JavaScript/TypeScript Parser for jnkn.
+JavaScript/TypeScript Language Parser.
 
-This parser provides comprehensive extraction from JS/TS files.
+Handles parsing of JS, TS, JSX, TSX files and package.json.
+Supports multiple frameworks (Next.js, Vite, React) via specialized extractors.
 """
 
 import logging
@@ -29,6 +30,10 @@ except ImportError:
 
 
 class JavaScriptParser(LanguageParser):
+    """
+    Parser for JavaScript ecosystem files.
+    """
+
     def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
         self._extractors = ExtractorRegistry()
@@ -60,14 +65,12 @@ class JavaScriptParser(LanguageParser):
         return file_path.suffix.lower() in self.extensions
 
     def _init_tree_sitter(self, file_path: Path) -> bool:
+        """Initialize tree-sitter with the correct grammar (js or ts)."""
         if not TREE_SITTER_AVAILABLE:
             return False
 
         ext = file_path.suffix.lower()
-        if ext in (".ts", ".tsx"):
-            lang_name = "typescript"
-        else:
-            lang_name = "javascript"
+        lang_name = "typescript" if ext in (".ts", ".tsx") else "javascript"
 
         try:
             self._ts_parser = get_parser(lang_name)
@@ -94,7 +97,6 @@ class JavaScriptParser(LanguageParser):
         except Exception:
             file_hash = ""
 
-        # Determine language for metadata
         ext = file_path.suffix.lower()
         lang = "typescript" if ext in (".ts", ".tsx") else "javascript"
         if file_path.name == "package.json":

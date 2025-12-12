@@ -1,13 +1,8 @@
 """
-Standardized Go Parser.
+Go Language Parser.
 
-Provides parsing for Go source files (.go), extracting:
-- Environment variable usage (os.Getenv, os.LookupEnv, viper)
-- Import declarations (standard library and external packages)
-- Function and type definitions (structs, interfaces)
-
-This parser supports standard Go idioms as well as common configuration
-patterns used in cloud-native Go applications.
+Handles parsing of Go source files (.go) using regex-based extractors
+to find environment variables, imports, and definitions.
 """
 
 from pathlib import Path
@@ -27,7 +22,7 @@ from .extractors.imports import GoImportExtractor
 
 class GoParser(LanguageParser):
     """
-    Parser for Go source files (.go).
+    Parser for Go source files.
     """
 
     def __init__(self, context: ParserContext | None = None):
@@ -36,7 +31,6 @@ class GoParser(LanguageParser):
         self._register_extractors()
 
     def _register_extractors(self) -> None:
-        """Register all extractors for Go."""
         self._extractors.register(GoEnvVarExtractor())
         self._extractors.register(GoImportExtractor())
         self._extractors.register(GoDefinitionExtractor())
@@ -57,13 +51,11 @@ class GoParser(LanguageParser):
         file_path: Path,
         content: bytes,
     ) -> Generator[Union[Node, Edge], None, None]:
-        # Decode content
         try:
             text = content.decode(self.context.encoding)
         except UnicodeDecodeError:
             text = content.decode("latin-1", errors="ignore")
 
-        # Create file node
         file_id = f"file://{file_path}"
         yield Node(
             id=file_id,
@@ -73,7 +65,6 @@ class GoParser(LanguageParser):
             language="go",
         )
 
-        # Create extraction context
         ctx = ExtractionContext(
             file_path=file_path,
             file_id=file_id,
@@ -82,10 +73,8 @@ class GoParser(LanguageParser):
             seen_ids=set(),
         )
 
-        # Run extractors
         yield from self._extractors.extract_all(ctx)
 
 
 def create_go_parser(context: ParserContext | None = None) -> GoParser:
-    """Factory function for GoParser."""
     return GoParser(context)

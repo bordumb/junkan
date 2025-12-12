@@ -8,6 +8,7 @@ in its own module under cli/commands/.
 import click
 
 from .commands import (
+    action,
     blast_radius,
     check,
     diff,
@@ -41,6 +42,7 @@ def main():
 
 
 # Register commands
+main.add_command(action.action)
 main.add_command(scan.scan)
 main.add_command(impact.impact)
 main.add_command(trace.trace)
