@@ -12,7 +12,7 @@ jobs:
         with:
           fetch-depth: 0  # Still required for diffing
       
-      # The One-Liner 👇
-      - uses: bordumb/jnkn@main
+      # One-Liner to Run Jnkn Impact Analysis
+      - uses: - uses: ./
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
