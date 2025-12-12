@@ -41,4 +41,3 @@ all_repos.txt
 jnkn-demo
 # Temporary scripts
 create
-scripts/migrate_to_jnkn.sh
