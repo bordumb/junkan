@@ -131,6 +131,36 @@ class Extractor(Protocol):
         ...
 
 
+class BaseExtractor(ABC):
+    """
+    Abstract base class for extractors.
+
+    Provides a standard inheritance base for implementing the Extractor protocol.
+    """
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Unique identifier for this extractor."""
+        pass
+
+    @property
+    @abstractmethod
+    def priority(self) -> int:
+        """Higher priority extractors run first (0-100)."""
+        pass
+
+    @abstractmethod
+    def can_extract(self, ctx: ExtractionContext) -> bool:
+        """Quick check if this extractor is relevant."""
+        pass
+
+    @abstractmethod
+    def extract(self, ctx: ExtractionContext) -> Generator[Union[Node, Edge], None, None]:
+        """Extract artifacts and yield nodes/edges."""
+        pass
+
+
 class ExtractorRegistry:
     """
     Registry for managing and executing a collection of Extractors.
