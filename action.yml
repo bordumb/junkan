@@ -40,7 +40,7 @@ runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
-    - "jnkn"
+    # REMOVED: - "jnkn" (Already set as ENTRYPOINT in Dockerfile)
     - "action"
     - "--token"
     - "${{ inputs.token }}"
