@@ -7,7 +7,14 @@ from ...base import ExtractionContext
 
 
 class NextJSExtractor:
-    """Extract Next.js specific patterns."""
+    """
+    Extract Next.js specific patterns.
+
+    Handles:
+    - API Routes (pages/api/*, app/api/*)
+    - Data fetching methods (getServerSideProps, getStaticProps)
+    - next.config.js environment variables and domains
+    """
 
     name = "nextjs"
     priority = 70
@@ -28,7 +35,6 @@ class NextJSExtractor:
         path_str = str(ctx.file_path)
 
         # API Routes detection
-        # FIX: Removed leading slash to handle relative paths
         if "pages/api/" in path_str or "app/api/" in path_str:
             route_path = self._path_to_route(ctx.file_path)
 
@@ -69,13 +75,63 @@ class NextJSExtractor:
 
         # Config file parsing
         if "next.config" in path_str:
-            # Placeholder for config extraction logic
+            config_id = f"config:nextjs:{ctx.file_path.name}"
+
             yield Node(
-                id=f"config:nextjs:{ctx.file_path.name}",
+                id=config_id,
                 name="next.config",
                 type=NodeType.CONFIG_KEY,
                 path=str(ctx.file_path),
+                metadata={"framework": "nextjs"},
             )
+
+            yield Edge(source_id=ctx.file_id, target_id=config_id, type=RelationshipType.CONTAINS)
+
+            # Extract 'env' block: env: { KEY: "VAL" }
+            # Simple regex to catch keys inside the env block
+            # This is heuristic and might miss complex dynamic generation
+            env_block_match = re.search(r"env\s*:\s*\{([^}]+)\}", ctx.text, re.DOTALL)
+            if env_block_match:
+                content = env_block_match.group(1)
+                # Find keys:  KEY: "value" or KEY,
+                keys = re.findall(r"([A-Z_][A-Z0-9_]*)\s*:", content)
+                for key in keys:
+                    env_id = f"env:{key}"
+                    yield Node(
+                        id=env_id,
+                        name=key,
+                        type=NodeType.ENV_VAR,
+                        path=str(ctx.file_path),
+                        metadata={"source": "next.config.js"},
+                    )
+                    yield Edge(
+                        source_id=config_id,
+                        target_id=env_id,
+                        type=RelationshipType.PROVIDES,  # Config provides this env var to the app
+                        metadata={"context": "build_time_env"},
+                    )
+
+            # Extract image domains: images: { domains: ["example.com"] }
+            # Useful for detecting external dependencies
+            images_match = re.search(
+                r"images\s*:\s*\{[^}]*domains\s*:\s*\[([^\]]+)\]", ctx.text, re.DOTALL
+            )
+            if images_match:
+                domains_str = images_match.group(1)
+                domains = re.findall(r'["\']([^"\']+)["\']', domains_str)
+                for domain in domains:
+                    domain_id = f"external:domain:{domain}"
+                    yield Node(
+                        id=domain_id,
+                        name=domain,
+                        type=NodeType.DATA_ASSET,  # External resource
+                        metadata={"type": "image_domain"},
+                    )
+                    yield Edge(
+                        source_id=config_id,
+                        target_id=domain_id,
+                        type=RelationshipType.DEPENDS_ON,
+                    )
 
     def _path_to_route(self, file_path: Path) -> str:
         """Convert file path to API route string."""

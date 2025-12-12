@@ -2,7 +2,7 @@
 dbt Manifest Parser.
 
 Handles parsing of dbt manifest.json files to extract models, sources,
-exposures, and their relationships.
+exposures, and their relationships. Now includes full support for Data Tests.
 """
 
 import json
@@ -96,6 +96,7 @@ class DbtManifestParser(LanguageParser):
         return [
             ParserCapability.DEPENDENCIES,
             ParserCapability.OUTPUTS,
+            ParserCapability.DATA_LINEAGE,
         ]
 
     def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
@@ -155,6 +156,7 @@ class DbtManifestParser(LanguageParser):
         yield from self._extract_nodes(file_path, file_id, manifest)
         yield from self._extract_sources(file_path, file_id, manifest)
         yield from self._extract_exposures(file_path, file_id, manifest)
+        yield from self._extract_tests(file_path, file_id, manifest)
 
     def _is_dbt_manifest(self, data: Dict[str, Any]) -> bool:
         metadata = data.get("metadata", {})
@@ -312,10 +314,64 @@ class DbtManifestParser(LanguageParser):
                         type=RelationshipType.CONSUMES,
                     )
 
-    def _extract_tests(self, file_path, file_id, manifest):
-        """Placeholder for test extraction logic."""
-        return
-        yield
+    def _extract_tests(
+        self, file_path: Path, file_id: str, manifest: Dict[str, Any]
+    ) -> Generator[Union[Node, Edge], None, None]:
+        """
+        Extract data tests (singular and generic) from the manifest.
+
+        Tests are represented as JOB nodes because they are executable units
+        of work that validate data. They depend on the models they test.
+        """
+        nodes = manifest.get("nodes", {})
+
+        for unique_id, node_data in nodes.items():
+            if node_data.get("resource_type") != "test":
+                continue
+
+            test_name = node_data.get("name", "")
+            test_metadata = node_data.get("test_metadata", {})
+
+            # Construct a stable ID for the test
+            # If it's a generic test (e.g. unique_users_id), use that name
+            test_node_id = f"test:{test_name}"
+
+            # Try to get specific test type (unique, not_null, accepted_values)
+            test_type = test_metadata.get("name", "singular")
+            column_name = test_metadata.get("kwargs", {}).get("column_name")
+
+            yield Node(
+                id=test_node_id,
+                name=test_name,
+                type=NodeType.JOB,
+                path=node_data.get("original_file_path"),
+                metadata={
+                    "dbt_unique_id": unique_id,
+                    "resource_type": "test",
+                    "test_type": test_type,
+                    "column_name": column_name,
+                    "severity": node_data.get("config", {}).get("severity", "error").upper(),
+                },
+            )
+
+            # Link file to test
+            yield Edge(
+                source_id=file_id,
+                target_id=test_node_id,
+                type=RelationshipType.CONTAINS,
+            )
+
+            # Link Test -> Model (The test depends on the model existing)
+            depends_on = node_data.get("depends_on", {}).get("nodes", [])
+            for dep_id in depends_on:
+                target_node_id = self._convert_dbt_id_to_node_id(dep_id, manifest)
+                if target_node_id:
+                    yield Edge(
+                        source_id=test_node_id,
+                        target_id=target_node_id,
+                        type=RelationshipType.DEPENDS_ON,
+                        metadata={"type": "validates"},
+                    )
 
     def _extract_columns(self, columns_data: Dict[str, Any]) -> List[DbtColumn]:
         columns = []
