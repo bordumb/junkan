@@ -1,13 +1,15 @@
 """
 Core type definitions for jnkn.
 
-Refactored to use TypedDict for metadata, enabling future Rust struct mapping.
+Refactored to use Domain-Specific TypedDicts for metadata.
+This structure maps cleanly to Rust enums (Sum Types) while maintaining
+Python flexibility via Union types.
 """
 
 import hashlib
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any, Dict, List, NotRequired, TypedDict
+from typing import Any, Dict, List, NotRequired, TypedDict, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -40,7 +42,7 @@ class RelationshipType(StrEnum):
     PROVIDES = "provides"
     CONSUMES = "consumes"
     TRANSFORMS = "transforms"
-    ROUTES_TO = "routes_to"  # Added for K8s Ingress -> Service
+    ROUTES_TO = "routes_to"
 
 
 class MatchStrategy(StrEnum):
@@ -54,41 +56,92 @@ class MatchStrategy(StrEnum):
     SEMANTIC = "semantic"
 
 
-class NodeMetadata(TypedDict, total=False):
-    """
-    Typed definition of Node metadata.
-    
-    Maps directly to an optional-field struct in Rust.
-    total=False means fields are optional (Option<T>).
-    """
+# =============================================================================
+# Domain-Specific Metadata Schemas
+# =============================================================================
+
+class BaseMeta(TypedDict, total=False):
+    """Common metadata fields across all node types."""
     language: NotRequired[str]
-    source: NotRequired[str]  # e.g., "os.getenv", "terraform"
+    source: NotRequired[str]
     file: NotRequired[str]
     line: NotRequired[int]
     lines: NotRequired[int]
     column: NotRequired[int]
-    
-    # Python/Code specifics
+    parser: NotRequired[str]
+    confidence: NotRequired[float]
+    virtual: NotRequired[bool]
+    inferred: NotRequired[bool]
+
+
+class PythonMeta(BaseMeta, total=False):
+    """Metadata specific to Python nodes."""
     entity_type: NotRequired[str]
-    
-    # Terraform specifics
+    decorators: NotRequired[List[str]]
+
+
+class TerraformMeta(BaseMeta, total=False):
+    """Metadata specific to Terraform nodes."""
     terraform_type: NotRequired[str]
     terraform_address: NotRequired[str]
-    
-    # K8s specifics
+    change_actions: NotRequired[List[str]]
+    is_local: NotRequired[bool]
+    is_data: NotRequired[bool]
+
+
+class KubernetesMeta(BaseMeta, total=False):
+    """Metadata specific to Kubernetes nodes."""
     k8s_kind: NotRequired[str]
+    k8s_api_version: NotRequired[str]
+    k8s_resource: NotRequired[str]
     namespace: NotRequired[str]
-    
-    # dbt/Data specifics
+
+
+class DbtMeta(BaseMeta, total=False):
+    """Metadata specific to dbt nodes."""
     dbt_unique_id: NotRequired[str]
     schema: NotRequired[str]
     database: NotRequired[str]
-    
-    # Inference
-    confidence: NotRequired[float]
-    pattern: NotRequired[str]
-    virtual: NotRequired[bool]
+    package: NotRequired[str]
+    resource_type: NotRequired[str]
+    description: NotRequired[str]
+    tags: NotRequired[List[str]]
+    materialized: NotRequired[str]
 
+
+class SparkMeta(BaseMeta, total=False):
+    """Metadata specific to Spark/OpenLineage nodes."""
+    source_type: NotRequired[str]
+    pattern: NotRequired[str]
+    default_value: NotRequired[str]
+
+
+class JsMeta(BaseMeta, total=False):
+    """Metadata specific to JavaScript/TypeScript nodes."""
+    framework: NotRequired[str]
+    is_public: NotRequired[bool]
+    is_commonjs: NotRequired[bool]
+    is_dynamic: NotRequired[bool]
+    import_name: NotRequired[str]
+
+
+# The Master Metadata Union
+# Maps to a Rust Enum: NodeMetadata::Python(PythonMeta), NodeMetadata::Generic(Map), etc.
+# Including Dict[str, Any] at the end allows for unknown parsers without validation errors.
+NodeMetadata = Union[
+    PythonMeta,
+    TerraformMeta,
+    KubernetesMeta,
+    DbtMeta,
+    SparkMeta,
+    JsMeta,
+    Dict[str, Any]
+]
+
+
+# =============================================================================
+# Core Models
+# =============================================================================
 
 class Node(BaseModel):
     """
@@ -102,12 +155,12 @@ class Node(BaseModel):
     file_hash: str | None = None
     tokens: List[str] = Field(default_factory=list)
     
-    # REFACTORED: Use TypedDict instead of Dict[str, Any]
+    # Use the Union type for structured + flexible metadata
     metadata: NodeMetadata = Field(default_factory=dict)
     
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    model_config = ConfigDict(frozen=False, extra='ignore')
+    model_config = ConfigDict(frozen=False, extra='allow')
 
     def model_post_init(self, __context) -> None:
         if not self.tokens and self.name:

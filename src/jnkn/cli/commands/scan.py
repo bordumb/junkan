@@ -131,6 +131,10 @@ def scan(
                 if stats.files_deleted > 0:
                     click.echo(f"   Pruned {stats.files_deleted} deleted files")
 
+                # Explicitly report failures so users don't think they are safe when parsing failed
+                if stats.files_failed > 0:
+                    click.echo(click.style(f"   ❌ Failed to parse {stats.files_failed} files (run with -v to see details)", fg="red"))
+
             # 5. Hydrate Graph for Stitching
             # We need the full graph in memory to perform cross-file stitching
             graph = storage.load_graph()

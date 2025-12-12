@@ -223,13 +223,10 @@ class SQLiteStorage(StorageAdapter):
     def load_all_nodes(self) -> List[Node]:
         nodes = []
         with self._connection() as conn:
-            # Use fetchmany generator logic for memory efficiency on massive graphs?
-            # For now, fetchall is standard for prompt compliance.
+            # Removed the try/except block to allow surfacing validation errors 
+            # (Section 2.1 of Architecture Review)
             for row in conn.execute("SELECT * FROM nodes").fetchall():
-                try:
-                    nodes.append(self._row_to_node(row))
-                except Exception:
-                    pass
+                nodes.append(self._row_to_node(row))
         return nodes
 
     def _row_to_node(self, row: sqlite3.Row) -> Node:
@@ -414,14 +411,6 @@ class SQLiteStorage(StorageAdapter):
         for edge in all_edges:
             graph.add_edge(edge)
             
-        # Note: DependencyGraph.add_node automatically updates the in-memory token index.
-        # Since we just rebuilt the graph object from scratch, its in-memory TokenIndex 
-        # is already populated by `add_node`. 
-        # We don't need to manually SELECT FROM token_index unless we were doing
-        # a "lazy load" graph that didn't hold everything in memory.
-        # However, `token_index` table is crucial for specific SQL-based lookups 
-        # (e.g. stitching optimization) without loading the full graph.
-        
         return graph
 
     # --- Traversal Queries ---
