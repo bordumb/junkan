@@ -1,17 +1,28 @@
 """
 Check Command - CI/CD Gate for Pre-Merge Impact Analysis.
-Standardized output version.
+
+This module implements the logic to verify changes against the dependency graph.
+It acts as the primary gatekeeper in CI/CD pipelines.
 """
 
+import logging
+import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, List, Tuple
 
 import click
 from pydantic import BaseModel, Field
 
+from ...analysis.blast_radius import BlastRadiusAnalyzer
+from ...core.types import NodeType
 from ..renderers import JsonRenderer
+from ..utils import load_graph
+
+logger = logging.getLogger(__name__)
 
 
 # --- API Models (External Contract) ---
@@ -35,7 +46,6 @@ class ApiViolation(BaseModel):
 class CheckResponse(BaseModel):
     """
     Standardized response for check command.
-    Maps internal CheckReport to external API contract.
     """
 
     result: CheckResultStatus
@@ -57,7 +67,7 @@ class CheckResult(Enum):
 @dataclass
 class ChangedFile:
     path: str
-    change_type: str
+    change_type: str  # 'A', 'M', 'D', etc.
     old_path: str | None = None
 
 
@@ -70,6 +80,167 @@ class CheckReport:
     critical_count: int = 0
     high_count: int = 0
     violations: List[Any] = field(default_factory=list)
+
+
+class CheckEngine:
+    """
+    Performs risk assessment on changed files using the dependency graph.
+    """
+
+    def __init__(self, graph_path: str = ".jnkn/jnkn.db"):
+        self.graph = load_graph(graph_path)
+
+    def analyze(self, changes: List[ChangedFile]) -> CheckReport:
+        report = CheckReport(changed_files=changes)
+
+        # If no graph, we can only do static file analysis
+        if not self.graph:
+            self._analyze_static(changes, report)
+            return report
+
+        analyzer = BlastRadiusAnalyzer(self.graph)
+
+        for file in changes:
+            # 1. Resolve file to graph node
+            # We use the file:// prefix convention
+            node_id = f"file://{file.path}"
+
+            # If the file itself isn't a node (e.g. unknown type), skip deep analysis
+            if not self.graph.has_node(node_id):
+                self._analyze_single_file_heuristic(file, report)
+                continue
+
+            # 2. Calculate Impact
+            # We check if this file affects anything downstream
+            impact = analyzer.calculate([node_id])
+            impact_count = impact.get("count", 0)
+
+            # 3. Apply Rules
+            # Rule: High Blast Radius
+            if impact_count > 20:
+                report.violations.append(
+                    ApiViolation(
+                        rule="HIGH_BLAST_RADIUS",
+                        severity="high",
+                        message=f"{file.path} impacts {impact_count} downstream artifacts.",
+                    )
+                )
+                report.high_count += 1
+
+            # Rule: Critical Node Modification
+            # Check if this node provides for critical infrastructure
+            downstream = self.graph.get_descendants(node_id)
+            for target_id in downstream:
+                target = self.graph.get_node(target_id)
+                if target and target.type == NodeType.INFRA_RESOURCE:
+                    report.violations.append(
+                        ApiViolation(
+                            rule="INFRA_IMPACT",
+                            severity="critical",
+                            message=f"Change to {file.path} impacts infrastructure {target.name}",
+                        )
+                    )
+                    report.critical_count += 1
+                    break  # One critical violation is enough to flag the file
+
+        return report
+
+    def _analyze_static(self, changes: List[ChangedFile], report: CheckReport):
+        """Fallback analysis when no graph is available."""
+        for file in changes:
+            self._analyze_single_file_heuristic(file, report)
+
+    def _analyze_single_file_heuristic(self, file: ChangedFile, report: CheckReport):
+        """Heuristic checks based purely on filenames."""
+        path = file.path.lower()
+
+        # Critical: Infrastructure Definitions
+        if path.endswith(".tf") or "terraform" in path:
+            report.violations.append(
+                ApiViolation(
+                    rule="INFRA_CHANGE",
+                    severity="critical",
+                    message=f"Infrastructure change detected: {file.path}",
+                )
+            )
+            report.critical_count += 1
+
+        # Critical: Data Schema
+        elif "migrations" in path or "schema" in path or path.endswith(".sql"):
+            report.violations.append(
+                ApiViolation(
+                    rule="SCHEMA_CHANGE",
+                    severity="high",
+                    message=f"Data schema change detected: {file.path}",
+                )
+            )
+            report.high_count += 1
+
+
+# --- Git Utilities ---
+
+
+def get_changed_files_from_git(base_ref: str, head_ref: str) -> List[ChangedFile]:
+    """
+    Get changed files between two git refs using git diff.
+    """
+    try:
+        # Run git diff --name-status
+        # Output format:
+        # M       src/main.py
+        # A       README.md
+        # R100    old.py    new.py
+        result = subprocess.run(
+            ["git", "diff", "--name-status", base_ref, head_ref],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Git command failed: {e.stderr}")
+
+    changes = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+
+        parts = line.split("\t")
+        status = parts[0][0]  # First char (M, A, D, R)
+
+        if status == "R":  # Rename
+            if len(parts) >= 3:
+                old_path = parts[1]
+                new_path = parts[2]
+                changes.append(ChangedFile(path=new_path, change_type="RENAME", old_path=old_path))
+        else:
+            path = parts[1]
+            changes.append(ChangedFile(path=path, change_type=status))
+
+    return changes
+
+
+def get_changed_files_from_diff_file(diff_path: str) -> List[ChangedFile]:
+    """
+    Parse a standard Unified Diff file to find changed filenames.
+    """
+    changes = []
+    path = Path(diff_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Diff file not found: {diff_path}")
+
+    content = path.read_text()
+
+    # Regex for diff header: "diff --git a/path/to/file b/path/to/file"
+    # This is a simplified parser; robust diff parsing is complex.
+    # For CI, git --name-status is preferred.
+    diff_pattern = re.compile(r"^diff --git a/(.*?) b/(.*?)$", re.MULTILINE)
+
+    for match in diff_pattern.finditer(content):
+        # We assume the 'b' path is the new path
+        file_path = match.group(2)
+        changes.append(ChangedFile(path=file_path, change_type="MODIFIED"))
+
+    return changes
 
 
 class _null_context:
@@ -88,12 +259,16 @@ class _null_context:
 
 
 @click.command()
-@click.option("--diff", "diff_file", type=click.Path(exists=True))
-@click.option("--git-diff", "git_diff", nargs=2)
-@click.option("--fail-if-critical", is_flag=True)
+@click.option(
+    "--diff", "diff_file", type=click.Path(exists=True), help="Path to a unified diff file"
+)
+@click.option("--git-diff", "git_diff", nargs=2, help="Git refs to compare (BASE HEAD)")
+@click.option(
+    "--fail-if-critical", is_flag=True, help="Exit with error if critical violations found"
+)
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON (Standard Envelope)")
 @click.option("--format", "output_format", type=click.Choice(["text", "markdown"]), default="text")
-@click.option("--quiet", "-q", is_flag=True)
+@click.option("--quiet", "-q", is_flag=True, help="Suppress text output")
 def check(
     diff_file: str | None,
     git_diff: Tuple[str, str] | None,
@@ -102,7 +277,11 @@ def check(
     output_format: str,
     quiet: bool,
 ):
-    """Run pre-merge impact analysis."""
+    """
+    Run pre-merge impact analysis.
+
+    Compares changes against the dependency graph to detect breaking changes.
+    """
     renderer = JsonRenderer("check")
 
     # Context handling: Capture stdout/stderr only if JSON output is requested
@@ -113,39 +292,46 @@ def check(
 
     with context_manager:
         try:
-            # 1. Get changed files
-            changed_files = []
+            # 1. Acquire Changed Files
+            changed_files: List[ChangedFile] = []
+
             if diff_file:
-                # Placeholder: In prod, parse the diff file
-                changed_files = [ChangedFile("file.py", "modified")]
+                changed_files = get_changed_files_from_diff_file(diff_file)
             elif git_diff:
-                # Placeholder: In prod, run git diff command
-                changed_files = [ChangedFile("app.py", "modified")]
+                base, head = git_diff
+                changed_files = get_changed_files_from_git(base, head)
             else:
-                changed_files = []
+                # Fallback: Try to compare HEAD against previous commit if nothing specified
+                # This is useful for local "jnkn check" usage
+                try:
+                    changed_files = get_changed_files_from_git("HEAD~1", "HEAD")
+                except Exception:
+                    # If that fails (e.g. no history), empty list
+                    changed_files = []
 
-            # 2. Create Report (Mocked logic for now, replacing previous inline class)
-            # In a real implementation, this would come from an Engine.analyze() call
-            report = CheckReport(
-                result=CheckResult.PASS,
-                changed_files=changed_files,
-                critical_count=0,
-                high_count=0,
-                violations=[],
-            )
+            # 2. Run Analysis Engine
+            engine = CheckEngine()
+            report = engine.analyze(changed_files)
 
-            # Apply failure logic
+            # 3. Apply Failure Policy
             if fail_if_critical and report.critical_count > 0:
                 report.result = CheckResult.BLOCKED
+            elif report.high_count > 5:  # Configurable threshold in future
+                report.result = CheckResult.WARN
 
-            # 3. Map to API Model
+            # 4. Map to API Model
+            api_violations = [
+                ApiViolation(rule=v.rule, severity=v.severity, message=v.message)
+                for v in report.violations
+            ]
+
             api_response = CheckResponse(
                 result=CheckResultStatus[report.result.name],
                 exit_code=report.result.value,
                 changed_files_count=len(report.changed_files),
                 critical_count=report.critical_count,
                 high_count=report.high_count,
-                violations=[],
+                violations=api_violations,
             )
 
         except Exception as e:
@@ -158,18 +344,31 @@ def check(
             sys.exit(1)
         elif api_response:
             renderer.render_success(api_response)
+            # Exit code mirrors the policy decision (0=Pass, 1=Blocked)
             sys.exit(api_response.exit_code)
     else:
         # Legacy Text Output
         if error_to_report:
             if not quiet:
-                click.echo(f"Error: {error_to_report}", err=True)
+                click.echo(f"❌ Error: {error_to_report}", err=True)
             sys.exit(1)
 
-        if not quiet and api_response:
-            click.echo(f"Result: {api_response.result.value}")
-
         if api_response:
+            color = "green"
+            if api_response.result == CheckResultStatus.BLOCKED:
+                color = "red"
+            elif api_response.result == CheckResultStatus.WARN:
+                color = "yellow"
+
+            if not quiet:
+                click.echo(f"Analysis Complete: {len(api_response.violations)} violations found.")
+                for v in api_response.violations:
+                    click.echo(f"  [{v.severity.upper()}] {v.message}")
+
+                click.echo(
+                    f"\nResult: {click.style(api_response.result.value, fg=color, bold=True)}"
+                )
+
             sys.exit(api_response.exit_code)
 
         sys.exit(1)
