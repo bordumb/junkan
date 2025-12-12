@@ -1,0 +1,52 @@
+# ==============================================================================
+# Jnkn Pre-Commit Hooks Configuration
+# ==============================================================================
+# This file defines the hooks that other repositories can consume to run Jnkn
+# locally before committing code. It enables "Shift Left" dependency analysis.
+#
+# Usage in consumers (.pre-commit-config.yaml):
+#   - repo: https://github.com/bordumb/jnkn
+#     rev: v0.1.0
+#     hooks:
+#       - id: jnkn-scan
+#       - id: jnkn-lint
+# ==============================================================================
+
+- id: jnkn-scan
+  name: Jnkn Scan
+  description: >-
+    Scans the codebase to build the cross-domain dependency graph.
+    Verifies that all supported artifacts (Python, Terraform, etc.) can be
+    parsed successfully without errors.
+  entry: jnkn scan
+  language: python
+  # Run on any file type supported by Jnkn parsers to trigger a re-scan
+  types_or: [python, terraform, javascript, ts, yaml, json, sql]
+  # 'scan' expects a root directory, not a file list
+  pass_filenames: false
+  # Ensure the graph persists in the local .jnkn directory for subsequent hooks
+  args: ["--output", ".jnkn/jnkn.db", "--no-recursive"]
+
+- id: jnkn-lint
+  name: Jnkn Graph Lint
+  description: >-
+    Analyzes the dependency graph for structural integrity issues.
+    Detects circular dependencies, orphan nodes, and broken references
+    based on the graph built by 'jnkn-scan'.
+  entry: jnkn lint
+  language: python
+  pass_filenames: false
+  # Reads from the default DB location populated by the scan hook
+  args: ["--graph", ".jnkn/jnkn.db"]
+
+- id: jnkn-check
+  name: Jnkn Impact Check (Staging)
+  description: >-
+    Runs a differential impact analysis against the local git index.
+    Warns if changes introduce high-risk impacts or breaking changes.
+    Note: Requires a valid git context.
+  entry: jnkn check
+  language: python
+  pass_filenames: false
+  # By default, check staged changes against HEAD
+  args: ["--git-diff", "HEAD", "cached"]
