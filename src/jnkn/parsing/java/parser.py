@@ -1,14 +1,8 @@
 """
-Standardized Java Parser.
+Java Language Parser.
 
-Provides comprehensive parsing for Java source files, focusing on:
-- Environment variable detection (System.getenv, Spring @Value)
-- Property retrieval (System.getProperty, Spring Environment)
-- Import statement extraction
-- Class and method definition extraction
-
-This parser is designed to support enterprise Java applications, including
-Spring Boot and standard Java SE patterns.
+Handles parsing of Java source files (.java) using regex-based extractors
+to find environment variables, imports, and class/method definitions.
 """
 
 from pathlib import Path
@@ -28,7 +22,7 @@ from .extractors.imports import JavaImportExtractor
 
 class JavaParser(LanguageParser):
     """
-    Parser for Java source files (.java).
+    Parser for Java source files.
     """
 
     def __init__(self, context: ParserContext | None = None):
@@ -37,7 +31,6 @@ class JavaParser(LanguageParser):
         self._register_extractors()
 
     def _register_extractors(self) -> None:
-        """Register all extractors for Java."""
         self._extractors.register(JavaEnvVarExtractor())
         self._extractors.register(JavaImportExtractor())
         self._extractors.register(JavaDefinitionExtractor())
@@ -58,13 +51,11 @@ class JavaParser(LanguageParser):
         file_path: Path,
         content: bytes,
     ) -> Generator[Union[Node, Edge], None, None]:
-        # Decode content
         try:
             text = content.decode(self.context.encoding)
         except UnicodeDecodeError:
             text = content.decode("latin-1", errors="ignore")
 
-        # Create file node
         file_id = f"file://{file_path}"
         yield Node(
             id=file_id,
@@ -74,9 +65,6 @@ class JavaParser(LanguageParser):
             language="java",
         )
 
-        # Create extraction context
-        # Note: tree-sitter integration can be added here in the future
-        # by passing the parsed tree to the context.
         ctx = ExtractionContext(
             file_path=file_path,
             file_id=file_id,
@@ -85,10 +73,8 @@ class JavaParser(LanguageParser):
             seen_ids=set(),
         )
 
-        # Run extractors
         yield from self._extractors.extract_all(ctx)
 
 
 def create_java_parser(context: ParserContext | None = None) -> JavaParser:
-    """Factory function for JavaParser."""
     return JavaParser(context)

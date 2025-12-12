@@ -1,11 +1,14 @@
 """
-Standardized Python Parser.
+Python Language Parser.
+
+Handles parsing of Python source code using Tree-sitter (if available)
+and Regex-based extractors for robustness.
 """
 
 from pathlib import Path
 from typing import Any, Generator, List, Union
 
-# Type alias for Tree-sitter tree, using Any as strict typing requires the library
+# Type alias for Tree-sitter tree
 Tree = Any
 
 try:
@@ -26,10 +29,13 @@ from .extractors import get_extractors
 
 
 class PythonParser(LanguageParser):
+    """
+    Parser for Python (.py) files.
+    """
+
     def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
         self._extractors = ExtractorRegistry()
-        # Register standard extractors
         for extractor in get_extractors():
             self._extractors.register(extractor)
 
@@ -49,7 +55,7 @@ class PythonParser(LanguageParser):
         return file_path.suffix == ".py"
 
     def _init_tree_sitter(self) -> bool:
-        """Initialize tree-sitter parser lazily."""
+        """Initialize tree-sitter resources lazily."""
         if not TREE_SITTER_AVAILABLE:
             return False
 
@@ -77,7 +83,6 @@ class PythonParser(LanguageParser):
         rel_path = self._relativize(file_path)
         file_id = f"file://{rel_path}"
 
-        # 1. Create the File Node
         yield Node(
             id=file_id,
             name=file_path.name,
@@ -86,7 +91,6 @@ class PythonParser(LanguageParser):
             metadata={"language": "python"},
         )
 
-        # 2. Parse with tree-sitter if available
         tree = None
         if self._init_tree_sitter():
             try:
@@ -94,7 +98,6 @@ class PythonParser(LanguageParser):
             except Exception:
                 pass
 
-        # 3. Create context and run extractors
         ctx = ExtractionContext(
             file_path=file_path, file_id=file_id, text=text, tree=tree, seen_ids=set()
         )
@@ -103,5 +106,4 @@ class PythonParser(LanguageParser):
 
 
 def create_python_parser(context: ParserContext | None = None) -> PythonParser:
-    """Factory function to create a Python parser."""
     return PythonParser(context)

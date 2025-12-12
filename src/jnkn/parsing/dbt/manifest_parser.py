@@ -1,5 +1,8 @@
 """
-dbt Manifest Parser for jnkn.
+dbt Manifest Parser.
+
+Handles parsing of dbt manifest.json files to extract models, sources,
+exposures, and their relationships.
 """
 
 import json
@@ -17,7 +20,10 @@ from ..base import (
 
 logger = logging.getLogger(__name__)
 
-# --- Data Models ---
+
+# =============================================================================
+# Data Models
+# =============================================================================
 
 
 @dataclass
@@ -33,7 +39,7 @@ class DbtColumn:
 
 @dataclass
 class DbtNode:
-    """Represents a dbt node."""
+    """Represents a generic dbt node (model, seed, snapshot)."""
 
     unique_id: str
     name: str
@@ -52,7 +58,7 @@ class DbtNode:
 
 @dataclass
 class DbtExposure:
-    """Represents a dbt exposure."""
+    """Represents a downstream exposure of dbt models."""
 
     unique_id: str
     name: str
@@ -63,12 +69,14 @@ class DbtExposure:
     url: str | None = None
 
 
-# --- Parser ---
+# =============================================================================
+# Parser
+# =============================================================================
 
 
 class DbtManifestParser(LanguageParser):
     """
-    Parser for dbt manifest.json files.
+    Parser for dbt manifest.json artifacts.
     """
 
     NODE_TYPES = {"model", "source", "seed", "snapshot", "analysis"}
@@ -91,7 +99,10 @@ class DbtManifestParser(LanguageParser):
         ]
 
     def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
-        """Check if this is a dbt manifest file."""
+        """
+        Check if the file is a dbt manifest.
+        Uses filename location and content heuristic.
+        """
         name = file_path.name.lower()
 
         # Standard manifest location
@@ -103,10 +114,8 @@ class DbtManifestParser(LanguageParser):
         if name in ("dbt_manifest.json", "manifest.dbt.json"):
             return True
 
-        # Optional content check if name isn't definitive but ends in json
         if content and file_path.suffix == ".json":
             try:
-                # Quick check first few bytes
                 start = content[:500].decode("utf-8", errors="ignore")
                 if "dbt_schema_version" in start:
                     return True
@@ -146,7 +155,6 @@ class DbtManifestParser(LanguageParser):
         yield from self._extract_nodes(file_path, file_id, manifest)
         yield from self._extract_sources(file_path, file_id, manifest)
         yield from self._extract_exposures(file_path, file_id, manifest)
-        yield from self._extract_tests(file_path, file_id, manifest)
 
     def _is_dbt_manifest(self, data: Dict[str, Any]) -> bool:
         metadata = data.get("metadata", {})
@@ -175,6 +183,7 @@ class DbtManifestParser(LanguageParser):
             database = node_data.get("database")
             package_name = node_data.get("package_name", "")
 
+            # Construct unique node ID based on resource type
             if resource_type == "model":
                 data_id = f"data:model:{schema_name}.{node_name}"
             elif resource_type == "seed":
@@ -210,6 +219,7 @@ class DbtManifestParser(LanguageParser):
                 type=RelationshipType.CONTAINS,
             )
 
+            # Process dependencies
             depends_on = node_data.get("depends_on", {}).get("nodes", [])
             for dep_id in depends_on:
                 dep_node_id = self._convert_dbt_id_to_node_id(dep_id, manifest)
@@ -303,6 +313,7 @@ class DbtManifestParser(LanguageParser):
                     )
 
     def _extract_tests(self, file_path, file_id, manifest):
+        """Placeholder for test extraction logic."""
         return
         yield
 

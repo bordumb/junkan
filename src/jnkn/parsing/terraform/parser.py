@@ -1,9 +1,8 @@
 """
-Standardized Terraform Parser.
+Terraform Language Parser.
 
-Provides parsing for:
-- Static .tf files (HCL)
-- Terraform Plan JSON (tfplan.json)
+Handles parsing of Terraform configuration files (.tf) and JSON plans.
+Uses specialized extractors for resources, variables, outputs, and modules.
 """
 
 import json
@@ -28,8 +27,7 @@ from .extractors.variables import VariableExtractor
 
 class TerraformParser(LanguageParser):
     """
-    Static analysis parser for Terraform (.tf) files.
-    Uses the unified Extractor Architecture.
+    Static analysis parser for Terraform HCL files.
     """
 
     def __init__(self, context: ParserContext | None = None):
@@ -38,7 +36,7 @@ class TerraformParser(LanguageParser):
         self._register_extractors()
 
     def _register_extractors(self) -> None:
-        """Register all Terraform extractors."""
+        """Register the standard suite of Terraform extractors."""
         self._extractors.register(ResourceExtractor())
         self._extractors.register(OutputExtractor())
         self._extractors.register(VariableExtractor())
@@ -66,7 +64,7 @@ class TerraformParser(LanguageParser):
 
         file_id = f"file://{file_path}"
 
-        # 1. File Node
+        # Create the file node
         yield Node(
             id=file_id,
             name=file_path.name,
@@ -75,7 +73,7 @@ class TerraformParser(LanguageParser):
             metadata={"language": "hcl"},
         )
 
-        # 2. Run Extractors
+        # Execute extractors
         ctx = ExtractionContext(file_path=file_path, file_id=file_id, text=text, seen_ids=set())
 
         yield from self._extractors.extract_all(ctx)
@@ -83,7 +81,7 @@ class TerraformParser(LanguageParser):
 
 class TerraformPlanParser(LanguageParser):
     """
-    Parser for Terraform JSON plan output.
+    Parser for Terraform JSON plan output (tfplan.json).
     """
 
     @property
@@ -95,14 +93,15 @@ class TerraformPlanParser(LanguageParser):
         return [".json"]
 
     def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
-        # Heuristic: Check if filename looks like a plan
+        """
+        Check if file is a Terraform plan JSON.
+        Uses heuristics on filename and content structure.
+        """
         if file_path.suffix == ".json" and "plan" in file_path.name.lower():
             return True
 
-        # Check content if provided
         if content:
             try:
-                # Lightweight check for plan structure
                 start = content[:200].decode("utf-8", errors="ignore")
                 return "resource_changes" in start or "terraform_version" in start
             except Exception:
