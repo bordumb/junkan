@@ -1,9 +1,9 @@
 [project]
 name = "jnkn"
-version = "0.0.0-rc.3"
+version = "0.0.0-rc.5"
 description = "The Pre-Flight Impact Analysis Engine for Engineering Teams."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
     { name = "Bordumb", email = "bordumbb@gmail.com" }

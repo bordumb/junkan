@@ -6,7 +6,7 @@
 [![Documentation](https://img.shields.io/badge/docs-docs.jnkn.io-blue)](https://bordumb.github.io/jnkn/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**jnkn** (pronounced "Jenkin") prevents production outages by stitching together the hidden dependencies between your **Infrastructure** (Terraform), **Data Pipelines** (dbt), and **Application Code** (Python/JS).
+**jnkn** (pronounced "jun-kan") prevents production outages by stitching together the hidden dependencies between your **Infrastructure** (Terraform), **Data Pipelines** (dbt), and **Application Code** (Python/JS).
 
 ---
 
