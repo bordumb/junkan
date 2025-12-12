@@ -53,6 +53,7 @@ class MatchStatus(Enum):
     TRUE_POSITIVE = "TP"      # Expected and found
     FALSE_NEGATIVE = "FN"     # Expected but not found
     FALSE_POSITIVE = "FP"     # Found but not expected
+    ERROR = "ERR"             # Processing error
 
 
 @dataclass
@@ -79,6 +80,9 @@ class CaseResult:
     true_positives: int = 0
     false_positives: int = 0
     false_negatives: int = 0
+    
+    # Error state
+    error: str | None = None
 
     # Timing
     parse_time_ms: float = 0.0
@@ -103,8 +107,8 @@ class CaseResult:
 
     @property
     def passed(self) -> bool:
-        """Test passes if recall is 100% (no false negatives)."""
-        return self.false_negatives == 0
+        """Test passes if recall is 100% and no errors occurred."""
+        return self.false_negatives == 0 and self.error is None
 
 
 @dataclass
@@ -180,6 +184,7 @@ class CorpusReport:
                     {
                         "case": c.case_name,
                         "passed": c.passed,
+                        "error": c.error,
                         "precision": c.precision,
                         "recall": c.recall,
                         "f1": c.f1,
@@ -277,6 +282,20 @@ class CorpusScorer:
             except ImportError:
                 pass
 
+            # NEW: Register Go Parser
+            try:
+                from jnkn.parsing.go.parser import GoParser
+                self._parsers["go"] = GoParser(self._context)
+            except ImportError:
+                pass
+
+            # NEW: Register Java Parser
+            try:
+                from jnkn.parsing.java.parser import JavaParser
+                self._parsers["java"] = JavaParser(self._context)
+            except ImportError:
+                pass
+
         except ImportError as e:
             print(f"{Colors.RED}Error importing parsers: {e}{Colors.RESET}")
             print("Make sure you're running from the jnkn project root with:")
@@ -329,6 +348,9 @@ class CorpusScorer:
             "pyspark": [".py"],
             "spark_yaml": [".yml", ".yaml"],
             "openlineage": [".json"],
+            # NEW: Add Go and Java
+            "go": [".go"],
+            "java": [".java"],
         }
 
         extensions = extension_map.get(parser_name, [])
@@ -534,21 +556,34 @@ class CorpusScorer:
 
         # Load expected results
         expected_file = case_dir / "expected.json"
-        with open(expected_file) as f:
-            expected = json.load(f)
-
-        description = expected.get("description", "")
-
+        
         result = CaseResult(
             case_name=case_name,
             case_path=case_dir,
-            description=description,
+            description="",
         )
+
+        try:
+            with open(expected_file) as f:
+                content = f.read()
+                if not content.strip():
+                    raise ValueError("File is empty")
+                expected = json.loads(content)
+        except Exception as e:
+            self._log(f"  Failed to load {expected_file}: {e}", Colors.RED)
+            result.error = f"Invalid expected.json: {e}"
+            # Ensure false negatives > 0 so it fails the run
+            result.false_negatives = 1
+            return result
+
+        result.description = expected.get("description", "")
 
         # Find input file
         input_file = self._get_input_file(case_dir, parser_name)
         if not input_file:
             self._log(f"  No input file found for {case_name}", Colors.RED)
+            result.error = "Input file missing"
+            result.false_negatives = 1
             return result
 
         # Run parser
@@ -768,10 +803,14 @@ class CorpusScorer:
 
             # Print case results
             for case in score.cases:
-                status = f"{Colors.GREEN}PASS{Colors.RESET}" if case.passed else f"{Colors.RED}FAIL{Colors.RESET}"
-                print(f"  {status} {case.case_name}")
+                if case.error:
+                    status = f"{Colors.RED}ERR {Colors.RESET}"
+                    print(f"  {status} {case.case_name}: {case.error}")
+                else:
+                    status = f"{Colors.GREEN}PASS{Colors.RESET}" if case.passed else f"{Colors.RED}FAIL{Colors.RESET}"
+                    print(f"  {status} {case.case_name}")
 
-                if self.verbose and not case.passed:
+                if self.verbose and not case.passed and not case.error:
                     for det in case.detections:
                         if det.status == MatchStatus.FALSE_NEGATIVE:
                             print(f"       {Colors.RED}↳ Missed: {det.expected}{Colors.RESET}")
@@ -805,10 +844,13 @@ class CorpusScorer:
             if failed_cases and self.verbose:
                 print(f"\n  {Colors.DIM}Failing cases:{Colors.RESET}")
                 for case in failed_cases[:5]:
-                    missed = [d.expected.get('name', str(d.expected))
-                              for d in case.detections
-                              if d.status == MatchStatus.FALSE_NEGATIVE]
-                    print(f"    • {case.case_name}: missed {missed}")
+                    if case.error:
+                        print(f"    • {case.case_name}: {case.error}")
+                    else:
+                        missed = [d.expected.get('name', str(d.expected))
+                                  for d in case.detections
+                                  if d.status == MatchStatus.FALSE_NEGATIVE]
+                        print(f"    • {case.case_name}: missed {missed}")
 
             print()
 
@@ -892,7 +934,13 @@ Examples:
 
     # Exit code based on results
     total_fn = sum(s.total_fn for s in report.parser_scores.values())
-    sys.exit(0 if total_fn == 0 else 1)
+    # Fail if there are false negatives OR errors
+    total_errors = sum(1 for s in report.parser_scores.values() for c in s.cases if c.error)
+    
+    if total_fn == 0 and total_errors == 0:
+        sys.exit(0)
+    else:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

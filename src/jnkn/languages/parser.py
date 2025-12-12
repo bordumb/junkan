@@ -19,6 +19,7 @@ from typing import Dict, Generator, List, Set
 
 try:
     from tree_sitter_languages import get_language, get_parser
+
     TREE_SITTER_AVAILABLE = True
 except ImportError:
     TREE_SITTER_AVAILABLE = False
@@ -29,6 +30,7 @@ from ..core.types import Edge, Node, NodeType, RelationshipType, ScanMetadata
 @dataclass
 class LanguageConfig:
     """Configuration for a language parser."""
+
     name: str
     tree_sitter_name: str
     extensions: Set[str]
@@ -40,7 +42,7 @@ class LanguageConfig:
         extensions: List[str],
         query_path: Path | None = None,
         tree_sitter_name: str | None = None,
-        query_paths: List[Path] | None = None
+        query_paths: List[Path] | None = None,
     ):
         self.name = name
         self.tree_sitter_name = tree_sitter_name or name
@@ -56,6 +58,7 @@ class LanguageConfig:
 @dataclass
 class ParseResult:
     """Result of parsing a single file."""
+
     file_path: Path
     file_hash: str
     nodes: List[Node]
@@ -66,7 +69,7 @@ class ParseResult:
 class TreeSitterEngine:
     """
     Multi-language parsing engine using tree-sitter.
-    
+
     Features:
     - Multi-language support via configuration
     - Multiple query files per language
@@ -128,9 +131,7 @@ class TreeSitterEngine:
                 query = language.query(query_scm)
                 captures = query.captures(tree.root_node)
 
-                yield from self._process_captures(
-                    captures, file_id, lang_name, str(file_path)
-                )
+                yield from self._process_captures(captures, file_id, lang_name, str(file_path))
 
         except Exception as e:
             print(f"⚠️  Error parsing {file_path}: {e}", file=sys.stderr)
@@ -146,16 +147,13 @@ class TreeSitterEngine:
 
         for node, capture_name in captures:
             text = node.text.decode("utf-8")
-            clean_text = text.strip('"\'')
+            clean_text = text.strip("\"'")
 
             if capture_name == "import":
                 target_id = self._resolve_import(clean_text, lang_name)
 
                 yield Node(
-                    id=target_id,
-                    name=clean_text,
-                    type=NodeType.UNKNOWN,
-                    metadata={"virtual": True}
+                    id=target_id, name=clean_text, type=NodeType.UNKNOWN, metadata={"virtual": True}
                 )
                 yield Edge(
                     source_id=file_id,
@@ -170,7 +168,7 @@ class TreeSitterEngine:
                     id=env_id,
                     name=clean_text,
                     type=NodeType.ENV_VAR,
-                    metadata={"source": capture_name, "file": file_path}
+                    metadata={"source": capture_name, "file": file_path},
                 )
                 yield Edge(
                     source_id=file_id,
@@ -186,7 +184,7 @@ class TreeSitterEngine:
                     name=clean_text,
                     type=NodeType.INFRA_RESOURCE,
                     path=file_path,
-                    metadata={"source": "terraform"}
+                    metadata={"source": "terraform"},
                 )
 
             elif capture_name == "resource_block":
@@ -261,22 +259,26 @@ def create_default_engine() -> TreeSitterEngine:
     engine = TreeSitterEngine()
     base_dir = Path(__file__).resolve().parent
 
-    engine.register_language(LanguageConfig(
-        name="python",
-        extensions=[".py"],
-        query_paths=[
-            base_dir / "python/imports.scm",
-            base_dir / "python/definitions.scm",
-        ]
-    ))
+    engine.register_language(
+        LanguageConfig(
+            name="python",
+            extensions=[".py"],
+            query_paths=[
+                base_dir / "python/imports.scm",
+                base_dir / "python/definitions.scm",
+            ],
+        )
+    )
 
-    engine.register_language(LanguageConfig(
-        name="hcl",
-        tree_sitter_name="hcl",
-        extensions=[".tf"],
-        query_paths=[
-            base_dir / "terraform/resources.scm",
-        ]
-    ))
+    engine.register_language(
+        LanguageConfig(
+            name="hcl",
+            tree_sitter_name="hcl",
+            extensions=[".tf"],
+            query_paths=[
+                base_dir / "terraform/resources.scm",
+            ],
+        )
+    )
 
     return engine

@@ -14,6 +14,9 @@ from .explain import (
 )
 
 __all__ = [
-    "ExplanationGenerator", "MatchExplanation", "NodeInfo", "AlternativeMatch",
+    "ExplanationGenerator",
+    "MatchExplanation",
+    "NodeInfo",
+    "AlternativeMatch",
     "create_explanation_generator",
 ]

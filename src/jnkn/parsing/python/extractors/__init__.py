@@ -12,15 +12,16 @@ from .stdlib import StdlibExtractor
 
 # Registry of extractor classes
 EXTRACTORS: List[Type[BaseExtractor]] = [
-    StdlibExtractor,      # 100
-    PydanticExtractor,    # 90
+    StdlibExtractor,  # 100
+    PydanticExtractor,  # 90
     ClickTyperExtractor,  # 80
-    DotenvExtractor,      # 70
-    DjangoExtractor,      # 60
-    AirflowExtractor,     # 50
-    EnvironsExtractor,    # 40
-    HeuristicExtractor,   # 10
+    DotenvExtractor,  # 70
+    DjangoExtractor,  # 60
+    AirflowExtractor,  # 50
+    EnvironsExtractor,  # 40
+    HeuristicExtractor,  # 10
 ]
+
 
 def get_extractors() -> List[BaseExtractor]:
     """Factory function to instantiate and sort extractors."""

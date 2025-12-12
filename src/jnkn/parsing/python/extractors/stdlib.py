@@ -1,10 +1,9 @@
 import re
-from pathlib import Path
-from typing import Generator, Set, Union
+from typing import Generator, Union
 
 from ....core.types import Edge, Node, NodeType, RelationshipType
 from ..validation import is_valid_env_var_name
-from .base import BaseExtractor, Tree
+from .base import BaseExtractor, ExtractionContext
 
 # Regex patterns for fallback parsing
 ENV_VAR_PATTERNS = [
@@ -18,10 +17,10 @@ ENV_VAR_PATTERNS = [
     (r'(?<!os\.)environ\.get\s*\(\s*["\']([^"\']+)["\']', "environ.get"),
     # environ["VAR"] - after from import
     (r'(?<!os\.)environ\s*\[\s*["\']([^"\']+)["\']', "environ[]"),
-    # getenv("VAR") - REMOVED redundant pattern that conflicted with os.getenv
-    # if users do `from os import getenv`, the regex below captures it safely
+    # getenv("VAR")
     (r'(?<!os\.)getenv\s*\(\s*["\']([^"\']+)["\']', "getenv"),
 ]
+
 
 class StdlibExtractor(BaseExtractor):
     @property
@@ -32,34 +31,28 @@ class StdlibExtractor(BaseExtractor):
     def priority(self) -> int:
         return 100
 
-    def can_extract(self, text: str) -> bool:
-        return "os." in text or "environ" in text or "getenv" in text
+    def can_extract(self, ctx: ExtractionContext) -> bool:
+        return "os." in ctx.text or "environ" in ctx.text or "getenv" in ctx.text
 
-    def extract(
-        self,
-        file_path: Path,
-        file_id: str,
-        tree: Tree | None,
-        text: str,
-        seen_vars: Set[str],
-    ) -> Generator[Union[Node, Edge], None, None]:
-
+    def extract(self, ctx: ExtractionContext) -> Generator[Union[Node, Edge], None, None]:
         for pattern, pattern_name in ENV_VAR_PATTERNS:
             regex = re.compile(pattern)
 
-            for match in regex.finditer(text):
+            for match in regex.finditer(ctx.text):
                 var_name = match.group(1)
 
-                # Filter out default values (false positive prevention)
                 if not is_valid_env_var_name(var_name):
                     continue
 
-                if var_name in seen_vars:
+                if var_name in ctx.seen_ids:
                     continue
+                # We mark it seen so other extractors don't dup it
+                # Note: ctx.seen_ids stores env var names here for coordination
+                # Ideally, it should store Node IDs, but the python logic used names
+                # We'll use names to maintain logic parity
+                ctx.seen_ids.add(var_name)
 
-                # Calculate line number
-                line = text[:match.start()].count('\n') + 1
-
+                line = ctx.text[: match.start()].count("\n") + 1
                 env_id = f"env:{var_name}"
 
                 yield Node(
@@ -68,13 +61,13 @@ class StdlibExtractor(BaseExtractor):
                     type=NodeType.ENV_VAR,
                     metadata={
                         "source": pattern_name,
-                        "file": str(file_path),
+                        "file": str(ctx.file_path),
                         "line": line,
                     },
                 )
 
                 yield Edge(
-                    source_id=file_id,
+                    source_id=ctx.file_id,
                     target_id=env_id,
                     type=RelationshipType.READS,
                     metadata={"pattern": pattern_name, "line": line},

@@ -73,8 +73,8 @@ class TelemetryGroup(click.Group):
                         "duration_ms": round(duration_ms, 2),
                         "success": exit_code == 0,
                         "exit_code": exit_code,
-                        "error_type": error_type
-                    }
+                        "error_type": error_type,
+                    },
                 )
             except Exception:
                 # Telemetry failures must be silent to not disrupt the user

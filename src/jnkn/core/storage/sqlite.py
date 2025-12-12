@@ -35,8 +35,7 @@ class SQLiteStorage(StorageAdapter):
     def _connection(self):
         """Context manager for database connections with WAL mode."""
         conn = sqlite3.connect(
-            self.db_path,
-            detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
+            self.db_path, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
         )
         conn.row_factory = sqlite3.Row
         # Performance tuning for bulk writes
@@ -72,14 +71,12 @@ class SQLiteStorage(StorageAdapter):
 
     def _get_schema_version_internal(self, conn: sqlite3.Connection) -> int:
         """Get schema version using existing connection."""
-        row = conn.execute(
-            "SELECT MAX(version) as v FROM schema_version"
-        ).fetchone()
+        row = conn.execute("SELECT MAX(version) as v FROM schema_version").fetchone()
         return row["v"] if row and row["v"] else 0
 
     def _migrate(self, conn: sqlite3.Connection, from_version: int) -> None:
         """Run schema migrations."""
-        
+
         # V1: Base Schema
         if from_version < 1:
             conn.execute("""
@@ -124,20 +121,24 @@ class SQLiteStorage(StorageAdapter):
             conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id)")
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO schema_version (version, applied_at, description)
                 VALUES (1, ?, 'Initial schema')
-            """, (datetime.now(timezone.utc).isoformat(),))
+            """,
+                (datetime.now(timezone.utc).isoformat(),),
+            )
 
         # V2: Confidence Index
         if from_version < 2:
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_confidence ON edges(confidence)")
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_edges_confidence ON edges(confidence)"
-            )
-            conn.execute("""
+                """
                 INSERT INTO schema_version (version, applied_at, description)
                 VALUES (2, ?, 'Added confidence index')
-            """, (datetime.now(timezone.utc).isoformat(),))
+            """,
+                (datetime.now(timezone.utc).isoformat(),),
+            )
 
         # V3: Token Index and High-Confidence View
         if from_version < 3:
@@ -158,10 +159,13 @@ class SQLiteStorage(StorageAdapter):
                 SELECT * FROM edges WHERE confidence >= 0.7
             """)
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO schema_version (version, applied_at, description)
                 VALUES (3, ?, 'Added token_index table and high_confidence_edges view')
-            """, (datetime.now(timezone.utc).isoformat(),))
+            """,
+                (datetime.now(timezone.utc).isoformat(),),
+            )
 
     def get_schema_version(self) -> int:
         with self._connection() as conn:
@@ -180,15 +184,27 @@ class SQLiteStorage(StorageAdapter):
 
         with self._connection() as conn:
             # 1. Upsert Nodes
-            conn.executemany("""
+            conn.executemany(
+                """
                 INSERT OR REPLACE INTO nodes 
                 (id, name, type, path, language, file_hash, tokens, metadata, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, [
-                (n.id, n.name, n.type.value, n.path, n.language, n.file_hash,
-                 json.dumps(n.tokens), json.dumps(n.metadata), n.created_at.isoformat())
-                for n in nodes
-            ])
+            """,
+                [
+                    (
+                        n.id,
+                        n.name,
+                        n.type.value,
+                        n.path,
+                        n.language,
+                        n.file_hash,
+                        json.dumps(n.tokens),
+                        json.dumps(n.metadata),
+                        n.created_at.isoformat(),
+                    )
+                    for n in nodes
+                ],
+            )
 
             # 2. Update Token Index
             # Delete existing tokens for these nodes first to ensure clean state on update
@@ -206,30 +222,28 @@ class SQLiteStorage(StorageAdapter):
                     token_entries.append((token, node.id))
 
             if token_entries:
-                conn.executemany("""
+                conn.executemany(
+                    """
                     INSERT OR IGNORE INTO token_index (token, node_id)
                     VALUES (?, ?)
-                """, token_entries)
+                """,
+                    token_entries,
+                )
 
         return len(nodes)
 
     def load_node(self, node_id: str) -> Node | None:
         with self._connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM nodes WHERE id = ?", (node_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,)).fetchone()
             return self._row_to_node(row) if row else None
 
     def load_all_nodes(self) -> List[Node]:
         nodes = []
         with self._connection() as conn:
-            # Use fetchmany generator logic for memory efficiency on massive graphs?
-            # For now, fetchall is standard for prompt compliance.
+            # Removed the try/except block to allow surfacing validation errors
+            # (Section 2.1 of Architecture Review)
             for row in conn.execute("SELECT * FROM nodes").fetchall():
-                try:
-                    nodes.append(self._row_to_node(row))
-                except Exception:
-                    pass
+                nodes.append(self._row_to_node(row))
         return nodes
 
     def _row_to_node(self, row: sqlite3.Row) -> Node:
@@ -249,8 +263,7 @@ class SQLiteStorage(StorageAdapter):
         with self._connection() as conn:
             # Cascading delete handles token_index via FK
             conn.execute(
-                "DELETE FROM edges WHERE source_id = ? OR target_id = ?",
-                (node_id, node_id)
+                "DELETE FROM edges WHERE source_id = ? OR target_id = ?", (node_id, node_id)
             )
             cursor = conn.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
             return cursor.rowcount > 0
@@ -258,26 +271,25 @@ class SQLiteStorage(StorageAdapter):
     def delete_nodes_by_file(self, file_path: str) -> int:
         with self._connection() as conn:
             # Find IDs
-            rows = conn.execute(
-                "SELECT id FROM nodes WHERE path = ?", (file_path,)
-            ).fetchall()
+            rows = conn.execute("SELECT id FROM nodes WHERE path = ?", (file_path,)).fetchall()
             node_ids = [row["id"] for row in rows]
-            
+
             if not node_ids:
                 return 0
 
             placeholders = ",".join("?" * len(node_ids))
-            
+
             # Delete Edges
-            conn.execute(f"""
+            conn.execute(
+                f"""
                 DELETE FROM edges 
                 WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})
-            """, node_ids + node_ids)
+            """,
+                node_ids + node_ids,
+            )
 
             # Delete Nodes (Cascades to token_index)
-            cursor = conn.execute(
-                f"DELETE FROM nodes WHERE id IN ({placeholders})", node_ids
-            )
+            cursor = conn.execute(f"DELETE FROM nodes WHERE id IN ({placeholders})", node_ids)
             return cursor.rowcount
 
     # --- Edge Persistence ---
@@ -290,16 +302,25 @@ class SQLiteStorage(StorageAdapter):
             return 0
 
         with self._connection() as conn:
-            conn.executemany("""
+            conn.executemany(
+                """
                 INSERT OR REPLACE INTO edges 
                 (source_id, target_id, type, confidence, match_strategy, metadata, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, [
-                (e.source_id, e.target_id, e.type.value, e.confidence,
-                 e.match_strategy.value if e.match_strategy else None,
-                 json.dumps(e.metadata), e.created_at.isoformat())
-                for e in edges
-            ])
+            """,
+                [
+                    (
+                        e.source_id,
+                        e.target_id,
+                        e.type.value,
+                        e.confidence,
+                        e.match_strategy.value if e.match_strategy else None,
+                        json.dumps(e.metadata),
+                        e.created_at.isoformat(),
+                    )
+                    for e in edges
+                ],
+            )
         return len(edges)
 
     def load_all_edges(self, min_confidence: float = 0.0) -> List[Edge]:
@@ -310,7 +331,7 @@ class SQLiteStorage(StorageAdapter):
         table = "high_confidence_edges" if min_confidence >= 0.7 else "edges"
         query = f"SELECT * FROM {table}"
         params = []
-        
+
         if 0.0 < min_confidence < 0.7:
             query += " WHERE confidence >= ?"
             params.append(min_confidence)
@@ -337,24 +358,27 @@ class SQLiteStorage(StorageAdapter):
 
     def delete_edges_by_source(self, source_id: str) -> int:
         with self._connection() as conn:
-            cursor = conn.execute(
-                "DELETE FROM edges WHERE source_id = ?", (source_id,)
-            )
+            cursor = conn.execute("DELETE FROM edges WHERE source_id = ?", (source_id,))
             return cursor.rowcount
 
     # --- Scan Metadata Persistence ---
 
     def save_scan_metadata(self, metadata: ScanMetadata) -> None:
         with self._connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO scan_metadata 
                 (file_path, file_hash, last_scanned, node_count, edge_count)
                 VALUES (?, ?, ?, ?, ?)
-            """, (
-                metadata.file_path, metadata.file_hash,
-                metadata.last_scanned.isoformat(),
-                metadata.node_count, metadata.edge_count,
-            ))
+            """,
+                (
+                    metadata.file_path,
+                    metadata.file_hash,
+                    metadata.last_scanned.isoformat(),
+                    metadata.node_count,
+                    metadata.edge_count,
+                ),
+            )
 
     def get_scan_metadata(self, file_path: str) -> ScanMetadata | None:
         with self._connection() as conn:
@@ -389,9 +413,7 @@ class SQLiteStorage(StorageAdapter):
 
     def delete_scan_metadata(self, file_path: str) -> bool:
         with self._connection() as conn:
-            cursor = conn.execute(
-                "DELETE FROM scan_metadata WHERE file_path = ?", (file_path,)
-            )
+            cursor = conn.execute("DELETE FROM scan_metadata WHERE file_path = ?", (file_path,))
             return cursor.rowcount > 0
 
     # --- Graph Hydration ---
@@ -399,29 +421,21 @@ class SQLiteStorage(StorageAdapter):
     def load_graph(self) -> DependencyGraph:
         """
         Hydrate a full DependencyGraph from storage.
-        
+
         Optimized to load token index from DB rather than rebuilding it.
         """
         graph = DependencyGraph()
-        
+
         # Load nodes
         all_nodes = self.load_all_nodes()
         for node in all_nodes:
             graph.add_node(node)
-            
+
         # Load edges
         all_edges = self.load_all_edges()
         for edge in all_edges:
             graph.add_edge(edge)
-            
-        # Note: DependencyGraph.add_node automatically updates the in-memory token index.
-        # Since we just rebuilt the graph object from scratch, its in-memory TokenIndex 
-        # is already populated by `add_node`. 
-        # We don't need to manually SELECT FROM token_index unless we were doing
-        # a "lazy load" graph that didn't hold everything in memory.
-        # However, `token_index` table is crucial for specific SQL-based lookups 
-        # (e.g. stitching optimization) without loading the full graph.
-        
+
         return graph
 
     # --- Traversal Queries ---
@@ -430,7 +444,8 @@ class SQLiteStorage(StorageAdapter):
         """Query all descendants using recursive CTE."""
         with self._connection() as conn:
             if max_depth < 0:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     WITH RECURSIVE descendants AS (
                         SELECT target_id as id, 1 as depth
                         FROM edges WHERE source_id = ?
@@ -439,9 +454,12 @@ class SQLiteStorage(StorageAdapter):
                         FROM edges e JOIN descendants d ON e.source_id = d.id
                     )
                     SELECT DISTINCT id FROM descendants
-                """, (node_id,)).fetchall()
+                """,
+                    (node_id,),
+                ).fetchall()
             else:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     WITH RECURSIVE descendants AS (
                         SELECT target_id as id, 1 as depth
                         FROM edges WHERE source_id = ?
@@ -451,14 +469,17 @@ class SQLiteStorage(StorageAdapter):
                         WHERE d.depth < ?
                     )
                     SELECT DISTINCT id FROM descendants
-                """, (node_id, max_depth)).fetchall()
+                """,
+                    (node_id, max_depth),
+                ).fetchall()
             return [row["id"] for row in rows]
 
     def query_ancestors(self, node_id: str, max_depth: int = -1) -> List[str]:
         """Query all ancestors using recursive CTE."""
         with self._connection() as conn:
             if max_depth < 0:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     WITH RECURSIVE ancestors AS (
                         SELECT source_id as id, 1 as depth
                         FROM edges WHERE target_id = ?
@@ -467,9 +488,12 @@ class SQLiteStorage(StorageAdapter):
                         FROM edges e JOIN ancestors a ON e.target_id = a.id
                     )
                     SELECT DISTINCT id FROM ancestors
-                """, (node_id,)).fetchall()
+                """,
+                    (node_id,),
+                ).fetchall()
             else:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     WITH RECURSIVE ancestors AS (
                         SELECT source_id as id, 1 as depth
                         FROM edges WHERE target_id = ?
@@ -479,7 +503,9 @@ class SQLiteStorage(StorageAdapter):
                         WHERE a.depth < ?
                     )
                     SELECT DISTINCT id FROM ancestors
-                """, (node_id, max_depth)).fetchall()
+                """,
+                    (node_id, max_depth),
+                ).fetchall()
             return [row["id"] for row in rows]
 
     def get_stats(self) -> Dict[str, Any]:
@@ -513,7 +539,7 @@ class SQLiteStorage(StorageAdapter):
         """Clear all data."""
         with self._connection() as conn:
             conn.execute("DELETE FROM edges")
-            conn.execute("DELETE FROM token_index") # Explicit, though cascade handles it
+            conn.execute("DELETE FROM token_index")  # Explicit, though cascade handles it
             conn.execute("DELETE FROM nodes")
             conn.execute("DELETE FROM scan_metadata")
 

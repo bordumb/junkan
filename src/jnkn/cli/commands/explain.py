@@ -10,20 +10,18 @@ import click
 @click.command()
 @click.argument("source_id")
 @click.argument("target_id")
-@click.option("--min-confidence", default=0.5, type=float,
-              help="Minimum confidence threshold")
-@click.option("--why-not", is_flag=True,
-              help="Explain why match was NOT made")
-@click.option("--alternatives", is_flag=True,
-              help="Show alternative matches that were considered")
-def explain(source_id: str, target_id: str, min_confidence: float,
-            why_not: bool, alternatives: bool):
+@click.option("--min-confidence", default=0.5, type=float, help="Minimum confidence threshold")
+@click.option("--why-not", is_flag=True, help="Explain why match was NOT made")
+@click.option("--alternatives", is_flag=True, help="Show alternative matches that were considered")
+def explain(
+    source_id: str, target_id: str, min_confidence: float, why_not: bool, alternatives: bool
+):
     """
     Explain why a match was made (or not made).
-    
+
     Shows the confidence calculation, signals considered, and
     alternative matches that were rejected.
-    
+
     \b
     Examples:
         jnkn explain env:PAYMENT_DB_HOST infra:payment_db_host
@@ -38,10 +36,7 @@ def explain(source_id: str, target_id: str, min_confidence: float,
         if why_not:
             output = generator.explain_why_not(source_id, target_id)
         else:
-            explanation = generator.explain(
-                source_id, target_id,
-                find_alternatives=alternatives
-            )
+            explanation = generator.explain(source_id, target_id, find_alternatives=alternatives)
             output = generator.format(explanation)
 
         click.echo(output)

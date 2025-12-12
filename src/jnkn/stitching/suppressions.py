@@ -30,14 +30,17 @@ logger = logging.getLogger(__name__)
 class Suppression(BaseModel):
     """
     A single suppression rule.
-    
+
     Matches source/target pairs using glob patterns.
     """
+
     source_pattern: str = Field(..., description="Glob pattern for source node (e.g., 'env:*_ID')")
     target_pattern: str = Field(..., description="Glob pattern for target node (e.g., 'infra:*')")
     reason: str = Field(default="", description="Why this suppression exists")
     created_by: str = Field(default="unknown", description="Who created this suppression")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When created")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When created"
+    )
     expires_at: datetime | None = Field(default=None, description="Optional expiration")
     id: str | None = Field(default=None, description="Unique identifier")
     enabled: bool = Field(default=True, description="Whether suppression is active")
@@ -47,8 +50,9 @@ class Suppression(BaseModel):
         if self.id is None:
             # Generate ID from pattern hash
             import hashlib
+
             content = f"{self.source_pattern}|{self.target_pattern}|{self.created_at.isoformat()}"
-            object.__setattr__(self, 'id', hashlib.md5(content.encode()).hexdigest()[:8])
+            object.__setattr__(self, "id", hashlib.md5(content.encode()).hexdigest()[:8])
 
     def is_expired(self) -> bool:
         """Check if this suppression has expired."""
@@ -63,7 +67,7 @@ class Suppression(BaseModel):
     def matches(self, source_id: str, target_id: str) -> bool:
         """
         Check if this suppression matches a source/target pair.
-        
+
         Uses glob pattern matching (fnmatch).
         """
         if not self.is_active():
@@ -120,6 +124,7 @@ class Suppression(BaseModel):
 @dataclass
 class SuppressionMatch:
     """Result of checking if an edge is suppressed."""
+
     suppressed: bool
     suppression: Suppression | None = None
     reason: str = ""
@@ -128,22 +133,22 @@ class SuppressionMatch:
 class SuppressionStore:
     """
     Manages suppression rules with YAML persistence.
-    
+
     Usage:
         store = SuppressionStore()
         store.load()
-        
+
         # Add suppression
         store.add(Suppression(
             source_pattern="env:HOST",
             target_pattern="infra:*",
             reason="HOST is too generic"
         ))
-        
+
         # Check if edge is suppressed
         if store.is_suppressed("env:HOST", "infra:main"):
             print("Suppressed!")
-        
+
         # Save changes
         store.save()
     """
@@ -153,7 +158,7 @@ class SuppressionStore:
     def __init__(self, path: Path | None = None):
         """
         Initialize the suppression store.
-        
+
         Args:
             path: Path to YAML file. Defaults to .jnkn/suppressions.yaml
         """
@@ -164,7 +169,7 @@ class SuppressionStore:
     def load(self) -> int:
         """
         Load suppressions from YAML file.
-        
+
         Returns:
             Number of suppressions loaded
         """
@@ -183,9 +188,7 @@ class SuppressionStore:
                 return 0
 
             suppressions_data = data.get("suppressions", [])
-            self._suppressions = [
-                Suppression.from_dict(s) for s in suppressions_data
-            ]
+            self._suppressions = [Suppression.from_dict(s) for s in suppressions_data]
 
             self._loaded = True
             logger.info(f"Loaded {len(self._suppressions)} suppressions from {self.path}")
@@ -200,7 +203,7 @@ class SuppressionStore:
     def save(self) -> bool:
         """
         Save suppressions to YAML file.
-        
+
         Returns:
             True if successful
         """
@@ -208,9 +211,7 @@ class SuppressionStore:
             # Ensure directory exists
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
-            data = {
-                "suppressions": [s.to_dict() for s in self._suppressions]
-            }
+            data = {"suppressions": [s.to_dict() for s in self._suppressions]}
 
             with open(self.path, "w") as f:
                 yaml.dump(data, f, default_flow_style=False, sort_keys=False)
@@ -232,14 +233,14 @@ class SuppressionStore:
     ) -> Suppression:
         """
         Add a new suppression.
-        
+
         Args:
             source_pattern: Glob pattern for source
             target_pattern: Glob pattern for target
             reason: Why this suppression exists
             created_by: Who created it
             expires_at: Optional expiration datetime
-        
+
         Returns:
             The created Suppression
         """
@@ -262,10 +263,10 @@ class SuppressionStore:
     def remove(self, suppression_id: str) -> bool:
         """
         Remove a suppression by ID.
-        
+
         Args:
             suppression_id: ID of suppression to remove
-        
+
         Returns:
             True if removed, False if not found
         """
@@ -275,7 +276,9 @@ class SuppressionStore:
         for i, s in enumerate(self._suppressions):
             if s.id == suppression_id:
                 removed = self._suppressions.pop(i)
-                logger.info(f"Removed suppression: {removed.source_pattern} → {removed.target_pattern}")
+                logger.info(
+                    f"Removed suppression: {removed.source_pattern} → {removed.target_pattern}"
+                )
                 return True
 
         logger.warning(f"Suppression not found: {suppression_id}")
@@ -284,10 +287,10 @@ class SuppressionStore:
     def remove_by_index(self, index: int) -> bool:
         """
         Remove a suppression by list index (1-based for CLI friendliness).
-        
+
         Args:
             index: 1-based index
-        
+
         Returns:
             True if removed
         """
@@ -297,7 +300,9 @@ class SuppressionStore:
         zero_index = index - 1
         if 0 <= zero_index < len(self._suppressions):
             removed = self._suppressions.pop(zero_index)
-            logger.info(f"Removed suppression #{index}: {removed.source_pattern} → {removed.target_pattern}")
+            logger.info(
+                f"Removed suppression #{index}: {removed.source_pattern} → {removed.target_pattern}"
+            )
             return True
 
         logger.warning(f"Invalid suppression index: {index}")
@@ -306,10 +311,10 @@ class SuppressionStore:
     def list(self, include_expired: bool = False) -> List[Suppression]:
         """
         List all suppressions.
-        
+
         Args:
             include_expired: Whether to include expired suppressions
-        
+
         Returns:
             List of suppressions
         """
@@ -324,11 +329,11 @@ class SuppressionStore:
     def is_suppressed(self, source_id: str, target_id: str) -> SuppressionMatch:
         """
         Check if an edge should be suppressed.
-        
+
         Args:
             source_id: Source node ID
             target_id: Target node ID
-        
+
         Returns:
             SuppressionMatch with result and details
         """
@@ -362,7 +367,7 @@ class SuppressionStore:
     def clear_expired(self) -> int:
         """
         Remove all expired suppressions.
-        
+
         Returns:
             Number of suppressions removed
         """
@@ -381,7 +386,7 @@ class SuppressionStore:
     def find_matching(self, source_id: str, target_id: str) -> List[Suppression]:
         """
         Find all suppressions that match a source/target pair.
-        
+
         Useful for debugging why something is/isn't suppressed.
         """
         if not self._loaded:
@@ -407,10 +412,10 @@ class SuppressionStore:
 def create_default_store(path: Path | None = None) -> SuppressionStore:
     """
     Create a SuppressionStore and load from disk.
-    
+
     Args:
         path: Optional path to YAML file
-    
+
     Returns:
         Initialized SuppressionStore
     """
@@ -422,14 +427,14 @@ def create_default_store(path: Path | None = None) -> SuppressionStore:
 class SuppressionAwareStitcher:
     """
     Mixin/wrapper for adding suppression awareness to stitching.
-    
+
     This class wraps the Edge creation process to check suppressions.
     """
 
     def __init__(self, store: SuppressionStore | None = None):
         """
         Initialize with a suppression store.
-        
+
         Args:
             store: SuppressionStore instance (creates default if None)
         """
@@ -440,11 +445,11 @@ class SuppressionAwareStitcher:
     def should_create_edge(self, source_id: str, target_id: str) -> bool:
         """
         Check if an edge should be created (not suppressed).
-        
+
         Args:
             source_id: Source node ID
             target_id: Target node ID
-        
+
         Returns:
             True if edge should be created
         """
@@ -452,12 +457,16 @@ class SuppressionAwareStitcher:
 
         if match.suppressed:
             self._suppressed_count += 1
-            self._suppressed_edges.append({
-                "source_id": source_id,
-                "target_id": target_id,
-                "reason": match.reason,
-                "pattern": f"{match.suppression.source_pattern} → {match.suppression.target_pattern}" if match.suppression else "",
-            })
+            self._suppressed_edges.append(
+                {
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "reason": match.reason,
+                    "pattern": f"{match.suppression.source_pattern} → {match.suppression.target_pattern}"
+                    if match.suppression
+                    else "",
+                }
+            )
             return False
 
         return True

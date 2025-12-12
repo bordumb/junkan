@@ -1,0 +1,19 @@
+{
+    "description": "Terraform data sources and local values",
+    "resources": [
+      {"name": "existing", "type": "aws_s3_bucket", "line": 6},
+      {"name": "creds", "type": "aws_secretsmanager_secret_version", "line": 10},
+      {"name": "config", "type": "aws_s3_object", "line": 21}
+    ],
+    "locals": [
+      {"name": "bucket_arn", "line": 15},
+      {"name": "db_password", "line": 16},
+      {"name": "common_tags", "line": 18}
+    ],
+    "edges": [
+      {"source": "infra:aws_s3_object.config", "target": "infra:local.bucket_arn", "type": "reads"},
+      {"source": "infra:aws_s3_object.config", "target": "infra:local.db_password", "type": "reads"},
+      {"source": "infra:local.bucket_arn", "target": "infra:data.aws_s3_bucket.existing", "type": "reads"},
+      {"source": "infra:local.db_password", "target": "infra:data.aws_secretsmanager_secret_version.creds", "type": "reads"}
+    ]
+  }

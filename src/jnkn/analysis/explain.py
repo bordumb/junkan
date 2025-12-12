@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class NodeInfo:
     """Information about a node for explanation."""
+
     id: str
     name: str
     type: str
@@ -42,6 +43,7 @@ class NodeInfo:
 @dataclass
 class AlternativeMatch:
     """An alternative match that was considered but rejected."""
+
     node_id: str
     node_name: str
     score: float
@@ -52,6 +54,7 @@ class AlternativeMatch:
 @dataclass
 class MatchExplanation:
     """Complete explanation of a match."""
+
     source: NodeInfo
     target: NodeInfo
     confidence_result: ConfidenceResult
@@ -63,7 +66,7 @@ class MatchExplanation:
 class ExplanationGenerator:
     """
     Generate detailed explanations for dependency matches.
-    
+
     Usage:
         generator = ExplanationGenerator(graph)
         explanation = generator.explain("env:PAYMENT_DB_HOST", "infra:payment_db_host")
@@ -78,7 +81,7 @@ class ExplanationGenerator:
     ):
         """
         Initialize the explanation generator.
-        
+
         Args:
             graph: DependencyGraph instance for looking up nodes
             calculator: ConfidenceCalculator for scoring matches
@@ -96,12 +99,12 @@ class ExplanationGenerator:
     ) -> MatchExplanation:
         """
         Generate a detailed explanation for a match.
-        
+
         Args:
             source_id: Source node ID (e.g., "env:PAYMENT_DB_HOST")
             target_id: Target node ID (e.g., "infra:payment_db_host")
             find_alternatives: Whether to find alternative matches
-        
+
         Returns:
             MatchExplanation with all details
         """
@@ -149,13 +152,13 @@ class ExplanationGenerator:
     ) -> str:
         """
         Explain why a match was NOT made.
-        
+
         Useful for debugging missing connections.
-        
+
         Args:
             source_id: Source node ID
             target_id: Target node ID
-        
+
         Returns:
             Human-readable explanation
         """
@@ -216,10 +219,10 @@ class ExplanationGenerator:
     def format(self, explanation: MatchExplanation) -> str:
         """
         Format an explanation for CLI output.
-        
+
         Args:
             explanation: MatchExplanation to format
-        
+
         Returns:
             Formatted string for display
         """
@@ -333,26 +336,34 @@ class ExplanationGenerator:
     def format_brief(self, explanation: MatchExplanation) -> str:
         """
         Format a brief, single-line explanation.
-        
+
         Args:
             explanation: MatchExplanation to format
-        
+
         Returns:
             Brief formatted string
         """
         score = explanation.confidence_result.score
         level = self._get_confidence_level(score)
-        status = "EXISTS" if explanation.edge_exists else "would be created" if score >= self.min_confidence else "rejected"
+        status = (
+            "EXISTS"
+            if explanation.edge_exists
+            else "would be created"
+            if score >= self.min_confidence
+            else "rejected"
+        )
 
-        return f"{explanation.source.id} -> {explanation.target.id}: {score:.2f} ({level}, {status})"
+        return (
+            f"{explanation.source.id} -> {explanation.target.id}: {score:.2f} ({level}, {status})"
+        )
 
     def _get_node_info(self, node_id: str) -> NodeInfo:
         """
         Get node information from graph or infer from ID.
-        
+
         Args:
             node_id: Node ID to look up
-        
+
         Returns:
             NodeInfo with available details
         """
@@ -390,12 +401,12 @@ class ExplanationGenerator:
     ) -> List[AlternativeMatch]:
         """
         Find alternative matches that were considered.
-        
+
         Args:
             source_info: Source node info
             actual_target_id: The target that was actually matched
             max_alternatives: Maximum alternatives to return
-        
+
         Returns:
             List of alternative matches
         """
@@ -436,13 +447,15 @@ class ExplanationGenerator:
                 else:
                     reason = "not selected: lower score than match"
 
-                alternatives.append(AlternativeMatch(
-                    node_id=candidate.id,
-                    node_name=candidate.name,
-                    score=result.score,
-                    rejection_reason=reason,
-                    matched_tokens=result.matched_tokens,
-                ))
+                alternatives.append(
+                    AlternativeMatch(
+                        node_id=candidate.id,
+                        node_name=candidate.name,
+                        score=result.score,
+                        rejection_reason=reason,
+                        matched_tokens=result.matched_tokens,
+                    )
+                )
 
         # Sort by score and limit
         alternatives.sort(key=lambda x: -x.score)
@@ -502,11 +515,11 @@ def create_explanation_generator(
 ) -> ExplanationGenerator:
     """
     Factory function to create an ExplanationGenerator.
-    
+
     Args:
         graph: Optional DependencyGraph
         min_confidence: Minimum confidence threshold
-    
+
     Returns:
         Configured ExplanationGenerator
     """

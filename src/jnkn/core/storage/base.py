@@ -14,7 +14,7 @@ from ..types import Edge, Node, ScanMetadata
 class StorageAdapter(ABC):
     """
     Abstract interface for persistence strategies.
-    
+
     Implementations must provide:
     - Node and edge persistence
     - Graph hydration (loading)

@@ -26,6 +26,7 @@ from typing import Any, Dict, Generator, List, Set, Union
 
 try:
     import yaml
+
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
@@ -43,7 +44,7 @@ logger = logging.getLogger(__name__)
 class SparkYamlParser(LanguageParser):
     """
     Spark YAML configuration parser.
-    
+
     Features:
     - Extracts job definitions and metadata
     - Maps job dependencies (DAG structure)
@@ -53,14 +54,14 @@ class SparkYamlParser(LanguageParser):
     """
 
     # Common key names for job properties (different orgs use different conventions)
-    JOB_NAME_KEYS = {'job_name', 'name', 'job_id', 'id', 'task_name'}
-    SCHEDULE_KEYS = {'schedule', 'cron', 'cron_schedule', 'trigger'}
-    DEPENDENCY_KEYS = {'dependencies', 'depends_on', 'upstream', 'upstream_jobs', 'requires'}
-    ENVIRONMENT_KEYS = {'environment', 'env', 'env_vars', 'environment_variables', 'variables'}
-    SPARK_CONFIG_KEYS = {'spark_config', 'spark_conf', 'spark', 'spark_settings'}
-    INPUT_KEYS = {'inputs', 'input_tables', 'source_tables', 'reads', 'sources'}
-    OUTPUT_KEYS = {'outputs', 'output_tables', 'target_tables', 'writes', 'targets', 'sink'}
-    ENTRY_POINT_KEYS = {'entry_point', 'main', 'script', 'main_class', 'main_file', 'py_file'}
+    JOB_NAME_KEYS = {"job_name", "name", "job_id", "id", "task_name"}
+    SCHEDULE_KEYS = {"schedule", "cron", "cron_schedule", "trigger"}
+    DEPENDENCY_KEYS = {"dependencies", "depends_on", "upstream", "upstream_jobs", "requires"}
+    ENVIRONMENT_KEYS = {"environment", "env", "env_vars", "environment_variables", "variables"}
+    SPARK_CONFIG_KEYS = {"spark_config", "spark_conf", "spark", "spark_settings"}
+    INPUT_KEYS = {"inputs", "input_tables", "source_tables", "reads", "sources"}
+    OUTPUT_KEYS = {"outputs", "output_tables", "target_tables", "writes", "targets", "sink"}
+    ENTRY_POINT_KEYS = {"entry_point", "main", "script", "main_class", "main_file", "py_file"}
 
     def __init__(self, context: ParserContext | None = None):
         super().__init__(context)
@@ -88,18 +89,24 @@ class SparkYamlParser(LanguageParser):
     def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
         """
         Determine if this file should be parsed as Spark YAML.
-        
+
         Checks for:
         - .yml or .yaml extension
         - Contains Spark job indicators
         """
-        if file_path.suffix not in ('.yml', '.yaml'):
+        if file_path.suffix not in (".yml", ".yaml"):
             return False
 
         # Check filename patterns
         spark_file_patterns = [
-            'spark', 'job', 'pipeline', 'workflow', 'dag',
-            'etl', 'batch', 'streaming',
+            "spark",
+            "job",
+            "pipeline",
+            "workflow",
+            "dag",
+            "etl",
+            "batch",
+            "streaming",
         ]
         filename_lower = file_path.stem.lower()
         if any(pattern in filename_lower for pattern in spark_file_patterns):
@@ -115,9 +122,15 @@ class SparkYamlParser(LanguageParser):
 
         # Check for Spark job indicators in content
         spark_indicators = [
-            'spark_config', 'spark_conf', 'SparkSession',
-            'saveAsTable', 'spark.sql', 'pyspark',
-            'job_name', 'spark.executor', 'spark.driver',
+            "spark_config",
+            "spark_conf",
+            "SparkSession",
+            "saveAsTable",
+            "spark.sql",
+            "pyspark",
+            "job_name",
+            "spark.executor",
+            "spark.driver",
         ]
 
         return any(indicator in text for indicator in spark_indicators)
@@ -129,11 +142,11 @@ class SparkYamlParser(LanguageParser):
     ) -> Generator[Union[Node, Edge], None, None]:
         """
         Parse a Spark YAML file and yield nodes and edges.
-        
+
         Args:
             file_path: Path to the YAML file
             content: File contents as bytes
-            
+
         Yields:
             Node and Edge objects for jobs, dependencies, and data lineage
         """
@@ -170,9 +183,9 @@ class SparkYamlParser(LanguageParser):
         # Check if this is a single job or multiple jobs
         if self._looks_like_job_config(config):
             yield from self._parse_single_job(file_id, file_path, config)
-        elif 'jobs' in config:
+        elif "jobs" in config:
             # Multiple jobs in a list
-            for job_config in config.get('jobs', []):
+            for job_config in config.get("jobs", []):
                 if isinstance(job_config, dict):
                     yield from self._parse_single_job(file_id, file_path, job_config)
         else:
@@ -181,18 +194,18 @@ class SparkYamlParser(LanguageParser):
                 if isinstance(value, dict) and self._looks_like_job_config(value):
                     # Use the key as job name if not specified
                     if not any(k in value for k in self.JOB_NAME_KEYS):
-                        value['_inferred_name'] = key
+                        value["_inferred_name"] = key
                     yield from self._parse_single_job(file_id, file_path, value)
 
     def _looks_like_job_config(self, config: Dict[str, Any]) -> bool:
         """Check if a config dict looks like a Spark job definition."""
         job_indicators = (
-            self.JOB_NAME_KEYS |
-            self.SCHEDULE_KEYS |
-            self.SPARK_CONFIG_KEYS |
-            self.ENTRY_POINT_KEYS |
-            self.INPUT_KEYS |
-            self.OUTPUT_KEYS
+            self.JOB_NAME_KEYS
+            | self.SCHEDULE_KEYS
+            | self.SPARK_CONFIG_KEYS
+            | self.ENTRY_POINT_KEYS
+            | self.INPUT_KEYS
+            | self.OUTPUT_KEYS
         )
         return any(key in config for key in job_indicators)
 
@@ -211,7 +224,7 @@ class SparkYamlParser(LanguageParser):
                 break
 
         if not job_name:
-            job_name = config.get('_inferred_name', file_path.stem)
+            job_name = config.get("_inferred_name", file_path.stem)
 
         job_id = f"job:{job_name}"
 
@@ -334,7 +347,7 @@ class SparkYamlParser(LanguageParser):
         if seen is None:
             seen = set()
 
-        var_pattern = re.compile(r'\$\{([A-Z_][A-Z0-9_]*)\}')
+        var_pattern = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
 
         def search_value(value: Any) -> Generator[str, None, None]:
             if isinstance(value, str):

@@ -1,0 +1,130 @@
+name: Jnkn Self-Check
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  impact-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for git diff comparison
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install Jnkn
+        # Install the package in editable mode so the CLI is available
+        run: |
+          uv sync
+          uv pip install .
+
+      - name: Build Graph
+        # Scan the current state of the repo to build the graph
+        run: uv run jnkn scan
+
+      - name: Run Semantic Check
+        id: jnkn
+        # Runs the check command comparing the PR head against the base branch
+        # We append '|| true' to prevent the step from failing immediately if violations are found (exit code 1)
+        run: |
+          uv run jnkn check --git-diff origin/${{ github.base_ref }} HEAD --json > check_output.json 2> check_error.log || true
+          
+          # Debugging: Print output to logs
+          cat check_output.json
+          
+          # Verify file is not empty before proceeding
+          if [ ! -s check_output.json ]; then
+            echo "::error::Check command failed to produce JSON output."
+            cat check_error.log
+            exit 1
+          fi
+
+      - name: Post Results Comment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let response;
+            try {
+              response = JSON.parse(fs.readFileSync('check_output.json', 'utf8'));
+            } catch (e) {
+              console.log("Failed to parse check output:", e);
+              return;
+            }
+
+            // Extract data from StandardResponse envelope
+            const result = response.data;
+            if (!result) {
+               console.log("No data in response envelope");
+               return;
+            }
+
+            // Determine status formatting
+            const isBlocked = result.result === 'BLOCKED';
+            const icon = isBlocked ? '🚫' : (result.result === 'WARN' ? '⚠️' : '✅');
+            const title = isBlocked ? 'Impact Check Failed' : 'Impact Check Passed';
+
+            let body = `### ${icon} ${title}\n\n`;
+            
+            // Summary Table
+            body += `| Metric | Count |\n|---|---|\n`;
+            body += `| 📄 Changed Files | ${result.changed_files_count} |\n`;
+            body += `| 🔴 Critical Risks | ${result.critical_count} |\n`;
+            body += `| 🟠 High Risks | ${result.high_count} |\n`;
+            
+            // Add Violations List if any
+            if (result.violations && result.violations.length > 0) {
+              body += `\n#### 🚨 Violations\n`;
+              body += `| Severity | Rule | Message |\n|---|---|---|\n`;
+              result.violations.forEach(v => {
+                const sevIcon = v.severity === 'critical' ? '🔴' : '🟠';
+                body += `| ${sevIcon} ${v.severity} | \`${v.rule}\` | ${v.message} |\n`;
+              });
+            } else if (result.critical_count === 0 && result.high_count === 0) {
+              body += `\n✨ No semantic breaking changes detected.\n`;
+            }
+
+            // Post or Update Comment
+            const botCommentIdentifier = '';
+            body += `\n\n${botCommentIdentifier}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const existingComment = comments.find(c => c.body.includes(botCommentIdentifier));
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                comment_id: existingComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+
+            // Fail the CI job if blocked
+            if (isBlocked) {
+              core.setFailed(`Jnkn Check blocked this PR with ${result.critical_count} critical violations.`);
+            }

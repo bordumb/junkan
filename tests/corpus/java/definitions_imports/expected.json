@@ -1,0 +1,65 @@
+{
+    "description": "Java Class, Interface, Record definitions and Import extraction",
+    "resources": [
+      {
+        "id": "java:java.util.List",
+        "name": "List",
+        "type": "code_entity",
+        "meta": { "package_type": "java", "is_stdlib": true }
+      },
+      {
+        "id": "java:java.util.Map",
+        "name": "Map",
+        "type": "code_entity",
+        "meta": { "package_type": "java", "is_stdlib": true }
+      },
+      {
+        "id": "java:com.fasterxml.jackson.databind.ObjectMapper",
+        "name": "ObjectMapper",
+        "type": "code_entity",
+        "meta": { "package_type": "java", "is_stdlib": false }
+      },
+      {
+        "id": "java:org.slf4j.Logger",
+        "name": "Logger",
+        "type": "code_entity",
+        "meta": { "package_type": "java", "is_stdlib": false }
+      },
+      {
+        "id": "java:org.slf4j.LoggerFactory",
+        "name": "LoggerFactory",
+        "type": "code_entity",
+        "meta": { "package_type": "java", "is_stdlib": false }
+      },
+      {
+        "id": "java:java.util.Collections.emptyList",
+        "name": "emptyList",
+        "type": "code_entity",
+        "meta": { "package_type": "java", "is_stdlib": true }
+      },
+      {
+        "id": "entity:tests/corpus/java/definitions_imports/input.java:UserService",
+        "name": "UserService",
+        "type": "code_entity",
+        "meta": { "entity_type": "class", "is_public": true }
+      },
+      {
+        "id": "entity:tests/corpus/java/definitions_imports/input.java:UserDto",
+        "name": "UserDto",
+        "type": "code_entity",
+        "meta": { "entity_type": "record" }
+      },
+      {
+        "id": "entity:tests/corpus/java/definitions_imports/input.java:IUserService",
+        "name": "IUserService",
+        "type": "code_entity",
+        "meta": { "entity_type": "interface" }
+      },
+      {
+        "id": "entity:tests/corpus/java/definitions_imports/input.java:UserStatus",
+        "name": "UserStatus",
+        "type": "code_entity",
+        "meta": { "entity_type": "enum" }
+      }
+    ]
+  }

@@ -18,12 +18,12 @@ Supported Languages:
 
 Usage:
     from jnkn.parsing import create_default_engine
-    
+
     engine = create_default_engine()
-    
+
     # Parse single file
     result = engine.parse_file_full(Path("app.py"))
-    
+
     # Scan directory
     for result in engine.scan():
         print(f"Found {len(result.nodes)} nodes in {result.file_path}")

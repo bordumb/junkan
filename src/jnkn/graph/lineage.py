@@ -48,8 +48,7 @@ class LineageGraph:
         """
         self._nodes[node_id] = attrs
 
-    def add_edge(self, source: str, target: str,
-                 edge_type: str = "unknown", **attrs) -> None:
+    def add_edge(self, source: str, target: str, edge_type: str = "unknown", **attrs) -> None:
         """
         Add a directed edge to the graph.
 
@@ -142,14 +141,17 @@ class LineageGraph:
 
         # Edges where impact flows Source -> Target (Forward traversal)
         forward_impact_types = {
-            "writes", "provides", "provisions", "configures",
-            "transforms", "triggers", "calls"
+            "writes",
+            "provides",
+            "provisions",
+            "configures",
+            "transforms",
+            "triggers",
+            "calls",
         }
 
         # Edges where impact flows Target -> Source (Reverse traversal)
-        reverse_impact_types = {
-            "reads", "imports", "depends_on", "consumes", "requires"
-        }
+        reverse_impact_types = {"reads", "imports", "depends_on", "consumes", "requires"}
 
         while to_visit:
             current, depth = to_visit.pop(0)
@@ -200,15 +202,18 @@ class LineageGraph:
         # Edges where dependency is Source -> Target
         # (e.g. Infra PROVIDES EnvVar -> EnvVar depends on Infra)
         dependency_provider_types = {
-            "writes", "provides", "provisions", "configures",
-            "transforms", "triggers", "calls"
+            "writes",
+            "provides",
+            "provisions",
+            "configures",
+            "transforms",
+            "triggers",
+            "calls",
         }
 
         # Edges where dependency is Target -> Source
         # (e.g. Code READS EnvVar -> Code depends on EnvVar)
-        dependency_consumer_types = {
-            "reads", "imports", "depends_on", "consumes", "requires"
-        }
+        dependency_consumer_types = {"reads", "imports", "depends_on", "consumes", "requires"}
 
         while to_visit:
             current, depth = to_visit.pop(0)
@@ -352,17 +357,17 @@ class LineageGraph:
         """
         nodes_by_type: Dict[str, int] = defaultdict(int)
         for node_id in self._nodes:
-            if node_id.startswith("data:"): 
+            if node_id.startswith("data:"):
                 nodes_by_type["data"] += 1
-            elif node_id.startswith(("file:", "job:")): 
+            elif node_id.startswith(("file:", "job:")):
                 nodes_by_type["code"] += 1
-            elif node_id.startswith("env:"): 
+            elif node_id.startswith("env:"):
                 nodes_by_type["config"] += 1
-            elif node_id.startswith("infra:"): 
+            elif node_id.startswith("infra:"):
                 nodes_by_type["infra"] += 1
-            elif node_id.startswith("k8s:"): 
+            elif node_id.startswith("k8s:"):
                 nodes_by_type["k8s"] += 1
-            else: 
+            else:
                 nodes_by_type["other"] += 1
 
         edges_by_type: Dict[str, int] = defaultdict(int)
@@ -386,7 +391,9 @@ class LineageGraph:
         """
         return {
             "nodes": [{"id": nid, **attrs} for nid, attrs in self._nodes.items()],
-            "edges": [{"source": s, "target": t, "type": ty} for (s, t), ty in self._edge_types.items()],
+            "edges": [
+                {"source": s, "target": t, "type": ty} for (s, t), ty in self._edge_types.items()
+            ],
             "stats": self.stats(),
         }
 
@@ -414,18 +421,20 @@ class LineageGraph:
 
         for node_id, attrs in self._nodes.items():
             color = "#757575"
-            if node_id.startswith("data:"): 
+            if node_id.startswith("data:"):
                 color = colors["data"]
-            elif node_id.startswith(("file:", "job:")): 
+            elif node_id.startswith(("file:", "job:")):
                 color = colors["code"]
-            elif node_id.startswith("env:"): 
+            elif node_id.startswith("env:"):
                 color = colors["config"]
-            elif node_id.startswith("infra:"): 
+            elif node_id.startswith("infra:"):
                 color = colors["infra"]
-            
+
             name = attrs.get("name", node_id)
             label = name.split(".")[-1] if "." in name else name.split("/")[-1]
-            lines.append(f'  "{node_id}" [label="{label}", fillcolor="{color}", style=filled, fontcolor=white];')
+            lines.append(
+                f'  "{node_id}" [label="{label}", fillcolor="{color}", style=filled, fontcolor=white];'
+            )
 
         lines.append("")
         for (src, tgt), edge_type in self._edge_types.items():
@@ -443,5 +452,6 @@ class LineageGraph:
             output_path (Path): Destination path for the HTML file.
         """
         from .visualize import generate_html
+
         html = generate_html(self)
         output_path.write_text(html)

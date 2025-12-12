@@ -15,7 +15,7 @@ from .types import Edge, Node
 class IGraph(Protocol):
     """
     Abstract interface for the Dependency Graph.
-    
+
     Any underlying graph implementation (rustworkx, networkx, Neo4j adapter)
     must satisfy this contract to be used by the Analysis engine.
     """
@@ -45,7 +45,7 @@ class IGraph(Protocol):
     def has_node(self, node_id: str) -> bool:
         """Check if a node exists."""
         ...
-        
+
     def has_edge(self, source_id: str, target_id: str) -> bool:
         """Check if an edge exists between two nodes."""
         ...
@@ -87,7 +87,7 @@ class IGraph(Protocol):
     def get_descendants(self, node_id: str, max_depth: int = -1) -> Set[str]:
         """Get all downstream node IDs reachable from the source."""
         ...
-        
+
     def get_ancestors(self, node_id: str, max_depth: int = -1) -> Set[str]:
         """Get all upstream node IDs that point to the source."""
         ...
@@ -95,11 +95,11 @@ class IGraph(Protocol):
     def get_impacted_nodes(self, source_ids: List[str], max_depth: int = -1) -> Set[str]:
         """
         Calculate the "Blast Radius" or semantic impact of changing specific nodes.
-        
+
         Unlike simple descendants, this traverses:
         - Downstream for data flow (PROVIDES, WRITES)
         - Upstream for dependencies (READS, DEPENDS_ON)
-        
+
         Returns a set of Node IDs that would be impacted.
         """
         ...
@@ -117,7 +117,7 @@ class IParser(Protocol):
     def parse(self, file_path: Path, content: bytes) -> List[Union[Node, Edge]]:
         """
         Parse file content into structured Nodes and Edges.
-        
+
         Must return strict jnkn.core.types objects, not dicts.
         """
         ...

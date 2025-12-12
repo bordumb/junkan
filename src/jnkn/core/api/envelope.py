@@ -27,6 +27,7 @@ class Status(str, Enum):
 
 class Meta(BaseModel):
     """Metadata about the request/execution context."""
+
     spec_version: str = "1.0"
     cli_version: str = Field(default_factory=lambda: __version__)
     command: str
@@ -38,20 +39,17 @@ class Meta(BaseModel):
 class StandardResponse(BaseModel, Generic[T]):
     """
     The Standard Envelope for all JSON outputs.
-    
+
     Attributes:
         meta: Execution metadata (timing, versions).
         status: High-level outcome.
         data: The strictly typed domain payload (Generic).
         error: Structured error details if status is 'error' or 'partial'.
     """
+
     meta: Meta
     status: Status
     data: T | None = None
     error: StructuredError | None = None
 
-    model_config = {
-        "json_encoders": {
-            datetime: lambda v: v.isoformat()
-        }
-    }
+    model_config = {"json_encoders": {datetime: lambda v: v.isoformat()}}

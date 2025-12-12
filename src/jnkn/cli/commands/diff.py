@@ -6,13 +6,13 @@ Analyzes what actually changed between two git refs, not just which files change
 Usage:
     # Compare against main
     jnkn diff main HEAD
-    
+
     # Compare specific branches
     jnkn diff feature-branch main
-    
+
     # Output as JSON
     jnkn diff main HEAD --format json
-    
+
     # Only show breaking changes
     jnkn diff main HEAD --breaking-only
 """
@@ -36,8 +36,13 @@ except ImportError:
 @click.argument("base_ref", default="main")
 @click.argument("head_ref", default="HEAD")
 @click.option("--repo", "-r", default=".", help="Path to git repository")
-@click.option("--format", "output_format", type=click.Choice(["text", "json", "markdown"]),
-              default="text", help="Output format")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json", "markdown"]),
+    default="text",
+    help="Output format",
+)
 @click.option("--output", "-o", type=click.Path(), help="Write output to file")
 @click.option("--breaking-only", is_flag=True, help="Only show breaking changes")
 @click.option("--columns-only", is_flag=True, help="Only show column changes")
@@ -56,24 +61,24 @@ def diff(
 ):
     """
     Analyze semantic changes between git refs.
-    
+
     Instead of just showing which files changed, this command analyzes
     WHAT changed in terms of columns, tables, and lineage.
-    
+
     \b
     Examples:
         # Basic usage
         jnkn diff main HEAD
-        
+
         # Compare branches
         jnkn diff feature-x origin/main
-        
+
         # CI/CD usage - fail if breaking changes
         jnkn diff origin/main HEAD --fail-on-breaking
-        
+
         # Generate markdown report
         jnkn diff main HEAD --format markdown > CHANGES.md
-    
+
     \b
     Exit Codes:
         0 - Success (no breaking changes, or --fail-on-breaking not set)
@@ -123,16 +128,11 @@ def diff(
 def _filter_breaking_only(report: DiffReport) -> DiffReport:
     """Filter report to only include breaking changes."""
     report.column_changes = [
-        c for c in report.column_changes
-        if c.change_type == ChangeType.REMOVED
+        c for c in report.column_changes if c.change_type == ChangeType.REMOVED
     ]
-    report.table_changes = [
-        t for t in report.table_changes
-        if t.change_type == ChangeType.REMOVED
-    ]
+    report.table_changes = [t for t in report.table_changes if t.change_type == ChangeType.REMOVED]
     report.lineage_changes = [
-        l for l in report.lineage_changes
-        if l.change_type == ChangeType.REMOVED
+        l for l in report.lineage_changes if l.change_type == ChangeType.REMOVED
     ]
     return report
 
@@ -197,7 +197,11 @@ def _format_text(report: DiffReport, quiet: bool) -> str:
             elif lc.change_type == ChangeType.REMOVED:
                 lines.append(click.style(f"  🗑️  {lc.output_column} ← {lc.old_sources}", fg="red"))
             else:
-                lines.append(click.style(f"  ✏️  {lc.output_column}: {lc.old_sources} → {lc.new_sources}", fg="yellow"))
+                lines.append(
+                    click.style(
+                        f"  ✏️  {lc.output_column}: {lc.old_sources} → {lc.new_sources}", fg="yellow"
+                    )
+                )
         lines.append("")
 
     # Transform changes
@@ -205,7 +209,11 @@ def _format_text(report: DiffReport, quiet: bool) -> str:
         lines.append(click.style("Transform Changes:", bold=True))
         for tc in report.transform_changes:
             if tc.change_type == ChangeType.MODIFIED:
-                lines.append(click.style(f"  ✏️  {tc.column}: {tc.old_transform} → {tc.new_transform}", fg="yellow"))
+                lines.append(
+                    click.style(
+                        f"  ✏️  {tc.column}: {tc.old_transform} → {tc.new_transform}", fg="yellow"
+                    )
+                )
             elif tc.change_type == ChangeType.ADDED:
                 lines.append(click.style(f"  ➕ {tc.column}: {tc.new_transform}", fg="green"))
             else:

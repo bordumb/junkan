@@ -51,12 +51,9 @@ class JsonRenderer:
     def render_success(self, data: BaseModel, print_output: bool = True):
         """Render a successful response."""
         response = StandardResponse(
-            meta=Meta(
-                command=self.command_name,
-                duration_ms=self._get_duration()
-            ),
+            meta=Meta(command=self.command_name, duration_ms=self._get_duration()),
             status=Status.SUCCESS,
-            data=data
+            data=data,
         )
         output = response.model_dump_json(indent=2)
         if print_output:
@@ -65,7 +62,7 @@ class JsonRenderer:
 
     def render_error(self, error: Exception, print_output: bool = True):
         """Render an error response from an Exception."""
-        
+
         # Determine error code and details
         if isinstance(error, JnknError):
             code = error.code
@@ -84,22 +81,16 @@ class JsonRenderer:
             details["stderr_log"] = captured_stderr.strip()
 
         structured_error = StructuredError(
-            code=code,
-            message=message,
-            details=details,
-            suggestion=suggestion
+            code=code, message=message, details=details, suggestion=suggestion
         )
 
         response = StandardResponse(
-            meta=Meta(
-                command=self.command_name,
-                duration_ms=self._get_duration()
-            ),
+            meta=Meta(command=self.command_name, duration_ms=self._get_duration()),
             status=Status.ERROR,
             data=None,
-            error=structured_error
+            error=structured_error,
         )
-        
+
         output = response.model_dump_json(indent=2)
         if print_output:
             print(output)

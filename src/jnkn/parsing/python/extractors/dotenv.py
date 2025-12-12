@@ -1,10 +1,9 @@
 import re
-from pathlib import Path
-from typing import Generator, Set, Union
+from typing import Generator, Union
 
 from ....core.types import Edge, Node, NodeType, RelationshipType
 from ..validation import is_valid_env_var_name
-from .base import BaseExtractor, Tree
+from .base import BaseExtractor, ExtractionContext
 
 
 class DotenvExtractor(BaseExtractor):
@@ -16,60 +15,43 @@ class DotenvExtractor(BaseExtractor):
     def priority(self) -> int:
         return 70
 
-    def can_extract(self, text: str) -> bool:
-        return "dotenv" in text
+    def can_extract(self, ctx: ExtractionContext) -> bool:
+        return "dotenv" in ctx.text
 
-    def extract(
-        self,
-        file_path: Path,
-        file_id: str,
-        tree: Tree | None,
-        text: str,
-        seen_vars: Set[str],
-    ) -> Generator[Union[Node, Edge], None, None]:
-
-        # 1. Inline usage: dotenv_values(...)["VAR"]
+    def extract(self, ctx: ExtractionContext) -> Generator[Union[Node, Edge], None, None]:
+        # 1. Inline usage
         inline_pattern = r'dotenv_values\s*\([^)]*\)\s*\[\s*["\']([^"\']+)["\']'
-        for match in re.finditer(inline_pattern, text):
-            # Must use 'yield from' because _yield_match is a generator
-            yield from self._yield_match(match, 1, text, file_path, file_id, "dotenv_values", seen_vars)
+        for match in re.finditer(inline_pattern, ctx.text):
+            yield from self._yield_match(match, 1, ctx, "dotenv_values")
 
-        # 2. Assignment tracking: config = dotenv_values(...)
-        # Step A: Find variable names assigned to dotenv_values
-        # Match: my_conf = dotenv_values(...)
-        assignment_pattern = r'(\w+)\s*=\s*dotenv_values\s*\('
+        # 2. Assignment tracking
+        assignment_pattern = r"(\w+)\s*=\s*dotenv_values\s*\("
         config_vars = set()
-        for match in re.finditer(assignment_pattern, text):
+        for match in re.finditer(assignment_pattern, ctx.text):
             config_vars.add(match.group(1))
 
-        # Step B: Find usages of those variables: my_conf["VAR"] or my_conf.get("VAR")
         if config_vars:
-            # Create regex for: var["KEY"] or var.get("KEY")
-            # (?:var1|var2) ...
             vars_regex = "|".join(re.escape(v) for v in config_vars)
 
-            # Match: config["VAR"]
-            # Use raw f-string (rf) to handle backslashes correctly
             dict_access_pattern = rf'(?:{vars_regex})\s*\[\s*["\']([^"\']+)["\']'
-            for match in re.finditer(dict_access_pattern, text):
-                yield from self._yield_match(match, 1, text, file_path, file_id, "dotenv_values", seen_vars)
+            for match in re.finditer(dict_access_pattern, ctx.text):
+                yield from self._yield_match(match, 1, ctx, "dotenv_values")
 
-            # Match: config.get("VAR")
-            # Use raw f-string (rf)
             get_access_pattern = rf'(?:{vars_regex})\.get\s*\(\s*["\']([^"\']+)["\']'
-            for match in re.finditer(get_access_pattern, text):
-                yield from self._yield_match(match, 1, text, file_path, file_id, "dotenv_values", seen_vars)
+            for match in re.finditer(get_access_pattern, ctx.text):
+                yield from self._yield_match(match, 1, ctx, "dotenv_values")
 
-    def _yield_match(self, match, group_idx, text, file_path, file_id, pattern_name, seen_vars):
+    def _yield_match(self, match, group_idx, ctx: ExtractionContext, pattern_name):
         var_name = match.group(group_idx)
 
         if not is_valid_env_var_name(var_name):
             return
-        
-        if var_name in seen_vars:
-            return
 
-        line = text[:match.start()].count('\n') + 1
+        if var_name in ctx.seen_ids:
+            return
+        ctx.seen_ids.add(var_name)
+
+        line = ctx.text[: match.start()].count("\n") + 1
         env_id = f"env:{var_name}"
 
         yield Node(
@@ -78,13 +60,13 @@ class DotenvExtractor(BaseExtractor):
             type=NodeType.ENV_VAR,
             metadata={
                 "source": "dotenv",
-                "file": str(file_path),
+                "file": str(ctx.file_path),
                 "line": line,
             },
         )
 
         yield Edge(
-            source_id=file_id,
+            source_id=ctx.file_id,
             target_id=env_id,
             type=RelationshipType.READS,
             metadata={"pattern": pattern_name, "line": line},

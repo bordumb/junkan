@@ -37,11 +37,11 @@ def _get_system_info() -> str:
         "Release": platform.release(),
         "Architecture": platform.machine(),
     }
-    
+
     lines = ["**System Information:**"]
     for key, value in info.items():
         lines.append(f"- {key}: {value}")
-    
+
     return "\n".join(lines)
 
 
@@ -63,7 +63,7 @@ def _build_issue_url(title: str, body: str, labels: str | None = None) -> str:
     }
     if labels:
         params["labels"] = labels
-        
+
     query_string = urllib.parse.urlencode(params)
     return f"https://github.com/{GITHUB_REPO}/issues/new?{query_string}"
 
@@ -86,21 +86,14 @@ def feedback():
         Opening feedback form in browser...
     """
     system_info = _get_system_info()
-    
-    issue_body = (
-        "**Description:**\n"
-        "\n\n\n"
-        "---\n"
-        f"{system_info}"
-    )
-    
+
+    issue_body = f"**Description:**\n\n\n\n---\n{system_info}"
+
     url = _build_issue_url(
-        title="[Feedback]: <Short Description>",
-        body=issue_body,
-        labels="feedback,triage"
+        title="[Feedback]: <Short Description>", body=issue_body, labels="feedback,triage"
     )
-    
+
     click.echo("Opening feedback form in your browser...")
     click.echo(click.style(f"URL: {url}", dim=True))
-    
+
     webbrowser.open(url)

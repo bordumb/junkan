@@ -14,7 +14,7 @@ import click
 @click.group()
 def suppress():
     """Manage match suppressions.
-    
+
     Suppressions prevent the stitcher from creating specific matches
     that you've identified as false positives.
     """
@@ -27,17 +27,24 @@ def suppress():
 @click.option("-r", "--reason", default="", help="Reason for suppression")
 @click.option("-u", "--created-by", default="cli", help="Who created this")
 @click.option("-e", "--expires-days", type=int, help="Expires after N days")
-@click.option("--config", "config_path", default=".jnkn/suppressions.yaml",
-              help="Path to suppressions file")
-def suppress_add(source_pattern: str, target_pattern: str, reason: str,
-                 created_by: str, expires_days: int | None, config_path: str):
+@click.option(
+    "--config", "config_path", default=".jnkn/suppressions.yaml", help="Path to suppressions file"
+)
+def suppress_add(
+    source_pattern: str,
+    target_pattern: str,
+    reason: str,
+    created_by: str,
+    expires_days: int | None,
+    config_path: str,
+):
     """
     Add a new suppression rule.
-    
+
     Patterns use glob syntax:
       * matches any characters
       ? matches single character
-    
+
     \b
     Examples:
         jnkn suppress add "env:*_ID" "infra:*" -r "ID fields are generic"
@@ -77,12 +84,13 @@ def suppress_add(source_pattern: str, target_pattern: str, reason: str,
 
 @suppress.command("remove")
 @click.argument("identifier")
-@click.option("--config", "config_path", default=".jnkn/suppressions.yaml",
-              help="Path to suppressions file")
+@click.option(
+    "--config", "config_path", default=".jnkn/suppressions.yaml", help="Path to suppressions file"
+)
 def suppress_remove(identifier: str, config_path: str):
     """
     Remove a suppression by ID or index.
-    
+
     \b
     Examples:
         jnkn suppress remove abc123
@@ -119,14 +127,15 @@ def suppress_remove(identifier: str, config_path: str):
 
 
 @suppress.command("list")
-@click.option("--config", "config_path", default=".jnkn/suppressions.yaml",
-              help="Path to suppressions file")
+@click.option(
+    "--config", "config_path", default=".jnkn/suppressions.yaml", help="Path to suppressions file"
+)
 @click.option("--include-expired", is_flag=True, help="Include expired suppressions")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON")
 def suppress_list(config_path: str, include_expired: bool, as_json: bool):
     """
     List all suppressions.
-    
+
     \b
     Examples:
         jnkn suppress list
@@ -178,12 +187,13 @@ def suppress_list(config_path: str, include_expired: bool, as_json: bool):
 @suppress.command("test")
 @click.argument("source_id")
 @click.argument("target_id")
-@click.option("--config", "config_path", default=".jnkn/suppressions.yaml",
-              help="Path to suppressions file")
+@click.option(
+    "--config", "config_path", default=".jnkn/suppressions.yaml", help="Path to suppressions file"
+)
 def suppress_test(source_id: str, target_id: str, config_path: str):
     """
     Test if a source/target pair would be suppressed.
-    
+
     \b
     Examples:
         jnkn suppress test env:USER_ID infra:main
@@ -198,7 +208,9 @@ def suppress_test(source_id: str, target_id: str, config_path: str):
         if match.suppressed:
             click.echo(f"✓ SUPPRESSED: {source_id} -> {target_id}")
             if match.suppression:
-                click.echo(f"  By: {match.suppression.source_pattern} -> {match.suppression.target_pattern}")
+                click.echo(
+                    f"  By: {match.suppression.source_pattern} -> {match.suppression.target_pattern}"
+                )
             if match.reason:
                 click.echo(f"  Reason: {match.reason}")
         else:
@@ -211,6 +223,7 @@ def suppress_test(source_id: str, target_id: str, config_path: str):
 # =============================================================================
 # Fallback implementations (when stitching module not available)
 # =============================================================================
+
 
 def _fallback_add(config_path: str, source: str, target: str, reason: str):
     """Add suppression using basic YAML."""
@@ -225,12 +238,14 @@ def _fallback_add(config_path: str, source: str, target: str, reason: str):
             data = yaml.safe_load(f) or {}
             suppressions = data.get("suppressions", [])
 
-    suppressions.append({
-        "source_pattern": source,
-        "target_pattern": target,
-        "reason": reason,
-        "created_at": datetime.utcnow().isoformat(),
-    })
+    suppressions.append(
+        {
+            "source_pattern": source,
+            "target_pattern": target,
+            "reason": reason,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+    )
 
     with open(path, "w") as f:
         yaml.dump({"suppressions": suppressions}, f)

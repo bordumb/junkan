@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 class BreakdownStats(BaseModel):
     """Counts of impacted artifacts by domain."""
+
     code: List[str] = Field(default_factory=list)
     infra: List[str] = Field(default_factory=list)
     data: List[str] = Field(default_factory=list)
@@ -24,6 +25,7 @@ class BlastRadiusResponse(BaseModel):
     Schema for 'jnkn blast' JSON output.
     VS Code extension relies on this exact structure.
     """
+
     source_artifacts: List[str]
     impacted_artifacts: List[str]
     count: int
@@ -34,6 +36,7 @@ class ScanSummary(BaseModel):
     """
     Schema for 'jnkn scan' JSON output.
     """
+
     total_files: int
     files_parsed: int
     files_skipped: int

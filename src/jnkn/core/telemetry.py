@@ -29,19 +29,18 @@ logger = logging.getLogger(__name__)
 
 class TelemetryBackend(Protocol):
     """Protocol for sending telemetry events."""
-    def send(self, payload: Dict[str, Any]) -> None:
-        ...
+
+    def send(self, payload: Dict[str, Any]) -> None: ...
 
 
 class HttpBackend:
     """Standard HTTP implementation for PostHog."""
+
     def send(self, payload: Dict[str, Any]) -> None:
         try:
             data = json.dumps(payload).encode("utf-8")
             req = request.Request(
-                f"{POSTHOG_HOST}/capture/",
-                data=data,
-                headers={"Content-Type": "application/json"}
+                f"{POSTHOG_HOST}/capture/", data=data, headers={"Content-Type": "application/json"}
             )
             with request.urlopen(req, timeout=5.0) as _:
                 pass
@@ -53,7 +52,7 @@ class HttpBackend:
 class TelemetryService:
     """
     Handles anonymous usage tracking via message passing.
-    
+
     Architecture:
     - Uses a thread-safe Queue for events (Actor model style).
     - A background worker thread consumes the queue.
@@ -65,11 +64,11 @@ class TelemetryService:
         self._backend = backend or HttpBackend()
         self._queue: Queue[Dict[str, Any] | None] = Queue()
         self._worker_thread: threading.Thread | None = None
-        
+
         # Load config once
         self._config = self._load_config()
         self._distinct_id = self._get_or_create_id()
-        
+
         # Start worker if enabled
         if self.is_enabled:
             self._start_worker()
@@ -99,8 +98,8 @@ class TelemetryService:
                 "$os": platform.system(),
                 "$python_version": platform.python_version(),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                **(properties or {})
-            }
+                **(properties or {}),
+            },
         }
         self._queue.put(payload)
 

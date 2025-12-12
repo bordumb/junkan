@@ -21,16 +21,57 @@ logger = logging.getLogger(__name__)
 class TokenConfig:
     min_token_length: int = 3
     min_significant_tokens: int = 2
-    blocked_tokens: FrozenSet[str] = field(default_factory=lambda: frozenset({
-        "id", "db", "host", "url", "key", "name", "type", "data", "info",
-        "config", "setting", "path", "port", "user", "password",
-        "src", "dst", "in", "out", "err", "msg",
-        "str", "int", "bool", "list", "dict"
-    }))
-    low_value_tokens: FrozenSet[str] = field(default_factory=lambda: frozenset({
-        "aws", "gcp", "azure", "cloud", "main", "default", "prod", "dev",
-        "instance", "cluster", "group", "pool", "bucket",
-    }))
+    blocked_tokens: FrozenSet[str] = field(
+        default_factory=lambda: frozenset(
+            {
+                "id",
+                "db",
+                "host",
+                "url",
+                "key",
+                "name",
+                "type",
+                "data",
+                "info",
+                "config",
+                "setting",
+                "path",
+                "port",
+                "user",
+                "password",
+                "src",
+                "dst",
+                "in",
+                "out",
+                "err",
+                "msg",
+                "str",
+                "int",
+                "bool",
+                "list",
+                "dict",
+            }
+        )
+    )
+    low_value_tokens: FrozenSet[str] = field(
+        default_factory=lambda: frozenset(
+            {
+                "aws",
+                "gcp",
+                "azure",
+                "cloud",
+                "main",
+                "default",
+                "prod",
+                "dev",
+                "instance",
+                "cluster",
+                "group",
+                "pool",
+                "bucket",
+            }
+        )
+    )
     low_value_weight: float = 0.5
     short_token_weight: float = 0.3
 
@@ -99,7 +140,7 @@ class TokenMatcher:
     ) -> Tuple[List[str], float]:
         """
         Calculate overlap using only significant tokens.
-        
+
         This convenience method chains filtering and overlap calculation,
         restoring the API expected by the tests.
         """
@@ -123,13 +164,15 @@ def load_config_from_yaml(path: Path) -> TokenConfig | None:
             data = yaml.safe_load(f)
         if not data or "matching" not in data:
             return None
-            
+
         matching = data["matching"]
         return TokenConfig(
             min_token_length=matching.get("min_token_length", 3),
             min_significant_tokens=matching.get("min_significant_tokens", 2),
-            blocked_tokens=frozenset(matching.get("blocked_tokens", [])) or TokenConfig().blocked_tokens,
-            low_value_tokens=frozenset(matching.get("low_value_tokens", [])) or TokenConfig().low_value_tokens,
+            blocked_tokens=frozenset(matching.get("blocked_tokens", []))
+            or TokenConfig().blocked_tokens,
+            low_value_tokens=frozenset(matching.get("low_value_tokens", []))
+            or TokenConfig().low_value_tokens,
             low_value_weight=matching.get("low_value_weight", 0.5),
             short_token_weight=matching.get("short_token_weight", 0.3),
         )
@@ -144,6 +187,6 @@ def create_default_matcher(config_path: Path | None = None) -> TokenMatcherProto
     """
     if config_path is None:
         config_path = Path(".jnkn/config.yaml")
-    
+
     config = load_config_from_yaml(config_path)
     return TokenMatcher(config)

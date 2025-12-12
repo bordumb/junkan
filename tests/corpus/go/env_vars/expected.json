@@ -1,0 +1,40 @@
+{
+  "description": "Go environment variable detection including os, syscall, and viper patterns",
+  "env_vars": [
+    {
+      "name": "DB_HOST",
+      "pattern": "os.Getenv",
+      "line": 16
+    },
+    {
+      "name": "DB_PORT",
+      "pattern": "os.LookupEnv",
+      "line": 19
+    },
+    {
+      "name": "PATH",
+      "pattern": "os.Getenv",
+      "line": 24
+    },
+    {
+      "name": "API_KEY",
+      "pattern": "viper",
+      "line": 30
+    },
+    {
+      "name": "MAX_RETRIES",
+      "pattern": "viper",
+      "line": 33
+    },
+    {
+      "name": "DEBUG_MODE",
+      "pattern": "viper",
+      "line": 36
+    },
+    {
+      "name": "AWS_REGION",
+      "pattern": "os.Getenv",
+      "line": 39
+    }
+  ]
+}

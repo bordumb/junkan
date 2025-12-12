@@ -5,6 +5,7 @@ from typing import List
 @dataclass
 class PythonEnvVar:
     """Represents a detected environment variable usage."""
+
     name: str
     pattern: str  # Which pattern detected it
     line: int
@@ -14,9 +15,11 @@ class PythonEnvVar:
     def to_node_id(self) -> str:
         return f"env:{self.name}"
 
+
 @dataclass
 class PythonImport:
     """Represents an import statement."""
+
     module: str
     is_from_import: bool
     is_relative: bool
@@ -29,9 +32,11 @@ class PythonImport:
             return self.module
         return self.module.replace(".", "/") + ".py"
 
+
 @dataclass
 class PythonDefinition:
     """Represents a function or class definition."""
+
     name: str
     kind: str  # "function" or "class"
     line: int

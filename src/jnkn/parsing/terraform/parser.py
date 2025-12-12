@@ -7,56 +7,45 @@ Provides parsing for:
 """
 
 import json
-import re
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Union
+from typing import Generator, List, Union
 
-from ...core.types import Edge, Node, NodeType, RelationshipType
-from ..base import LanguageParser, ParserContext
+from ...core.types import Edge, Node, NodeType
+from ..base import (
+    ExtractionContext,
+    ExtractorRegistry,
+    LanguageParser,
+    ParserContext,
+)
+from .extractors.data_sources import DataSourceExtractor
+from .extractors.locals import LocalsExtractor
+from .extractors.modules import ModuleExtractor
+from .extractors.outputs import OutputExtractor
+from .extractors.references import ReferenceExtractor
+from .extractors.resources import ResourceExtractor
+from .extractors.variables import VariableExtractor
 
-# =============================================================================
-# Data Models (Required by __init__.py)
-# =============================================================================
-
-@dataclass
-class TerraformResource:
-    """Represents a Terraform resource block."""
-    type: str
-    name: str
-    provider: str
-    line: int
-
-@dataclass
-class TerraformOutput:
-    """Represents a Terraform output block."""
-    name: str
-    description: str | None = None
-    line: int = 0
-
-@dataclass
-class ResourceChange:
-    """Represents a change in a Terraform plan."""
-    address: str
-    type: str
-    name: str
-    change_type: str  # create, update, delete
-    actions: List[str]
-
-
-# =============================================================================
-# Static Parser (for .tf files)
-# =============================================================================
 
 class TerraformParser(LanguageParser):
     """
     Static analysis parser for Terraform (.tf) files.
+    Uses the unified Extractor Architecture.
     """
-    
-    # Regex for output "name" { ... }
-    OUTPUT_PATTERN = re.compile(r'output\s+"([^"]+)"\s+\{')
-    # Regex for resource "type" "name" { ... }
-    RESOURCE_PATTERN = re.compile(r'resource\s+"([^"]+)"\s+"([^"]+)"')
+
+    def __init__(self, context: ParserContext | None = None):
+        super().__init__(context)
+        self._extractors = ExtractorRegistry()
+        self._register_extractors()
+
+    def _register_extractors(self) -> None:
+        """Register all Terraform extractors."""
+        self._extractors.register(ResourceExtractor())
+        self._extractors.register(OutputExtractor())
+        self._extractors.register(VariableExtractor())
+        self._extractors.register(ModuleExtractor())
+        self._extractors.register(DataSourceExtractor())
+        self._extractors.register(LocalsExtractor())
+        self._extractors.register(ReferenceExtractor())
 
     @property
     def name(self) -> str:
@@ -66,74 +55,31 @@ class TerraformParser(LanguageParser):
     def extensions(self) -> List[str]:
         return [".tf"]
 
-    def can_parse(self, file_path: Path) -> bool:
+    def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
         return file_path.suffix == ".tf"
 
-    def parse(self, file_path: Path, content: bytes) -> List[Union[Node, Edge]]:
-        results: List[Union[Node, Edge]] = []
-        
+    def parse(self, file_path: Path, content: bytes) -> Generator[Union[Node, Edge], None, None]:
         try:
-            text = content.decode("utf-8", errors="ignore")
-        except Exception:
-            return []
-        
+            text = content.decode(self.context.encoding)
+        except UnicodeDecodeError:
+            return
+
         file_id = f"file://{file_path}"
-        
+
         # 1. File Node
-        results.append(Node(
+        yield Node(
             id=file_id,
             name=file_path.name,
             type=NodeType.CODE_FILE,
             path=str(file_path),
-            metadata={"language": "hcl"}
-        ))
+            metadata={"language": "hcl"},
+        )
 
-        # 2. Parse Resources
-        for match in self.RESOURCE_PATTERN.finditer(text):
-            res_type, res_name = match.groups()
-            node_id = f"infra:{res_type}:{res_name}"
-            
-            node = Node(
-                id=node_id,
-                name=res_name,
-                type=NodeType.INFRA_RESOURCE,
-                metadata={"terraform_type": res_type}
-            )
-            results.append(node)
-            
-            # Link file -> resource
-            results.append(Edge(
-                source_id=file_id,
-                target_id=node_id,
-                type=RelationshipType.PROVISIONS
-            ))
+        # 2. Run Extractors
+        ctx = ExtractionContext(file_path=file_path, file_id=file_id, text=text, seen_ids=set())
 
-        # 3. Parse Outputs
-        for match in self.OUTPUT_PATTERN.finditer(text):
-            out_name = match.groups()[0]
-            # Convention: infra:output:name
-            node_id = f"infra:output:{out_name}"
-            
-            node = Node(
-                id=node_id,
-                name=out_name,
-                type=NodeType.CONFIG_KEY
-            )
-            results.append(node)
-            
-            # Link file -> output
-            results.append(Edge(
-                source_id=file_id,
-                target_id=node_id,
-                type=RelationshipType.PROVISIONS
-            ))
-            
-        return results
+        yield from self._extractors.extract_all(ctx)
 
-
-# =============================================================================
-# Plan Parser (for tfplan.json)
-# =============================================================================
 
 class TerraformPlanParser(LanguageParser):
     """
@@ -148,9 +94,20 @@ class TerraformPlanParser(LanguageParser):
     def extensions(self) -> List[str]:
         return [".json"]
 
-    def can_parse(self, file_path: Path) -> bool:
-        # Heuristic: Check if filename looks like a plan or content has specific keys
-        return file_path.suffix == ".json" and "plan" in file_path.name.lower()
+    def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
+        # Heuristic: Check if filename looks like a plan
+        if file_path.suffix == ".json" and "plan" in file_path.name.lower():
+            return True
+
+        # Check content if provided
+        if content:
+            try:
+                # Lightweight check for plan structure
+                start = content[:200].decode("utf-8", errors="ignore")
+                return "resource_changes" in start or "terraform_version" in start
+            except Exception:
+                pass
+        return False
 
     def parse(self, file_path: Path, content: bytes) -> List[Union[Node, Edge]]:
         results = []
@@ -166,34 +123,29 @@ class TerraformPlanParser(LanguageParser):
             res_type = change.get("type")
             res_name = change.get("name")
             address = change.get("address")
-            
+
             if not res_type or not res_name:
                 continue
 
-            node_id = f"infra:{res_type}:{res_name}"
-            
+            node_id = f"infra:{res_type}.{res_name}"
+
             node = Node(
                 id=node_id,
                 name=res_name,
                 type=NodeType.INFRA_RESOURCE,
                 metadata={
                     "terraform_address": address,
-                    "change_actions": change.get("change", {}).get("actions", [])
-                }
+                    "change_actions": change.get("change", {}).get("actions", []),
+                },
             )
             results.append(node)
 
         return results
 
 
-# =============================================================================
-# Factory Functions (Required by __init__.py)
-# =============================================================================
-
 def create_terraform_parser(context: ParserContext | None = None) -> TerraformParser:
-    """Factory for TerraformParser."""
     return TerraformParser(context)
 
+
 def create_terraform_plan_parser(context: ParserContext | None = None) -> TerraformPlanParser:
-    """Factory for TerraformPlanParser."""
     return TerraformPlanParser(context)

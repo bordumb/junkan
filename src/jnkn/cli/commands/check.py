@@ -20,27 +20,31 @@ class CheckResultStatus(str, Enum):
     BLOCKED = "BLOCKED"
     WARN = "WARN"
 
+
 class ApiChangedFile(BaseModel):
     path: str
     change_type: str
+
 
 class ApiViolation(BaseModel):
     rule: str
     severity: str
     message: str
 
+
 class CheckResponse(BaseModel):
     """
     Standardized response for check command.
     Maps internal CheckReport to external API contract.
     """
+
     result: CheckResultStatus
     exit_code: int
     changed_files_count: int
     critical_count: int
     high_count: int
     violations: List[ApiViolation] = Field(default_factory=list)
-    details_url: str | None = None # For future dashboard links
+    details_url: str | None = None  # For future dashboard links
 
 
 # --- Internal Classes (Normally imported from check logic module) ---
@@ -50,10 +54,12 @@ class Severity(Enum):
     MEDIUM = "medium"
     LOW = "low"
 
+
 class CheckResult(Enum):
     PASS = 0
     BLOCKED = 1
     WARN = 2
+
 
 @dataclass
 class ChangedFile:
@@ -61,14 +67,19 @@ class ChangedFile:
     change_type: str
     old_path: str | None = None
 
+
 class _null_context:
-    def __enter__(self): pass
-    def __exit__(self, *args): pass
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        pass
 
 
 # =============================================================================
 # CLI Command
 # =============================================================================
+
 
 @click.command()
 @click.option("--diff", "diff_file", type=click.Path(exists=True))
@@ -87,10 +98,10 @@ def check(
 ):
     """Run pre-merge impact analysis."""
     renderer = JsonRenderer("check")
-    
+
     # Context handling
     context_manager = renderer.capture() if as_json else _null_context()
-    
+
     error_to_report = None
     api_response = None
 
@@ -100,7 +111,7 @@ def check(
             changed_files = []
             if diff_file:
                 # Mock implementation for snippet
-                changed_files = [ChangedFile("file.py", "modified")] 
+                changed_files = [ChangedFile("file.py", "modified")]
             elif git_diff:
                 # Mock implementation
                 changed_files = [ChangedFile("app.py", "modified")]
@@ -111,7 +122,7 @@ def check(
             # 2. Run Engine (Mocked logic for migration demonstration)
             # In real file, instantiate CheckEngine and run()
             # report = engine.run(changed_files)
-            
+
             # Mock Report for demonstration
             @dataclass
             class MockReport:
@@ -120,10 +131,10 @@ def check(
                 critical_count = 0
                 high_count = 0
                 violations = []
-            
+
             report = MockReport()
             report.changed_files = changed_files  # Ensure it matches scope
-            
+
             if fail_if_critical and report.critical_count > 0:
                 report.result = CheckResult.BLOCKED
 
@@ -134,7 +145,7 @@ def check(
                 changed_files_count=len(report.changed_files),
                 critical_count=report.critical_count,
                 high_count=report.high_count,
-                violations=[]
+                violations=[],
             )
 
         except Exception as e:

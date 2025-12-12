@@ -55,13 +55,23 @@ def suggest_patterns(node_id: str) -> List[str]:
     # Strategy 3: Suffix Wildcard (Common for semantic types)
     # e.g., env:PAYMENT_ID -> env:*_ID
     # We check for specific, high-noise suffixes
-    common_suffixes = ["_ID", "_KEY", "_SECRET", "_TOKEN", "_URL", "_HOST", "_PORT", "_ARN", "_NAME"]
-    
+    common_suffixes = [
+        "_ID",
+        "_KEY",
+        "_SECRET",
+        "_TOKEN",
+        "_URL",
+        "_HOST",
+        "_PORT",
+        "_ARN",
+        "_NAME",
+    ]
+
     for suffix in common_suffixes:
         if name.endswith(suffix):
             suggestions.append(f"{prefix}:*{suffix}")
             break
-    
+
     # Strategy 4: Generic prefix wildcard
     # e.g. env:VAR -> env:*
     # We append this last as it is the broadest

@@ -22,10 +22,12 @@ logger = logging.getLogger(__name__)
 
 @click.command("blast-radius")
 @click.argument("artifacts", nargs=-1)
-@click.option("-d", "--db", "db_path", default=".jnkn/jnkn.db",
-            help="Path to Junkan database or graph.json")
-@click.option("--max-depth", default=-1, type=int,
-              help="Maximum traversal depth (-1 for unlimited)")
+@click.option(
+    "-d", "--db", "db_path", default=".jnkn/jnkn.db", help="Path to Junkan database or graph.json"
+)
+@click.option(
+    "--max-depth", default=-1, type=int, help="Maximum traversal depth (-1 for unlimited)"
+)
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON")
 def blast_radius(artifacts: tuple, db_path: str, max_depth: int, as_json: bool) -> None:
     """
@@ -65,7 +67,7 @@ def blast_radius(artifacts: tuple, db_path: str, max_depth: int, as_json: bool) 
 
             # Map to Strict API Model
             breakdown_dict = raw_result.get("breakdown", {})
-            
+
             response_data = BlastRadiusResponse(
                 source_artifacts=raw_result["source_artifacts"],
                 impacted_artifacts=raw_result["impacted_artifacts"],
@@ -75,10 +77,10 @@ def blast_radius(artifacts: tuple, db_path: str, max_depth: int, as_json: bool) 
                     infra=breakdown_dict.get("infra", []),
                     data=breakdown_dict.get("data", []),
                     config=breakdown_dict.get("config", []),
-                    other=breakdown_dict.get("other", [])
-                )
+                    other=breakdown_dict.get("other", []),
+                ),
             )
-            
+
         except Exception as e:
             error_to_report = e
 
@@ -134,7 +136,7 @@ def _resolve_node_id(graph: Any, input_id: str) -> str | None:
         candidate = input_id.replace("infra:", "infra:output:")
         if graph.has_node(candidate):
             return candidate
-            
+
     # 4. Terraform Resource Dot Notation Heuristic (infra:type.name -> infra:type:name)
     if input_id.startswith("infra:") and "." in input_id:
         candidate = input_id.replace(".", ":")

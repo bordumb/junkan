@@ -24,6 +24,7 @@ DOMAIN_STYLES = {
     "other": ("Other Artifacts", "📦", "white"),
 }
 
+
 def _get_domain(artifact_id: str) -> str:
     """
     Determine the display domain for an artifact ID.
@@ -36,7 +37,7 @@ def _get_domain(artifact_id: str) -> str:
         return "kubernetes"
     if artifact_id.startswith("data:"):
         return "data"
-    
+
     if artifact_id.startswith("file://"):
         path = artifact_id.replace("file://", "")
         ext = Path(path).suffix.lower()
@@ -48,32 +49,33 @@ def _get_domain(artifact_id: str) -> str:
             return "terraform"
         if ext in (".yaml", ".yml") and ("k8s" in path or "deploy" in path):
             return "kubernetes"
-            
+
     return "other"
+
 
 def format_blast_radius(result: Dict[str, Any]) -> str:
     """
     Format blast radius results into a visual report.
-    
+
     Args:
         result: Dictionary returned by BlastRadiusAnalyzer.calculate()
-        
+
     Returns:
         Formatted string ready for printing.
     """
     lines = []
-    
+
     # Header
     lines.append("")
     lines.append(f"💥 {click.style('Blast Radius Analysis', bold=True)}")
     lines.append("════" + "═" * 20)
-    
+
     # Source
     sources = result.get("source_artifacts", [])
     source_text = ", ".join(sources)
     lines.append(f"Source: {click.style(source_text, fg='cyan')}")
     lines.append("")
-    
+
     impacted = result.get("impacted_artifacts", [])
     if not impacted:
         lines.append(click.style("✅ No downstream dependencies found.", dim=True))
@@ -88,16 +90,18 @@ def format_blast_radius(result: Dict[str, Any]) -> str:
     # Sort groups for consistent display order
     # Priority: Config -> Code -> Infra -> Data -> K8s
     priority = ["config", "python", "javascript", "terraform", "kubernetes", "data", "other"]
-    sorted_domains = sorted(grouped.keys(), key=lambda k: priority.index(k) if k in priority else 99)
+    sorted_domains = sorted(
+        grouped.keys(), key=lambda k: priority.index(k) if k in priority else 99
+    )
 
     for domain in sorted_domains:
         items = sorted(grouped[domain])
         label, emoji, color = DOMAIN_STYLES.get(domain, DOMAIN_STYLES["other"])
-        
+
         count = len(items)
         header = f"{emoji}  {label} ({count})"
         lines.append(click.style(header, bold=True, fg=color))
-        
+
         for item in items:
             # Clean up the display name
             display_name = item
@@ -107,9 +111,9 @@ def format_blast_radius(result: Dict[str, Any]) -> str:
                 display_name = item.replace("infra:", "")
             elif item.startswith("env:"):
                 display_name = item.replace("env:", "")
-                
+
             lines.append(f"  • {display_name}")
-        
+
         lines.append("")  # Spacer between groups
 
     return "\n".join(lines)

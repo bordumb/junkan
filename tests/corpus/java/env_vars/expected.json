@@ -1,0 +1,46 @@
+{
+    "description": "Comprehensive Java environment variable detection including Spring and System patterns",
+    "env_vars": [
+      {
+        "name": "AWS_REGION",
+        "pattern": "System.getenv",
+        "line": 13
+      },
+      {
+        "name": "DATABASE_HOST",
+        "pattern": "System.getenv",
+        "line": 16
+      },
+      {
+        "name": "APP_VERSION",
+        "pattern": "System.getProperty",
+        "line": 19
+      },
+      {
+        "name": "KAFKA_BROKERS",
+        "pattern": "spring_value_annotation",
+        "line": 22
+      },
+      {
+        "name": "REDIS_PORT",
+        "pattern": "spring_value_annotation",
+        "line": 26,
+        "default_value": "6379"
+      },
+      {
+        "name": "FEATURE_FLAGS_ENABLED",
+        "pattern": "spring_value_annotation",
+        "line": 30
+      },
+      {
+        "name": "API_SECRET_KEY",
+        "pattern": "spring_environment",
+        "line": 35
+      },
+      {
+        "name": "REQUEST_TIMEOUT",
+        "pattern": "spring_environment",
+        "line": 36
+      }
+    ]
+  }

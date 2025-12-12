@@ -1,19 +1,22 @@
 """
 Core type definitions for jnkn.
 
-Refactored to use TypedDict for metadata, enabling future Rust struct mapping.
+Refactored to use Domain-Specific TypedDicts for metadata.
+This structure maps cleanly to Rust enums (Sum Types) while maintaining
+Python flexibility via Union types.
 """
 
 import hashlib
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any, Dict, List, NotRequired, TypedDict
+from typing import Any, Dict, List, NotRequired, TypedDict, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class NodeType(StrEnum):
     """Categories of nodes in the dependency graph."""
+
     CODE_FILE = "code_file"
     CODE_ENTITY = "code_entity"
     INFRA_RESOURCE = "infra_resource"
@@ -28,6 +31,7 @@ class NodeType(StrEnum):
 
 class RelationshipType(StrEnum):
     """Types of relationships between nodes."""
+
     CONTAINS = "contains"
     IMPORTS = "imports"
     EXTENDS = "extends"
@@ -40,10 +44,12 @@ class RelationshipType(StrEnum):
     PROVIDES = "provides"
     CONSUMES = "consumes"
     TRANSFORMS = "transforms"
+    ROUTES_TO = "routes_to"
 
 
 class MatchStrategy(StrEnum):
     """Strategies used for fuzzy matching in stitching."""
+
     EXACT = "exact"
     NORMALIZED = "normalized"
     TOKEN_OVERLAP = "token_overlap"
@@ -53,46 +59,101 @@ class MatchStrategy(StrEnum):
     SEMANTIC = "semantic"
 
 
-class NodeMetadata(TypedDict, total=False):
-    """
-    Typed definition of Node metadata.
-    
-    Maps directly to an optional-field struct in Rust.
-    total=False means fields are optional (Option<T>).
-    """
+# =============================================================================
+# Domain-Specific Metadata Schemas
+# =============================================================================
+
+
+class BaseMeta(TypedDict, total=False):
+    """Common metadata fields across all node types."""
+
     language: NotRequired[str]
-    source: NotRequired[str]  # e.g., "os.getenv", "terraform"
+    source: NotRequired[str]
     file: NotRequired[str]
     line: NotRequired[int]
     lines: NotRequired[int]
     column: NotRequired[int]
-    
-    # Python/Code specifics
+    parser: NotRequired[str]
+    confidence: NotRequired[float]
+    virtual: NotRequired[bool]
+    inferred: NotRequired[bool]
+
+
+class PythonMeta(BaseMeta, total=False):
+    """Metadata specific to Python nodes."""
+
     entity_type: NotRequired[str]
-    
-    # Terraform specifics
+    decorators: NotRequired[List[str]]
+
+
+class TerraformMeta(BaseMeta, total=False):
+    """Metadata specific to Terraform nodes."""
+
     terraform_type: NotRequired[str]
     terraform_address: NotRequired[str]
-    
-    # K8s specifics
+    change_actions: NotRequired[List[str]]
+    is_local: NotRequired[bool]
+    is_data: NotRequired[bool]
+
+
+class KubernetesMeta(BaseMeta, total=False):
+    """Metadata specific to Kubernetes nodes."""
+
     k8s_kind: NotRequired[str]
+    k8s_api_version: NotRequired[str]
+    k8s_resource: NotRequired[str]
     namespace: NotRequired[str]
-    
-    # dbt/Data specifics
+
+
+class DbtMeta(BaseMeta, total=False):
+    """Metadata specific to dbt nodes."""
+
     dbt_unique_id: NotRequired[str]
     schema: NotRequired[str]
     database: NotRequired[str]
-    
-    # Inference
-    confidence: NotRequired[float]
+    package: NotRequired[str]
+    resource_type: NotRequired[str]
+    description: NotRequired[str]
+    tags: NotRequired[List[str]]
+    materialized: NotRequired[str]
+
+
+class SparkMeta(BaseMeta, total=False):
+    """Metadata specific to Spark/OpenLineage nodes."""
+
+    source_type: NotRequired[str]
     pattern: NotRequired[str]
-    virtual: NotRequired[bool]
+    default_value: NotRequired[str]
+
+
+class JsMeta(BaseMeta, total=False):
+    """Metadata specific to JavaScript/TypeScript nodes."""
+
+    framework: NotRequired[str]
+    is_public: NotRequired[bool]
+    is_commonjs: NotRequired[bool]
+    is_dynamic: NotRequired[bool]
+    import_name: NotRequired[str]
+
+
+# The Master Metadata Union
+# Maps to a Rust Enum: NodeMetadata::Python(PythonMeta), NodeMetadata::Generic(Map), etc.
+# Including Dict[str, Any] at the end allows for unknown parsers without validation errors.
+NodeMetadata = Union[
+    PythonMeta, TerraformMeta, KubernetesMeta, DbtMeta, SparkMeta, JsMeta, Dict[str, Any]
+]
+
+
+# =============================================================================
+# Core Models
+# =============================================================================
 
 
 class Node(BaseModel):
     """
     Universal Unit of Analysis.
     """
+
     id: str
     name: str
     type: NodeType
@@ -100,19 +161,17 @@ class Node(BaseModel):
     language: str | None = None
     file_hash: str | None = None
     tokens: List[str] = Field(default_factory=list)
-    
-    # REFACTORED: Use TypedDict instead of Dict[str, Any]
-    # Pydantic v2 configuration to allow extra fields is handled via model_config if needed,
-    # but for TypedDict fields, it relies on the definition. We added 'lines' to NodeMetadata above.
+
+    # Use the Union type for structured + flexible metadata
     metadata: NodeMetadata = Field(default_factory=dict)
-    
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    model_config = ConfigDict(frozen=False, extra='ignore')
+    model_config = ConfigDict(frozen=False, extra="allow")
 
     def model_post_init(self, __context) -> None:
         if not self.tokens and self.name:
-            object.__setattr__(self, 'tokens', self._tokenize(self.name))
+            object.__setattr__(self, "tokens", self._tokenize(self.name))
 
     @staticmethod
     def _tokenize(name: str) -> List[str]:
@@ -138,6 +197,7 @@ class Edge(BaseModel):
     """
     Directed relationship between two Nodes.
     """
+
     source_id: str
     target_id: str
     type: RelationshipType
@@ -170,6 +230,7 @@ class MatchResult(BaseModel):
     """
     Result of a stitching match attempt.
     """
+
     source_node: str
     target_node: str
     strategy: MatchStrategy
@@ -188,7 +249,7 @@ class MatchResult(BaseModel):
                 "matched_tokens": self.matched_tokens,
                 "explanation": self.explanation,
                 "rule": rule_name,
-            }
+            },
         )
 
     def is_better_than(self, other: "MatchResult") -> bool:
@@ -205,9 +266,10 @@ class ScanMetadata(BaseModel):
     """
     Metadata for tracking file state in incremental scanning.
     """
+
     file_path: str
     file_hash: str
-    last_scanned: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))    
+    last_scanned: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     node_count: int = 0
     edge_count: int = 0
 
@@ -215,6 +277,7 @@ class ScanMetadata(BaseModel):
     def compute_hash(file_path: str) -> str:
         try:
             import xxhash
+
             with open(file_path, "rb") as f:
                 return xxhash.xxh64(f.read()).hexdigest()
         except ImportError:
@@ -240,6 +303,7 @@ class SchemaVersion(BaseModel):
     """
     Database schema version for migrations.
     """
+
     version: int
     applied_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     description: str = ""

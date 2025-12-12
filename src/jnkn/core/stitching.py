@@ -22,17 +22,17 @@ class StitchingPlan:
     """
     Immutable plan of edges to add to the graph.
     """
+
     edges_to_add: List[Edge] = field(default_factory=list)
 
     def merge(self, other: "StitchingPlan") -> "StitchingPlan":
         """Combine two plans into a new one."""
-        return StitchingPlan(
-            edges_to_add=self.edges_to_add + other.edges_to_add
-        )
+        return StitchingPlan(edges_to_add=self.edges_to_add + other.edges_to_add)
 
 
 class MatchConfig:
     """Configuration for the fuzzy matching engine."""
+
     def __init__(
         self,
         min_confidence: float = 0.5,
@@ -92,10 +92,10 @@ class EnvVarToInfraRule(StitchingRule):
 
     def plan(self, graph: DependencyGraph) -> StitchingPlan:
         edges = []
-        
+
         # Get targets (Consumers)
         env_nodes = graph.get_nodes_by_type(NodeType.ENV_VAR)
-        
+
         # Get sources (Providers)
         infra_nodes = graph.get_nodes_by_type(NodeType.INFRA_RESOURCE)
         infra_nodes.extend(graph.get_nodes_by_type(NodeType.CONFIG_KEY))
@@ -110,7 +110,7 @@ class EnvVarToInfraRule(StitchingRule):
         for infra in infra_nodes:
             norm = TokenMatcher.normalize(infra.name)
             infra_by_norm[norm].append(infra)
-            
+
             tokens = infra.tokens or TokenMatcher.tokenize(infra.name)
             for t in tokens:
                 if len(t) >= self.config.min_token_length:
@@ -119,13 +119,13 @@ class EnvVarToInfraRule(StitchingRule):
         for env in env_nodes:
             env_norm = TokenMatcher.normalize(env.name)
             env_tokens = env.tokens or TokenMatcher.tokenize(env.name)
-            
+
             candidates = set()
-            
+
             # Exact/Normalized Matches
             for infra in infra_by_norm.get(env_norm, []):
                 candidates.add(infra)
-            
+
             # Token Overlap Candidates
             for t in env_tokens:
                 if len(t) >= self.config.min_token_length:
@@ -133,7 +133,7 @@ class EnvVarToInfraRule(StitchingRule):
                         candidates.add(infra)
 
             best_match: MatchResult | None = None
-            
+
             # Evaluate all candidates
             for infra in candidates:
                 result = self.calculator.calculate(
@@ -143,7 +143,7 @@ class EnvVarToInfraRule(StitchingRule):
                     target_tokens=env_tokens,
                     source_type=infra.type,
                     target_type=env.type,
-                    alternative_match_count=len(candidates) - 1
+                    alternative_match_count=len(candidates) - 1,
                 )
 
                 if result.score >= self.config.min_confidence:
@@ -154,7 +154,7 @@ class EnvVarToInfraRule(StitchingRule):
                             strategy=MatchStrategy.SEMANTIC,
                             confidence=result.score,
                             matched_tokens=result.matched_tokens,
-                            explanation=result.explanation
+                            explanation=result.explanation,
                         )
 
             if best_match:
@@ -188,51 +188,63 @@ class InfraToInfraRule(StitchingRule):
         seen_pairs = set()
 
         for token, nodes in nodes_by_token.items():
-            if len(nodes) < 2: continue
-            
+            if len(nodes) < 2:
+                continue
+
             for i, n1 in enumerate(nodes):
-                for n2 in nodes[i+1:]:
+                for n2 in nodes[i + 1 :]:
                     pair = tuple(sorted([n1.id, n2.id]))
-                    if pair in seen_pairs: continue
+                    if pair in seen_pairs:
+                        continue
                     seen_pairs.add(pair)
 
                     source, target = self._determine_direction(n1, n2)
-                    
+
                     result = self.calculator.calculate(
                         source_name=source.name,
                         target_name=target.name,
                         source_tokens=source.tokens or [],
                         target_tokens=target.tokens or [],
                         source_type=source.type,
-                        target_type=target.type
+                        target_type=target.type,
                     )
 
                     if result.score >= self.config.min_confidence:
-                        edges.append(Edge(
-                            source_id=source.id,
-                            target_id=target.id,
-                            type=RelationshipType.CONFIGURES,
-                            confidence=result.score,
-                            match_strategy=MatchStrategy.TOKEN_OVERLAP,
-                            metadata={
-                                "rule": self.get_name(),
-                                "explanation": result.explanation,
-                                "matched_tokens": result.matched_tokens
-                            }
-                        ))
+                        edges.append(
+                            Edge(
+                                source_id=source.id,
+                                target_id=target.id,
+                                type=RelationshipType.CONFIGURES,
+                                confidence=result.score,
+                                match_strategy=MatchStrategy.TOKEN_OVERLAP,
+                                metadata={
+                                    "rule": self.get_name(),
+                                    "explanation": result.explanation,
+                                    "matched_tokens": result.matched_tokens,
+                                },
+                            )
+                        )
         return StitchingPlan(edges_to_add=edges)
 
     def _determine_direction(self, n1: Node, n2: Node) -> Tuple[Node, Node]:
         hierarchy = {
-            "vpc": 10, "subnet": 9, "security_group": 8, "iam": 7,
-            "rds": 5, "db": 5, "instance": 4, "lambda": 3, "s3": 3
+            "vpc": 10,
+            "subnet": 9,
+            "security_group": 8,
+            "iam": 7,
+            "rds": 5,
+            "db": 5,
+            "instance": 4,
+            "lambda": 3,
+            "s3": 3,
         }
-        
+
         def score(n):
             for k, v in hierarchy.items():
-                if k in n.name.lower(): return v
+                if k in n.name.lower():
+                    return v
             return 0
-            
+
         if score(n1) >= score(n2):
             return n1, n2
         return n2, n1
@@ -240,18 +252,15 @@ class InfraToInfraRule(StitchingRule):
 
 class Stitcher:
     """Orchestrator for stitching rules using Two-Phase Commit."""
-    
+
     def __init__(self, config: MatchConfig | None = None):
         self.config = config or MatchConfig()
-        self.rules = [
-            EnvVarToInfraRule(self.config),
-            InfraToInfraRule(self.config)
-        ]
+        self.rules = [EnvVarToInfraRule(self.config), InfraToInfraRule(self.config)]
 
     def stitch(self, graph: DependencyGraph) -> List[Edge]:
         """
         Run the stitching process in two phases.
-        
+
         1. Collect: Run all rules to generate a plan.
         2. Apply: Mutate the graph in one go.
         """
@@ -270,5 +279,5 @@ class Stitcher:
             if not graph.has_edge(edge.source_id, edge.target_id):
                 graph.add_edge(edge)
                 added_edges.append(edge)
-        
+
         return added_edges

@@ -40,9 +40,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TableReference:
     """Represents a reference to a table or data source."""
+
     name: str
     operation: str  # "read" or "write"
-    pattern: str    # Which pattern detected it
+    pattern: str  # Which pattern detected it
     line: int
     source_type: str = "table"  # "table", "parquet", "delta", "csv", etc.
 
@@ -57,7 +58,7 @@ class TableReference:
 class PySparkParser(LanguageParser):
     """
     PySpark parser for extracting data lineage.
-    
+
     Features:
     - Detects table reads via multiple patterns
     - Detects table writes via multiple patterns
@@ -72,31 +73,25 @@ class PySparkParser(LanguageParser):
     TABLE_READ_PATTERNS = [
         # spark.read.table("schema.table")
         (r'spark\.read\.table\s*\(\s*["\']([^"\']+)["\']', "spark.read.table"),
-
         # spark.table("schema.table")
         (r'spark\.table\s*\(\s*["\']([^"\']+)["\']', "spark.table"),
-
         # spark.read.format("X").load("path") - captures the path
-        (r'spark\.read\.format\s*\([^)]+\).*?\.load\s*\(\s*["\']([^"\']+)["\']', "spark.read.format.load"),
-
+        (
+            r'spark\.read\.format\s*\([^)]+\).*?\.load\s*\(\s*["\']([^"\']+)["\']',
+            "spark.read.format.load",
+        ),
         # spark.read.parquet("path")
         (r'spark\.read\.parquet\s*\(\s*["\']([^"\']+)["\']', "spark.read.parquet"),
-
         # spark.read.csv("path")
         (r'spark\.read\.csv\s*\(\s*["\']([^"\']+)["\']', "spark.read.csv"),
-
         # spark.read.json("path")
         (r'spark\.read\.json\s*\(\s*["\']([^"\']+)["\']', "spark.read.json"),
-
         # spark.read.orc("path")
         (r'spark\.read\.orc\s*\(\s*["\']([^"\']+)["\']', "spark.read.orc"),
-
         # spark.read.jdbc(...) - extract table from properties
         (r'spark\.read\.jdbc\s*\([^,]+,\s*["\']([^"\']+)["\']', "spark.read.jdbc"),
-
         # DeltaTable.forPath(spark, "path")
         (r'DeltaTable\.forPath\s*\([^,]+,\s*["\']([^"\']+)["\']', "DeltaTable.forPath"),
-
         # DeltaTable.forName(spark, "schema.table")
         (r'DeltaTable\.forName\s*\([^,]+,\s*["\']([^"\']+)["\']', "DeltaTable.forName"),
     ]
@@ -106,26 +101,40 @@ class PySparkParser(LanguageParser):
     # ==========================================================================
     TABLE_WRITE_PATTERNS = [
         # df.write.saveAsTable("schema.table") - handles chained methods with whitespace
-        (r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*saveAsTable\s*\(\s*["\']([^"\']+)["\']', "write.saveAsTable"),
-
+        (
+            r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*saveAsTable\s*\(\s*["\']([^"\']+)["\']',
+            "write.saveAsTable",
+        ),
         # df.write.insertInto("schema.table")
-        (r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*insertInto\s*\(\s*["\']([^"\']+)["\']', "write.insertInto"),
-
+        (
+            r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*insertInto\s*\(\s*["\']([^"\']+)["\']',
+            "write.insertInto",
+        ),
         # df.write.parquet("path")
-        (r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*parquet\s*\(\s*["\']([^"\']+)["\']', "write.parquet"),
-
+        (
+            r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*parquet\s*\(\s*["\']([^"\']+)["\']',
+            "write.parquet",
+        ),
         # df.write.csv("path")
-        (r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*csv\s*\(\s*["\']([^"\']+)["\']', "write.csv"),
-
+        (
+            r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*csv\s*\(\s*["\']([^"\']+)["\']',
+            "write.csv",
+        ),
         # df.write.json("path")
-        (r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*json\s*\(\s*["\']([^"\']+)["\']', "write.json"),
-
+        (
+            r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*json\s*\(\s*["\']([^"\']+)["\']',
+            "write.json",
+        ),
         # df.write.format("X").save("path") - generic save
-        (r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*save\s*\(\s*["\']([^"\']+)["\']', "write.save"),
-
+        (
+            r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*save\s*\(\s*["\']([^"\']+)["\']',
+            "write.save",
+        ),
         # df.write.jdbc(...) - extract table
-        (r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*jdbc\s*\([^,]+,\s*["\']([^"\']+)["\']', "write.jdbc"),
-
+        (
+            r'\.write\s*(?:\.\s*[a-zA-Z_]+\s*\([^)]*\)\s*)*\.\s*jdbc\s*\([^,]+,\s*["\']([^"\']+)["\']',
+            "write.jdbc",
+        ),
         # df.writeTo("schema.table").create()/append()/etc
         (r'\.writeTo\s*\(\s*["\']([^"\']+)["\']', "writeTo"),
     ]
@@ -134,38 +143,34 @@ class PySparkParser(LanguageParser):
     # SQL query patterns (for extracting tables from spark.sql())
     # ==========================================================================
     SPARK_SQL_PATTERN = re.compile(
-        r'spark\.sql\s*\(\s*(?:f?["\'\"])\s*(.*?)\s*(?:["\'\"])\s*\)',
-        re.DOTALL | re.IGNORECASE
+        r'spark\.sql\s*\(\s*(?:f?["\'\"])\s*(.*?)\s*(?:["\'\"])\s*\)', re.DOTALL | re.IGNORECASE
     )
 
     # SQL FROM/JOIN clause table extraction
     SQL_TABLE_PATTERN = re.compile(
-        r'(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)',
-        re.IGNORECASE
+        r"(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)", re.IGNORECASE
     )
 
     # SQL INSERT INTO pattern
     SQL_INSERT_PATTERN = re.compile(
-        r'INSERT\s+(?:INTO|OVERWRITE)\s+(?:TABLE\s+)?([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)',
-        re.IGNORECASE
+        r"INSERT\s+(?:INTO|OVERWRITE)\s+(?:TABLE\s+)?([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)",
+        re.IGNORECASE,
     )
 
     # SQL CREATE TABLE AS SELECT
     SQL_CTAS_PATTERN = re.compile(
-        r'CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)',
-        re.IGNORECASE
+        r"CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)",
+        re.IGNORECASE,
     )
 
     # SQL MERGE INTO
     SQL_MERGE_PATTERN = re.compile(
-        r'MERGE\s+INTO\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)',
-        re.IGNORECASE
+        r"MERGE\s+INTO\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)", re.IGNORECASE
     )
 
     # SQL USING clause (source table in MERGE)
     SQL_USING_PATTERN = re.compile(
-        r'USING\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)',
-        re.IGNORECASE
+        r"USING\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)", re.IGNORECASE
     )
 
     def __init__(self, context: ParserContext | None = None):
@@ -203,7 +208,7 @@ class PySparkParser(LanguageParser):
     def can_parse(self, file_path: Path, content: bytes | None = None) -> bool:
         """
         Determine if this file should be parsed as PySpark.
-        
+
         Checks for:
         - .py extension
         - Contains PySpark imports or patterns
@@ -240,11 +245,11 @@ class PySparkParser(LanguageParser):
     ) -> Generator[Union[Node, Edge], None, None]:
         """
         Parse a PySpark file and yield nodes and edges.
-        
+
         Args:
             file_path: Path to the Python file
             content: File contents as bytes
-            
+
         Yields:
             Node and Edge objects for discovered data lineage
         """
@@ -274,7 +279,7 @@ class PySparkParser(LanguageParser):
         #   df.write \
         #       .mode("overwrite") \
         #       .saveAsTable("table")
-        normalized_text = text.replace('\\\n', ' ')
+        normalized_text = text.replace("\\\n", " ")
 
         # Track seen tables to avoid duplicates
         seen_tables: Dict[str, str] = {}  # table_name -> operation
@@ -301,7 +306,9 @@ class PySparkParser(LanguageParser):
                 continue
             seen_tables[table_ref.name] = table_ref.operation
 
-            yield from self._emit_table_reference(file_id, file_path, table_ref, table_ref.operation)
+            yield from self._emit_table_reference(
+                file_id, file_path, table_ref, table_ref.operation
+            )
 
     def _extract_table_reads(self, text: str) -> Generator[TableReference, None, None]:
         """Extract table read operations from code."""
@@ -316,7 +323,7 @@ class PySparkParser(LanguageParser):
                 # Determine source type from pattern
                 source_type = self._get_source_type(pattern_name)
 
-                line = text[:match.start()].count('\n') + 1
+                line = text[: match.start()].count("\n") + 1
 
                 yield TableReference(
                     name=table_name,
@@ -339,7 +346,7 @@ class PySparkParser(LanguageParser):
                 # Determine source type from pattern
                 source_type = self._get_source_type(pattern_name)
 
-                line = text[:match.start()].count('\n') + 1
+                line = text[: match.start()].count("\n") + 1
 
                 yield TableReference(
                     name=table_name,
@@ -353,7 +360,7 @@ class PySparkParser(LanguageParser):
         """Extract table references from spark.sql() calls."""
         for sql_match in self.SPARK_SQL_PATTERN.finditer(text):
             sql_query = sql_match.group(1)
-            sql_line = text[:sql_match.start()].count('\n') + 1
+            sql_line = text[: sql_match.start()].count("\n") + 1
 
             # Extract tables from FROM/JOIN clauses (reads)
             for table_match in self.SQL_TABLE_PATTERN.finditer(sql_query):
@@ -463,7 +470,7 @@ class PySparkParser(LanguageParser):
     def _is_valid_table_name(self, name: str) -> bool:
         """
         Check if a string looks like a valid table name.
-        
+
         Filters out:
         - Empty strings
         - Pure variables (no schema/path indicators)
@@ -474,30 +481,38 @@ class PySparkParser(LanguageParser):
 
         # Skip common false positives
         false_positives = {
-            'path', 'table', 'file', 'data', 'output', 'input',
-            'source', 'target', 'temp', 'tmp',
+            "path",
+            "table",
+            "file",
+            "data",
+            "output",
+            "input",
+            "source",
+            "target",
+            "temp",
+            "tmp",
         }
         if name.lower() in false_positives:
             return False
 
         # Skip if it's clearly a variable (no dots, no slashes, all lowercase single word)
-        if '.' not in name and '/' not in name and name.islower() and '_' not in name:
+        if "." not in name and "/" not in name and name.islower() and "_" not in name:
             return False
 
         # Accept paths (s3://, gs://, hdfs://, etc.)
-        if '://' in name:
+        if "://" in name:
             return True
 
         # Accept schema.table format
-        if '.' in name:
+        if "." in name:
             return True
 
         # Accept paths with slashes
-        if '/' in name:
+        if "/" in name:
             return True
 
         # Accept names with underscores (likely real tables)
-        if '_' in name:
+        if "_" in name:
             return True
 
         # Accept SCREAMING_CASE (likely constants)
@@ -508,20 +523,20 @@ class PySparkParser(LanguageParser):
 
     def _get_source_type(self, pattern_name: str) -> str:
         """Determine the data source type from the pattern name."""
-        if 'parquet' in pattern_name:
-            return 'parquet'
-        elif 'delta' in pattern_name.lower() or 'Delta' in pattern_name:
-            return 'delta'
-        elif 'csv' in pattern_name:
-            return 'csv'
-        elif 'json' in pattern_name:
-            return 'json'
-        elif 'orc' in pattern_name:
-            return 'orc'
-        elif 'jdbc' in pattern_name:
-            return 'jdbc'
+        if "parquet" in pattern_name:
+            return "parquet"
+        elif "delta" in pattern_name.lower() or "Delta" in pattern_name:
+            return "delta"
+        elif "csv" in pattern_name:
+            return "csv"
+        elif "json" in pattern_name:
+            return "json"
+        elif "orc" in pattern_name:
+            return "orc"
+        elif "jdbc" in pattern_name:
+            return "jdbc"
         else:
-            return 'table'
+            return "table"
 
 
 def create_pyspark_parser(context: ParserContext | None = None) -> PySparkParser:

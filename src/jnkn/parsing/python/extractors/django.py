@@ -1,10 +1,9 @@
 import re
-from pathlib import Path
-from typing import Generator, Set, Union
+from typing import Generator, Union
 
 from ....core.types import Edge, Node, NodeType, RelationshipType
 from ..validation import is_valid_env_var_name
-from .base import BaseExtractor, Tree
+from .base import BaseExtractor, ExtractionContext
 
 
 class DjangoExtractor(BaseExtractor):
@@ -16,33 +15,24 @@ class DjangoExtractor(BaseExtractor):
     def priority(self) -> int:
         return 60
 
-    def can_extract(self, text: str) -> bool:
-        return "environ" in text or "Env" in text
+    def can_extract(self, ctx: ExtractionContext) -> bool:
+        return "environ" in ctx.text or "Env" in ctx.text
 
-    def extract(
-        self,
-        file_path: Path,
-        file_id: str,
-        tree: Tree | None,
-        text: str,
-        seen_vars: Set[str],
-    ) -> Generator[Union[Node, Edge], None, None]:
-
-        # env("VAR"), env.str("VAR"), env.bool("VAR"), etc.
-        # Matches env('VAR') or env.method('VAR')
+    def extract(self, ctx: ExtractionContext) -> Generator[Union[Node, Edge], None, None]:
         pattern = r'env(?:\.[a-zA-Z_]+)?\s*\(\s*["\']([^"\']+)["\']'
         regex = re.compile(pattern)
 
-        for match in regex.finditer(text):
+        for match in regex.finditer(ctx.text):
             var_name = match.group(1)
 
             if not is_valid_env_var_name(var_name):
                 continue
-            
-            if var_name in seen_vars:
-                continue
 
-            line = text[:match.start()].count('\n') + 1
+            if var_name in ctx.seen_ids:
+                continue
+            ctx.seen_ids.add(var_name)
+
+            line = ctx.text[: match.start()].count("\n") + 1
             env_id = f"env:{var_name}"
 
             yield Node(
@@ -51,13 +41,13 @@ class DjangoExtractor(BaseExtractor):
                 type=NodeType.ENV_VAR,
                 metadata={
                     "source": "django_environ",
-                    "file": str(file_path),
+                    "file": str(ctx.file_path),
                     "line": line,
                 },
             )
 
             yield Edge(
-                source_id=file_id,
+                source_id=ctx.file_id,
                 target_id=env_id,
                 type=RelationshipType.READS,
                 metadata={"pattern": "django_environ", "line": line},

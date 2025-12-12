@@ -15,7 +15,7 @@ from .base import StorageAdapter
 class MemoryStorage(StorageAdapter):
     """
     Ephemeral in-memory storage.
-    
+
     Useful for unit testing, CI pipelines, and development.
     """
 
@@ -78,10 +78,7 @@ class MemoryStorage(StorageAdapter):
 
     def delete_nodes_by_file(self, file_path: str) -> int:
         """Delete all nodes from a file."""
-        node_ids = [
-            node_id for node_id, node in self._nodes.items()
-            if node.path == file_path
-        ]
+        node_ids = [node_id for node_id, node in self._nodes.items() if node.path == file_path]
         for node_id in node_ids:
             self.delete_node(node_id)
         return len(node_ids)

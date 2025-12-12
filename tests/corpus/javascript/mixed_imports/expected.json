@@ -1,0 +1,9 @@
+{
+    "description": "JavaScript CommonJS require and dynamic imports",
+    "resources": [
+      {"id": "file://./utils/logger", "name": "./utils/logger", "type": "unknown", "meta": {"is_commonjs": true}},
+      {"id": "file://../config/database", "name": "../config/database", "type": "unknown", "meta": {"is_commonjs": true}},
+      {"id": "file://./plugins/auth.js", "name": "./plugins/auth.js", "type": "unknown", "meta": {"is_dynamic": true}},
+      {"id": "file://node_modules/dotenv", "name": "dotenv", "type": "unknown", "meta": {"is_commonjs": true}}
+    ]
+  }

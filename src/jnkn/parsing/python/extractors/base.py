@@ -1,14 +1,12 @@
 import logging
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Any, Generator, Set, Union
+from typing import Generator, Union
 
 from ....core.types import Edge, Node
-
-# Type alias for Tree-sitter tree, using Any as strict typing requires the library
-Tree = Any
+from ...base import ExtractionContext
 
 logger = logging.getLogger(__name__)
+
 
 class BaseExtractor(ABC):
     """Base class for env var extractors."""
@@ -26,18 +24,11 @@ class BaseExtractor(ABC):
         pass
 
     @abstractmethod
-    def can_extract(self, text: str) -> bool:
+    def can_extract(self, ctx: ExtractionContext) -> bool:
         """Quick check if this extractor is relevant."""
         pass
 
     @abstractmethod
-    def extract(
-        self,
-        file_path: Path,
-        file_id: str,
-        tree: Tree | None,  # tree-sitter AST
-        text: str,
-        seen_vars: Set[str],
-    ) -> Generator[Union[Node, Edge], None, None]:
+    def extract(self, ctx: ExtractionContext) -> Generator[Union[Node, Edge], None, None]:
         """Extract env vars and yield nodes/edges."""
         pass

@@ -12,6 +12,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
 class DemoManager:
     """
     Manages the creation of the demo environment.

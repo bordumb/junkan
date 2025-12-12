@@ -20,9 +20,7 @@ class TokenMatcherProtocol(Protocol):
         """Split a name into normalized tokens."""
         ...
 
-    def calculate_overlap(
-        self, tokens1: List[str], tokens2: List[str]
-    ) -> Tuple[List[str], float]:
+    def calculate_overlap(self, tokens1: List[str], tokens2: List[str]) -> Tuple[List[str], float]:
         """Calculate token overlap and Jaccard score."""
         ...
 

@@ -4,25 +4,23 @@ Lint Command - Find issues in the lineage graph.
 Checks for orphan nodes, circular dependencies, and other problems.
 """
 
-
 import click
 
 from ..utils import echo_success, load_graph
 
 
 @click.command()
-@click.option("-g", "--graph", "graph_file", default=".",
-              help="Path to graph JSON file")
+@click.option("-g", "--graph", "graph_file", default=".", help="Path to graph JSON file")
 def lint(graph_file: str):
     """
     Find issues in the lineage graph.
-    
+
     \b
     Checks for:
       - Orphan nodes (no connections)
       - Circular dependencies
       - Missing dependencies
-    
+
     \b
     Examples:
         jnkn lint

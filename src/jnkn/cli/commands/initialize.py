@@ -31,15 +31,13 @@ DEFAULT_CONFIG = {
             "**/.terraform/**",
             "**/__pycache__/**",
             "**/dist/**",
-            "**/build/**"
+            "**/build/**",
         ],
-        "min_confidence": 0.5
+        "min_confidence": 0.5,
     },
-    "telemetry": {
-        "enabled": False,
-        "distinct_id": ""
-    }
+    "telemetry": {"enabled": False, "distinct_id": ""},
 }
+
 
 def detect_stack(root_dir: Path) -> Set[str]:
     """
@@ -58,11 +56,12 @@ def detect_stack(root_dir: Path) -> Set[str]:
         stack.add("javascript")
     return stack
 
+
 def create_gitignore(jnkn_dir: Path):
     """Ensure the .jnkn/ directory is ignored by git."""
     gitignore = jnkn_dir.parent / ".gitignore"
     entry = "\n# jnkn\n.jnkn/\njnkn.db\n"
-    
+
     if not gitignore.exists():
         with open(gitignore, "w") as f:
             f.write(entry)
@@ -71,6 +70,7 @@ def create_gitignore(jnkn_dir: Path):
         if ".jnkn" not in content:
             with open(gitignore, "a") as f:
                 f.write(entry)
+
 
 def _init_project(root_dir: Path, force: bool, is_demo: bool = False):
     """Internal helper to initialize a project."""
@@ -96,18 +96,18 @@ def _init_project(root_dir: Path, force: bool, is_demo: bool = False):
     config["project_name"] = root_dir.name
 
     includes = []
-    if "python" in stack: 
+    if "python" in stack:
         includes.append("**/*.py")
-    if "terraform" in stack: 
+    if "terraform" in stack:
         includes.append("**/*.tf")
-    if "javascript" in stack: 
+    if "javascript" in stack:
         includes.extend(["**/*.js", "**/*.ts", "**/*.tsx"])
-    if "kubernetes" in stack: 
+    if "kubernetes" in stack:
         includes.extend(["**/*.yaml", "**/*.yml"])
-    
-    if not includes: 
+
+    if not includes:
         includes = ["**/*"]
-        
+
     config["scan"]["include"] = includes
 
     # Telemetry Opt-in
@@ -117,10 +117,9 @@ def _init_project(root_dir: Path, force: bool, is_demo: bool = False):
     else:
         console.print("\n[bold]Telemetry[/bold]")
         allow_telemetry = Confirm.ask(
-            "Allow anonymous usage statistics to help us improve Jnkan?", 
-            default=True
+            "Allow anonymous usage statistics to help us improve Jnkan?", default=True
         )
-    
+
     config["telemetry"]["enabled"] = allow_telemetry
     config["telemetry"]["distinct_id"] = str(uuid.uuid4())
 
@@ -133,6 +132,7 @@ def _init_project(root_dir: Path, force: bool, is_demo: bool = False):
 
     console.print("\n✨ [bold green]Initialized successfully![/bold green]")
     console.print(f"   Config created at: [dim]{config_file}[/dim]")
+
 
 @click.command()
 @click.option("--force", is_flag=True, help="Overwrite existing configuration")
@@ -150,12 +150,12 @@ def init(force: bool, demo: bool):
         console.print("[cyan]Provisioning demo environment...[/cyan]")
         manager = DemoManager(Path.cwd())
         demo_dir = manager.provision()
-        
+
         console.print(f"📂 Created demo project at: [bold]{demo_dir}[/bold]")
-        
+
         # Initialize inside the new demo directory
         _init_project(demo_dir, force=True, is_demo=True)
-        
+
         console.print("\n[bold green]Ready to go! Try these commands:[/bold green]")
         console.print(f"1. cd {demo_dir.name}")
         console.print("2. [bold cyan]jnkn scan[/bold cyan]")

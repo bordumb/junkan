@@ -1,0 +1,65 @@
+{
+  "description": "Go imports (std/external/aliased) and definitions (structs/interfaces/funcs/methods)",
+  "resources": [
+    {
+      "id": "go:fmt",
+      "name": "fmt",
+      "type": "code_entity",
+      "meta": { "package_type": "go_package", "is_stdlib": true }
+    },
+    {
+      "id": "go:net/http",
+      "name": "http",
+      "type": "code_entity",
+      "meta": { "package_type": "go_package", "is_stdlib": true }
+    },
+    {
+      "id": "go:github.com/gin-gonic/gin",
+      "name": "gin",
+      "type": "code_entity",
+      "meta": { "package_type": "go_package", "is_stdlib": false }
+    },
+    {
+      "id": "go:github.com/myorg/pkg/utils",
+      "name": "utils",
+      "type": "code_entity",
+      "meta": { "package_type": "go_package", "is_stdlib": false }
+    },
+    {
+      "id": "go:time",
+      "name": "time",
+      "type": "code_entity",
+      "meta": { "package_type": "go_package", "is_stdlib": true }
+    },
+    {
+      "id": "entity:tests/corpus/go/definitions_imports/input.go:User",
+      "name": "User",
+      "type": "code_entity",
+      "meta": { "entity_type": "struct", "is_exported": true }
+    },
+    {
+      "id": "entity:tests/corpus/go/definitions_imports/input.go:userRepository",
+      "name": "userRepository",
+      "type": "code_entity",
+      "meta": { "entity_type": "interface", "is_exported": false }
+    },
+    {
+      "id": "entity:tests/corpus/go/definitions_imports/input.go:main",
+      "name": "main",
+      "type": "code_entity",
+      "meta": { "entity_type": "function", "is_exported": false }
+    },
+    {
+      "id": "entity:tests/corpus/go/definitions_imports/input.go:Display",
+      "name": "Display",
+      "type": "code_entity",
+      "meta": { "entity_type": "method", "is_exported": true }
+    },
+    {
+      "id": "entity:tests/corpus/go/definitions_imports/input.go:Validate",
+      "name": "Validate",
+      "type": "code_entity",
+      "meta": { "entity_type": "method", "is_exported": true }
+    }
+  ]
+}

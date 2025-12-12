@@ -11,14 +11,13 @@ from ..utils import echo_error, echo_success, load_graph
 
 
 @click.command()
-@click.option("-g", "--graph", "graph_file", default=".",
-              help="Path to graph JSON file")
+@click.option("-g", "--graph", "graph_file", default=".", help="Path to graph JSON file")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON")
 def stats(graph_file: str, as_json: bool):
     """
     Show graph statistics.
     Displays node counts, edge counts, and breakdowns by type.
-    
+
     \b
     Examples:
         jnkn stats
@@ -45,12 +44,12 @@ def stats(graph_file: str, as_json: bool):
     click.echo(f"📊 {click.style('Graph Statistics', bold=True)}")
     click.echo("═" * 40)
     click.echo()
-    
+
     # NEW: Display Backend (This proves we are on rustworkx)
     backend = s.get("backend", "unknown")
     backend_color = "green" if backend == "rustworkx" else "yellow"
     click.echo(f"Backend: {click.style(backend, fg=backend_color, bold=True)}")
-    
+
     click.echo(f"Source: {graph_file}")
     click.echo(f"Size: {graph_path.stat().st_size / 1024:.1f} KB")
     click.echo()
@@ -81,10 +80,8 @@ def stats(graph_file: str, as_json: bool):
 
 
 @click.command()
-@click.option("-g", "--graph", "graph_file", default=".",
-              help="Path to graph JSON file")
-@click.option("--all", "clear_all", is_flag=True,
-              help="Clear all .jnkn data")
+@click.option("-g", "--graph", "graph_file", default=".", help="Path to graph JSON file")
+@click.option("--all", "clear_all", is_flag=True, help="Clear all .jnkn data")
 @click.confirmation_option(prompt="Are you sure you want to clear the data?")
 def clear(graph_file: str, clear_all: bool):
     """
@@ -100,6 +97,7 @@ def clear(graph_file: str, clear_all: bool):
         jnkn_dir = Path(".jnkn")
         if jnkn_dir.exists():
             import shutil
+
             shutil.rmtree(jnkn_dir)
             cleared.append(".jnkn/")
     else:

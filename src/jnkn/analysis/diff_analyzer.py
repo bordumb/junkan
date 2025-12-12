@@ -8,7 +8,7 @@ Identifies:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List
 
@@ -26,6 +26,7 @@ class ChangeType(str, Enum):
 @dataclass
 class NodeChange:
     """Represents a change to a single node."""
+
     node_id: str
     name: str
     type: NodeType
@@ -35,17 +36,16 @@ class NodeChange:
     new_metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
-        icon = {
-            ChangeType.ADDED: "➕",
-            ChangeType.REMOVED: "🗑️",
-            ChangeType.MODIFIED: "✏️"
-        }.get(self.change_type, "?")
+        icon = {ChangeType.ADDED: "➕", ChangeType.REMOVED: "🗑️", ChangeType.MODIFIED: "✏️"}.get(
+            self.change_type, "?"
+        )
         return f"{icon} {self.type.value}: {self.name} ({self.change_type.value})"
 
 
 @dataclass
 class EdgeChange:
     """Represents a change to a dependency (edge)."""
+
     source_id: str
     target_id: str
     type: RelationshipType
@@ -54,8 +54,8 @@ class EdgeChange:
     def __str__(self) -> str:
         arrow = "-->"
         if self.type in [RelationshipType.READS, RelationshipType.DEPENDS_ON]:
-            arrow = "<--" # Visual cue for dependency vs flow
-        
+            arrow = "<--"  # Visual cue for dependency vs flow
+
         icon = "➕" if self.change_type == ChangeType.ADDED else "🗑️"
         return f"{icon} {self.source_id} {arrow} {self.target_id} [{self.type.value}]"
 
@@ -63,12 +63,13 @@ class EdgeChange:
 @dataclass
 class DiffReport:
     """Complete report of graph differences."""
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    
+
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
     # Detailed changes
     node_changes: List[NodeChange] = field(default_factory=list)
     edge_changes: List[EdgeChange] = field(default_factory=list)
-    
+
     # Quick access lists
     added_nodes: List[Node] = field(default_factory=list)
     removed_nodes: List[Node] = field(default_factory=list)
@@ -100,7 +101,7 @@ class DiffReport:
             f"  - Removed: {len(self.removed_nodes)}",
             f"  - Modified: {len(self.modified_nodes)}",
             f"- **Edges Changed:** {len(self.edge_changes)}",
-            ""
+            "",
         ]
 
         if self.has_breaking_changes:
@@ -112,7 +113,7 @@ class DiffReport:
             by_type = {}
             for nc in self.node_changes:
                 by_type.setdefault(nc.type.value, []).append(nc)
-            
+
             for ntype, changes in by_type.items():
                 lines.append(f"### {ntype.title()}s")
                 for c in changes:
@@ -150,80 +151,83 @@ class DiffAnalyzer:
         for nid in head_ids - base_ids:
             node = head_nodes[nid]
             report.added_nodes.append(node)
-            report.node_changes.append(NodeChange(
-                node_id=nid, name=node.name, type=node.type, change_type=ChangeType.ADDED
-            ))
+            report.node_changes.append(
+                NodeChange(
+                    node_id=nid, name=node.name, type=node.type, change_type=ChangeType.ADDED
+                )
+            )
 
         for nid in base_ids - head_ids:
             node = base_nodes[nid]
             report.removed_nodes.append(node)
-            report.node_changes.append(NodeChange(
-                node_id=nid, name=node.name, type=node.type, change_type=ChangeType.REMOVED
-            ))
+            report.node_changes.append(
+                NodeChange(
+                    node_id=nid, name=node.name, type=node.type, change_type=ChangeType.REMOVED
+                )
+            )
 
         # 3. Detect Modified Nodes
         for nid in base_ids.intersection(head_ids):
             b_node = base_nodes[nid]
             h_node = head_nodes[nid]
-            
+
             changes = []
             if b_node.path != h_node.path:
                 changes.append(f"Moved: {b_node.path} -> {h_node.path}")
-            
+
             if b_node.metadata != h_node.metadata:
                 # Robust metadata diff
                 b_keys = set(b_node.metadata.keys())
                 h_keys = set(h_node.metadata.keys())
-                
+
                 added_keys = h_keys - b_keys
                 removed_keys = b_keys - h_keys
-                
+
                 # Check for value changes in common keys
                 changed_keys = []
                 for k in b_keys.intersection(h_keys):
                     if b_node.metadata[k] != h_node.metadata[k]:
                         changed_keys.append(k)
-                
+
                 details = []
-                if added_keys: details.append(f"Meta added: {added_keys}")
-                if removed_keys: details.append(f"Meta removed: {removed_keys}")
-                if changed_keys: details.append(f"Meta changed: {changed_keys}")
-                
+                if added_keys:
+                    details.append(f"Meta added: {added_keys}")
+                if removed_keys:
+                    details.append(f"Meta removed: {removed_keys}")
+                if changed_keys:
+                    details.append(f"Meta changed: {changed_keys}")
+
                 changes.append("; ".join(details))
-                
+
             if changes:
                 report.modified_nodes.append(h_node)
-                report.node_changes.append(NodeChange(
-                    node_id=nid,
-                    name=h_node.name,
-                    type=h_node.type,
-                    change_type=ChangeType.MODIFIED,
-                    details=", ".join(changes),
-                    old_metadata=b_node.metadata,
-                    new_metadata=h_node.metadata
-                ))
+                report.node_changes.append(
+                    NodeChange(
+                        node_id=nid,
+                        name=h_node.name,
+                        type=h_node.type,
+                        change_type=ChangeType.MODIFIED,
+                        details=", ".join(changes),
+                        old_metadata=b_node.metadata,
+                        new_metadata=h_node.metadata,
+                    )
+                )
 
         # 4. Compare Edges
         # Create a signature for edges: (source, target, type)
-        base_edges = {
-            (e.source_id, e.target_id, e.type) 
-            for e in base_graph.iter_edges()
-        }
-        head_edges = {
-            (e.source_id, e.target_id, e.type) 
-            for e in head_graph.iter_edges()
-        }
+        base_edges = {(e.source_id, e.target_id, e.type) for e in base_graph.iter_edges()}
+        head_edges = {(e.source_id, e.target_id, e.type) for e in head_graph.iter_edges()}
 
         # Added Edges
-        for (src, tgt, rtype) in head_edges - base_edges:
-            report.edge_changes.append(EdgeChange(
-                source_id=src, target_id=tgt, type=rtype, change_type=ChangeType.ADDED
-            ))
+        for src, tgt, rtype in head_edges - base_edges:
+            report.edge_changes.append(
+                EdgeChange(source_id=src, target_id=tgt, type=rtype, change_type=ChangeType.ADDED)
+            )
 
         # Removed Edges
-        for (src, tgt, rtype) in base_edges - head_edges:
-            report.edge_changes.append(EdgeChange(
-                source_id=src, target_id=tgt, type=rtype, change_type=ChangeType.REMOVED
-            ))
+        for src, tgt, rtype in base_edges - head_edges:
+            report.edge_changes.append(
+                EdgeChange(source_id=src, target_id=tgt, type=rtype, change_type=ChangeType.REMOVED)
+            )
 
         return report

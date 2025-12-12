@@ -13,7 +13,7 @@ Key Components:
 
 Usage:
     from jnkn.parsing import create_default_engine
-    
+
     engine = create_default_engine()
     nodes, edges, stats = engine.scan_all()
 """

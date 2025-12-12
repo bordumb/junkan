@@ -16,27 +16,35 @@ from ..utils import echo_error, echo_info, echo_success
 
 # Skip these directories
 SKIP_DIRS: Set[str] = {
-    ".git", "__pycache__", "node_modules", "venv", ".venv",
-    "env", ".env", "dist", "build", ".jnkn"
+    ".git",
+    "__pycache__",
+    "node_modules",
+    "venv",
+    ".venv",
+    "env",
+    ".env",
+    "dist",
+    "build",
+    ".jnkn",
 }
 
 
 @click.command()
-@click.option("--tf-plan", type=click.Path(exists=True),
-              help="Path to Terraform plan JSON (tfplan.json)")
-@click.option("--dbt-manifest", type=click.Path(exists=True),
-              help="Path to dbt manifest.json")
-@click.option("--code-dir", type=click.Path(exists=True),
-              help="Directory to scan for application code")
-@click.option("--output", "-o", default=".jnkn/graph.json",
-              help="Output graph file")
+@click.option(
+    "--tf-plan", type=click.Path(exists=True), help="Path to Terraform plan JSON (tfplan.json)"
+)
+@click.option("--dbt-manifest", type=click.Path(exists=True), help="Path to dbt manifest.json")
+@click.option(
+    "--code-dir", type=click.Path(exists=True), help="Directory to scan for application code"
+)
+@click.option("--output", "-o", default=".jnkn/graph.json", help="Output graph file")
 def ingest(tf_plan: str, dbt_manifest: str, code_dir: str, output: str):
     """
     Ingest specific artifacts into dependency graph.
-    
+
     Unlike 'scan', this command lets you explicitly specify which
     artifacts to process.
-    
+
     \b
     Examples:
         jnkn ingest --tf-plan plan.json
@@ -82,7 +90,7 @@ def ingest(tf_plan: str, dbt_manifest: str, code_dir: str, output: str):
             "tf_plan": tf_plan,
             "dbt_manifest": dbt_manifest,
             "code_dir": code_dir,
-        }
+        },
     }
 
     output_path.write_text(json.dumps(result, indent=2))
@@ -105,12 +113,14 @@ def _ingest_terraform(plan_path: str) -> list:
 
         for item in parser.parse(Path(plan_path), content):
             if hasattr(item, "source_id"):
-                relationships.append({
-                    "source_id": item.source_id,
-                    "target_id": item.target_id,
-                    "type": str(item.type),
-                    "source": "terraform",
-                })
+                relationships.append(
+                    {
+                        "source_id": item.source_id,
+                        "target_id": item.target_id,
+                        "type": str(item.type),
+                        "source": "terraform",
+                    }
+                )
     except ImportError:
         # Fallback: basic JSON parsing
         try:
@@ -122,12 +132,14 @@ def _ingest_terraform(plan_path: str) -> list:
                 resource_name = change.get("name", "unknown")
                 address = change.get("address", f"{resource_type}.{resource_name}")
 
-                relationships.append({
-                    "source_id": f"infra:{address}",
-                    "target_id": f"infra:{resource_type}",
-                    "type": "provisions",
-                    "source": "terraform",
-                })
+                relationships.append(
+                    {
+                        "source_id": f"infra:{address}",
+                        "target_id": f"infra:{resource_type}",
+                        "type": "provisions",
+                        "source": "terraform",
+                    }
+                )
         except Exception:
             pass
 
@@ -145,21 +157,25 @@ def _ingest_dbt(manifest_path: str) -> list:
         # Process nodes (models, sources, etc.)
         for node_id, node in manifest.get("nodes", {}).items():
             for dep in node.get("depends_on", {}).get("nodes", []):
-                relationships.append({
-                    "source_id": f"data:{dep}",
-                    "target_id": f"data:{node_id}",
-                    "type": "transforms",
-                    "source": "dbt",
-                })
+                relationships.append(
+                    {
+                        "source_id": f"data:{dep}",
+                        "target_id": f"data:{node_id}",
+                        "type": "transforms",
+                        "source": "dbt",
+                    }
+                )
 
         # Process sources
         for source_id, source in manifest.get("sources", {}).items():
-            relationships.append({
-                "source_id": f"data:{source.get('source_name', 'unknown')}.{source.get('name', 'unknown')}",
-                "target_id": f"data:{source_id}",
-                "type": "provides",
-                "source": "dbt",
-            })
+            relationships.append(
+                {
+                    "source_id": f"data:{source.get('source_name', 'unknown')}.{source.get('name', 'unknown')}",
+                    "target_id": f"data:{source_id}",
+                    "type": "provides",
+                    "source": "dbt",
+                }
+            )
     except Exception:
         pass
 
@@ -202,13 +218,15 @@ def _ingest_code(code_dir: str) -> list:
 
                     for item in parser.parse(file_path, content):
                         if hasattr(item, "source_id"):
-                            relationships.append({
-                                "source_id": item.source_id,
-                                "target_id": item.target_id,
-                                "type": str(item.type),
-                                "source": "code_scan",
-                                "file": str(rel_path),
-                            })
+                            relationships.append(
+                                {
+                                    "source_id": item.source_id,
+                                    "target_id": item.target_id,
+                                    "type": str(item.type),
+                                    "source": "code_scan",
+                                    "file": str(rel_path),
+                                }
+                            )
             except Exception:
                 pass
 

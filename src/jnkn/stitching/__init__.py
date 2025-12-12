@@ -25,10 +25,11 @@ logger = logging.getLogger(__name__)
 class TokenConfig:
     """
     Configuration for token matching behavior.
-    
+
     Controls which tokens are considered significant for matching
     and how they contribute to confidence scores.
     """
+
     # Minimum length for a token to be considered
     min_token_length: int = 3
 
@@ -36,35 +37,113 @@ class TokenConfig:
     min_significant_tokens: int = 2
 
     # Tokens that provide no signal and should be ignored
-    blocked_tokens: FrozenSet[str] = field(default_factory=lambda: frozenset({
-        # Generic identifiers
-        "id", "db", "host", "url", "key", "name", "type", "data",
-        "info", "temp", "test", "api", "app", "env", "var", "val",
-        # Configuration terms
-        "config", "setting", "path", "port", "user", "password",
-        "secret", "token", "auth", "log", "file", "dir",
-        # Source/destination
-        "src", "dst", "in", "out", "err", "msg",
-        # Type hints
-        "str", "int", "num", "bool", "list", "dict", "map",
-        # Very short common words
-        "the", "and", "for", "not", "get", "set", "new", "old",
-    }))
+    blocked_tokens: FrozenSet[str] = field(
+        default_factory=lambda: frozenset(
+            {
+                # Generic identifiers
+                "id",
+                "db",
+                "host",
+                "url",
+                "key",
+                "name",
+                "type",
+                "data",
+                "info",
+                "temp",
+                "test",
+                "api",
+                "app",
+                "env",
+                "var",
+                "val",
+                # Configuration terms
+                "config",
+                "setting",
+                "path",
+                "port",
+                "user",
+                "password",
+                "secret",
+                "token",
+                "auth",
+                "log",
+                "file",
+                "dir",
+                # Source/destination
+                "src",
+                "dst",
+                "in",
+                "out",
+                "err",
+                "msg",
+                # Type hints
+                "str",
+                "int",
+                "num",
+                "bool",
+                "list",
+                "dict",
+                "map",
+                # Very short common words
+                "the",
+                "and",
+                "for",
+                "not",
+                "get",
+                "set",
+                "new",
+                "old",
+            }
+        )
+    )
 
     # Tokens that provide weak signal (0.5x weight)
-    low_value_tokens: FrozenSet[str] = field(default_factory=lambda: frozenset({
-        # Cloud providers
-        "aws", "gcp", "azure", "cloud",
-        # Environment names
-        "main", "default", "primary", "secondary",
-        "production", "prod", "staging", "stage", "dev", "development",
-        "internal", "external", "public", "private", "local", "remote",
-        # Common modifiers
-        "master", "slave", "read", "write", "replica",
-        "backup", "cache", "queue", "worker", "service",
-        # Common resource types that don't differentiate
-        "instance", "cluster", "group", "pool", "bucket",
-    }))
+    low_value_tokens: FrozenSet[str] = field(
+        default_factory=lambda: frozenset(
+            {
+                # Cloud providers
+                "aws",
+                "gcp",
+                "azure",
+                "cloud",
+                # Environment names
+                "main",
+                "default",
+                "primary",
+                "secondary",
+                "production",
+                "prod",
+                "staging",
+                "stage",
+                "dev",
+                "development",
+                "internal",
+                "external",
+                "public",
+                "private",
+                "local",
+                "remote",
+                # Common modifiers
+                "master",
+                "slave",
+                "read",
+                "write",
+                "replica",
+                "backup",
+                "cache",
+                "queue",
+                "worker",
+                "service",
+                # Common resource types that don't differentiate
+                "instance",
+                "cluster",
+                "group",
+                "pool",
+                "bucket",
+            }
+        )
+    )
 
     # Weight multiplier for low-value tokens
     low_value_weight: float = 0.5
@@ -87,7 +166,7 @@ class TokenConfig:
     def get_token_weight(self, token: str) -> float:
         """
         Get the weight multiplier for a token.
-        
+
         Returns:
             1.0 for normal tokens
             0.0 for blocked tokens
@@ -112,18 +191,18 @@ class TokenConfig:
 class TokenMatcher:
     """
     Token-based matching with configurable filtering.
-    
+
     Usage:
         matcher = TokenMatcher()
-        
+
         # Tokenize names
         tokens1 = matcher.tokenize("PAYMENT_DB_HOST")
         tokens2 = matcher.tokenize("payment_database_host")
-        
+
         # Get significant tokens only
         sig1 = matcher.get_significant_tokens(tokens1)
         sig2 = matcher.get_significant_tokens(tokens2)
-        
+
         # Calculate overlap
         overlap, score = matcher.calculate_overlap(sig1, sig2)
     """
@@ -131,7 +210,7 @@ class TokenMatcher:
     def __init__(self, config: TokenConfig | None = None):
         """
         Initialize the token matcher.
-        
+
         Args:
             config: Optional TokenConfig. Uses defaults if not provided.
         """
@@ -141,10 +220,10 @@ class TokenMatcher:
     def normalize(name: str) -> str:
         """
         Normalize a name by lowercasing and removing separators.
-        
+
         Args:
             name: Name to normalize
-        
+
         Returns:
             Normalized string (e.g., "PAYMENT_DB_HOST" -> "paymentdbhost")
         """
@@ -157,10 +236,10 @@ class TokenMatcher:
     def tokenize(name: str) -> List[str]:
         """
         Split a name into tokens.
-        
+
         Args:
             name: Name to tokenize
-        
+
         Returns:
             List of lowercase tokens (e.g., "PAYMENT_DB_HOST" -> ["payment", "db", "host"])
         """
@@ -172,12 +251,12 @@ class TokenMatcher:
     def get_significant_tokens(self, tokens: List[str]) -> List[str]:
         """
         Filter tokens to only significant ones.
-        
+
         Removes blocked tokens and those below minimum length.
-        
+
         Args:
             tokens: List of tokens
-        
+
         Returns:
             List of significant tokens
         """
@@ -200,10 +279,10 @@ class TokenMatcher:
     def get_weighted_tokens(self, tokens: List[str]) -> List[Tuple[str, float]]:
         """
         Get tokens with their weight multipliers.
-        
+
         Args:
             tokens: List of tokens
-        
+
         Returns:
             List of (token, weight) tuples
         """
@@ -224,11 +303,11 @@ class TokenMatcher:
     ) -> Tuple[List[str], float]:
         """
         Calculate token overlap between two token lists.
-        
+
         Args:
             tokens1: First token list
             tokens2: Second token list
-        
+
         Returns:
             Tuple of (overlapping tokens, Jaccard similarity score)
         """
@@ -251,11 +330,11 @@ class TokenMatcher:
     ) -> Tuple[List[str], float]:
         """
         Calculate overlap using only significant tokens.
-        
+
         Args:
             tokens1: First token list
             tokens2: Second token list
-        
+
         Returns:
             Tuple of (overlapping significant tokens, Jaccard similarity score)
         """
@@ -271,13 +350,13 @@ class TokenMatcher:
     ) -> Tuple[List[str], float]:
         """
         Calculate overlap with weighted scoring.
-        
+
         Low-value and short tokens contribute less to the score.
-        
+
         Args:
             tokens1: First token list
             tokens2: Second token list
-        
+
         Returns:
             Tuple of (overlapping tokens, weighted score)
         """
@@ -291,10 +370,7 @@ class TokenMatcher:
             return [], 0.0
 
         # Calculate weighted overlap score
-        overlap_weight = sum(
-            min(weighted1[t], weighted2[t])
-            for t in overlap_tokens
-        )
+        overlap_weight = sum(min(weighted1[t], weighted2[t]) for t in overlap_tokens)
 
         total_weight = sum(weighted1.values()) + sum(weighted2.values()) - overlap_weight
 
@@ -311,13 +387,13 @@ class TokenMatcher:
     ) -> bool:
         """
         Check if two token lists have sufficient overlap for matching.
-        
+
         Uses min_significant_tokens from config.
-        
+
         Args:
             tokens1: First token list
             tokens2: Second token list
-        
+
         Returns:
             True if overlap is sufficient
         """
@@ -331,11 +407,11 @@ class TokenMatcher:
     ) -> Dict[str, any]:
         """
         Get detailed match quality information.
-        
+
         Args:
             source_tokens: Source token list
             target_tokens: Target token list
-        
+
         Returns:
             Dictionary with match details
         """
@@ -374,7 +450,7 @@ class TokenMatcher:
 def load_config_from_yaml(path: Path) -> TokenConfig | None:
     """
     Load TokenConfig from a YAML configuration file.
-    
+
     Expected format:
         matching:
           min_token_length: 3
@@ -386,10 +462,10 @@ def load_config_from_yaml(path: Path) -> TokenConfig | None:
           low_value_tokens:
             - aws
             - main
-    
+
     Args:
         path: Path to YAML file
-    
+
     Returns:
         TokenConfig if file exists and is valid, None otherwise
     """
@@ -408,8 +484,10 @@ def load_config_from_yaml(path: Path) -> TokenConfig | None:
         return TokenConfig(
             min_token_length=matching.get("min_token_length", 3),
             min_significant_tokens=matching.get("min_significant_tokens", 2),
-            blocked_tokens=frozenset(matching.get("blocked_tokens", [])) or TokenConfig().blocked_tokens,
-            low_value_tokens=frozenset(matching.get("low_value_tokens", [])) or TokenConfig().low_value_tokens,
+            blocked_tokens=frozenset(matching.get("blocked_tokens", []))
+            or TokenConfig().blocked_tokens,
+            low_value_tokens=frozenset(matching.get("low_value_tokens", []))
+            or TokenConfig().low_value_tokens,
             low_value_weight=matching.get("low_value_weight", 0.5),
             short_token_weight=matching.get("short_token_weight", 0.3),
         )
@@ -422,11 +500,11 @@ def load_config_from_yaml(path: Path) -> TokenConfig | None:
 def create_default_matcher(config_path: Path | None = None) -> TokenMatcher:
     """
     Create a TokenMatcher with configuration from file or defaults.
-    
+
     Args:
-        config_path: Optional path to config file. 
+        config_path: Optional path to config file.
                     Defaults to .jnkn/config.yaml
-    
+
     Returns:
         Configured TokenMatcher
     """

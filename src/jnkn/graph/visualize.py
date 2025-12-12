@@ -189,6 +189,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </html>
 """
 
+
 def _json_default(obj: Any) -> Any:
     """JSON serializer for objects not serializable by default json code"""
     if isinstance(obj, (datetime, date)):
@@ -208,12 +209,12 @@ def generate_html(graph: IGraph) -> str:
         # Fallback for generic IGraph
         graph_data = {
             "nodes": [n.model_dump() for n in graph.iter_nodes()],
-            "edges": [e.model_dump() for e in graph.iter_edges()]
+            "edges": [e.model_dump() for e in graph.iter_edges()],
         }
 
     # Dump to JSON string for JS injection, handling datetime objects
     json_data = json.dumps(graph_data, default=_json_default)
-    
+
     # Inject into template
     return HTML_TEMPLATE.replace("__GRAPH_DATA__", json_data)
 
@@ -223,13 +224,13 @@ def open_visualization(graph: IGraph, output_path: str = "graph.html") -> str:
     Generate and open the visualization in the browser.
     """
     html_content = generate_html(graph)
-    
+
     # Save to file
     out_file = Path(output_path)
     out_file.write_text(html_content, encoding="utf-8")
-    
+
     # Open in browser
     abs_path = out_file.resolve().as_uri()
     webbrowser.open(abs_path)
-    
+
     return str(out_file)

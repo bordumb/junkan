@@ -12,17 +12,15 @@ from ..utils import echo_error, echo_info, echo_success, load_graph
 
 
 @click.command()
-@click.option("-i", "--input", "graph_file", default=".",
-              help="Input graph JSON file")
-@click.option("-o", "--output", default="lineage.html",
-              help="Output file (.html or .dot)")
+@click.option("-i", "--input", "graph_file", default=".", help="Input graph JSON file")
+@click.option("-o", "--output", default="lineage.html", help="Output file (.html or .dot)")
 def graph(graph_file: str, output: str):
     """
     Generate interactive visualization.
-    
+
     Creates an HTML file with a zoomable, searchable graph view.
     Click on nodes to see their upstream/downstream dependencies.
-    
+
     \b
     Examples:
         jnkn graph

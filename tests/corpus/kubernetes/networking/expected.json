@@ -1,0 +1,10 @@
+{
+    "description": "Kubernetes Service and Ingress networking",
+    "resources": [
+      {"id": "k8s:prod/service/payment-svc", "name": "payment-svc", "type": "infra_resource"},
+      {"id": "k8s:prod/ingress/payment-ingress", "name": "payment-ingress", "type": "infra_resource"}
+    ],
+    "edges": [
+      {"source": "k8s:prod/ingress/payment-ingress", "target": "k8s:prod/service/payment-svc", "type": "routes_to"}
+    ]
+  }

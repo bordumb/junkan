@@ -17,10 +17,12 @@ class TokenIndex:
     """
     In-memory index for fast fuzzy searching of nodes by tokens.
     """
+
     _token_map: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
 
     def index_node(self, node: Node) -> None:
-        if not node.tokens: return
+        if not node.tokens:
+            return
         for token in node.tokens:
             self._token_map[token.lower()].add(node.id)
 
@@ -28,7 +30,8 @@ class TokenIndex:
         return self._token_map.get(token.lower(), set())
 
     def remove_node(self, node: Node) -> None:
-        if not node.tokens: return
+        if not node.tokens:
+            return
         for token in node.tokens:
             token_lower = token.lower()
             if token_lower in self._token_map:
@@ -76,7 +79,7 @@ class DependencyGraph(IGraph):
 
         src_idx = self._id_to_idx[edge.source_id]
         tgt_idx = self._id_to_idx[edge.target_id]
-        
+
         # Avoid duplicate edges of same type
         existing = False
         try:
@@ -99,7 +102,7 @@ class DependencyGraph(IGraph):
 
     def has_node(self, node_id: str) -> bool:
         return node_id in self._id_to_idx
-        
+
     def has_edge(self, source_id: str, target_id: str) -> bool:
         if source_id not in self._id_to_idx or target_id not in self._id_to_idx:
             return False
@@ -118,7 +121,7 @@ class DependencyGraph(IGraph):
 
     def find_nodes(self, pattern: str) -> List[str]:
         return [nid for nid in self._id_to_idx.keys() if pattern in nid]
-        
+
     def find_nodes_by_tokens(self, tokens: List[str]) -> List[Node]:
         matched_ids = set()
         for token in tokens:
@@ -126,7 +129,8 @@ class DependencyGraph(IGraph):
         result = []
         for nid in matched_ids:
             node = self.get_node(nid)
-            if node: result.append(node)
+            if node:
+                result.append(node)
         return result
 
     def get_nodes_by_type(self, type_filter: Any) -> List[Node]:
@@ -148,7 +152,7 @@ class DependencyGraph(IGraph):
             return []
         idx = self._id_to_idx[node_id]
         return [edge_tuple[2] for edge_tuple in self._graph.in_edges(idx)]
-        
+
     def get_edge(self, source_id: str, target_id: str) -> Edge | None:
         if source_id not in self._id_to_idx or target_id not in self._id_to_idx:
             return None
@@ -156,7 +160,8 @@ class DependencyGraph(IGraph):
         tgt_idx = self._id_to_idx[target_id]
         try:
             edges = self._graph.get_all_edge_data(src_idx, tgt_idx)
-            if edges: return edges[0]
+            if edges:
+                return edges[0]
         except rx.NoEdgeBetweenNodes:
             return None
         return None
@@ -182,13 +187,15 @@ class DependencyGraph(IGraph):
             return []
 
     def get_descendants(self, node_id: str, max_depth: int = -1) -> Set[str]:
-        if node_id not in self._id_to_idx: return set()
+        if node_id not in self._id_to_idx:
+            return set()
         start_idx = self._id_to_idx[node_id]
         descendant_indices = rx.descendants(self._graph, start_idx)
         return {self._idx_to_node[i].id for i in descendant_indices}
 
     def get_ancestors(self, node_id: str, max_depth: int = -1) -> Set[str]:
-        if node_id not in self._id_to_idx: return set()
+        if node_id not in self._id_to_idx:
+            return set()
         start_idx = self._id_to_idx[node_id]
         ancestor_indices = rx.ancestors(self._graph, start_idx)
         return {self._idx_to_node[i].id for i in ancestor_indices}
@@ -205,24 +212,25 @@ class DependencyGraph(IGraph):
         REVERSE_TYPES = {"reads", "depends_on", "calls"}
 
         def normalize_type(val: Any) -> str:
-            if hasattr(val, "value"): return str(val.value).lower()
+            if hasattr(val, "value"):
+                return str(val.value).lower()
             return str(val).lower()
 
         impacted = set()
         queue = list(source_ids)
         visited = set(source_ids)
-        
+
         # Track depth if needed (simple BFS level tracking omitted for brevity, using unlimited or basic check)
         # For simplicity in this implementation, we ignore exact max_depth logic beyond a safety break
         # or implement simple level tracking.
-        
+
         current_level = queue
         depth = 0
-        
+
         while current_level:
             if max_depth != -1 and depth >= max_depth:
                 break
-                
+
             next_level = []
             for node_id in current_level:
                 # 1. Forward Traversal (Downstream)
@@ -235,7 +243,7 @@ class DependencyGraph(IGraph):
                             visited.add(neighbor)
                             impacted.add(neighbor)
                             next_level.append(neighbor)
-                            
+
                 # 2. Reverse Traversal (Upstream Dependencies)
                 in_edges = self.get_in_edges(node_id)
                 for edge in in_edges:
@@ -246,14 +254,14 @@ class DependencyGraph(IGraph):
                             visited.add(neighbor)
                             impacted.add(neighbor)
                             next_level.append(neighbor)
-            
+
             current_level = next_level
             depth += 1
-            
+
         return impacted
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "nodes": [n.model_dump() for n in self.iter_nodes()],
-            "edges": [e.model_dump() for e in self.iter_edges()]
+            "edges": [e.model_dump() for e in self.iter_edges()],
         }

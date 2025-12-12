@@ -9,10 +9,10 @@ Provides parsing for dbt manifest.json files to extract:
 
 Usage:
     from jnkn.parsing.dbt import DbtManifestParser
-    
+
     parser = DbtManifestParser()
     result = parser.parse_full(Path("target/manifest.json"))
-    
+
     # Or use convenience methods
     lineage = parser.extract_lineage(manifest_path)
     nodes = parser.extract_nodes_list(manifest_path)

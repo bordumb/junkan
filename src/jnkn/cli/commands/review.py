@@ -50,18 +50,20 @@ def review(min_confidence: float, max_confidence: float, graph_file: str):
     for edge in graph.iter_edges():
         if not (min_confidence <= edge.confidence <= max_confidence):
             continue
-        
+
         # Check if already suppressed
         if suppression_store.is_suppressed(edge.source_id, edge.target_id).suppressed:
             continue
-            
+
         edges_to_review.append(edge)
 
     if not edges_to_review:
         console.print("[green]No matches found needing review in that confidence range.[/green]")
         return
 
-    console.print(f"🔍 Found [bold]{len(edges_to_review)}[/bold] potential matches. Verify valid links or suppress false positives.\n")
+    console.print(
+        f"🔍 Found [bold]{len(edges_to_review)}[/bold] potential matches. Verify valid links or suppress false positives.\n"
+    )
 
     explainer = create_explanation_generator(graph)
 
@@ -92,7 +94,7 @@ def review(min_confidence: float, max_confidence: float, graph_file: str):
             choices=["y", "n", "s", "e", "q"],
             default="y",
             show_choices=False,
-            show_default=False
+            show_default=False,
         )
 
         if choice == "q":
@@ -130,10 +132,12 @@ def _print_edge_panel(edge, current, total):
     """Render a pretty panel for the edge."""
     # Colorize IDs based on type prefix for readability
     src_color = "cyan"
-    if edge.source_id.startswith("env:"): src_color = "yellow"
-    
+    if edge.source_id.startswith("env:"):
+        src_color = "yellow"
+
     tgt_color = "magenta"
-    if edge.target_id.startswith("infra:"): tgt_color = "magenta"
+    if edge.target_id.startswith("infra:"):
+        tgt_color = "magenta"
 
     content = f"""
 [bold {src_color}]Source:[/bold {src_color}] {edge.source_id}
@@ -147,7 +151,7 @@ def _print_edge_panel(edge, current, total):
 def _handle_suppression(edge, store) -> bool:
     """
     Interactive sub-menu for choosing suppression strategy.
-    
+
     Returns:
         bool: True if a suppression was added, False if cancelled.
     """
@@ -159,7 +163,7 @@ def _handle_suppression(edge, store) -> bool:
     broad_tgt = tgt_patterns[-1]
 
     console.print("\n[bold]How wide should this suppression rule be?[/bold]")
-    
+
     # Option 1: Exact
     console.print("\n[bold cyan]1. Just this specific link[/bold cyan] (Safest)")
     console.print(f"   [dim]Block only:[/dim] {edge.source_id} -> {edge.target_id}")
@@ -167,17 +171,25 @@ def _handle_suppression(edge, store) -> bool:
     # Option 2: Source Wildcard
     console.print("\n[bold cyan]2. Ignore this Source Pattern[/bold cyan]")
     console.print(f"   [dim]Block:[/dim]      [yellow]{broad_src}[/yellow] -> {edge.target_id}")
-    console.print(f"   [dim]Meaning:[/dim]    [italic]Nothing matching '{broad_src}' should ever link to this target.[/italic]")
+    console.print(
+        f"   [dim]Meaning:[/dim]    [italic]Nothing matching '{broad_src}' should ever link to this target.[/italic]"
+    )
 
     # Option 3: Target Wildcard
     console.print("\n[bold cyan]3. Ignore this Target Pattern[/bold cyan]")
     console.print(f"   [dim]Block:[/dim]      {edge.source_id} -> [magenta]{broad_tgt}[/magenta]")
-    console.print(f"   [dim]Meaning:[/dim]    [italic]This source should never link to anything matching '{broad_tgt}'.[/italic]")
+    console.print(
+        f"   [dim]Meaning:[/dim]    [italic]This source should never link to anything matching '{broad_tgt}'.[/italic]"
+    )
 
     # Option 4: Full Wildcard
     console.print("\n[bold cyan]4. Ignore this Pattern entirely[/bold cyan] (Broadest)")
-    console.print(f"   [dim]Block:[/dim]      [yellow]{broad_src}[/yellow] -> [magenta]{broad_tgt}[/magenta]")
-    console.print("   [dim]Meaning:[/dim]    [italic]Never link these two types of things together.[/italic]")
+    console.print(
+        f"   [dim]Block:[/dim]      [yellow]{broad_src}[/yellow] -> [magenta]{broad_tgt}[/magenta]"
+    )
+    console.print(
+        "   [dim]Meaning:[/dim]    [italic]Never link these two types of things together.[/italic]"
+    )
 
     console.print("\n[dim]c. Cancel[/dim]")
 
@@ -200,6 +212,6 @@ def _handle_suppression(edge, store) -> bool:
 
     store.add(s_pat, t_pat, reason=reason, created_by="interactive_review")
     store.save()
-    
+
     console.print(f"[green]🚫 Suppressed pattern: {s_pat} -> {t_pat}[/green]\n")
     return True

@@ -33,7 +33,7 @@ from .utils_telemetry import TelemetryGroup
 @click.version_option(package_name="jnkn")
 def main():
     """jnkn: The Pre-Flight Impact Analysis Engine.
-    
+
     Detects cross-domain breaking changes between Infrastructure,
     Data Pipelines, and Application Code.
     """
