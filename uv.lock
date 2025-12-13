@@ -345,7 +345,7 @@ wheels = [
 
 [[package]]
 name = "jnkn"
-version = "0.0.0rc7"
+version = "0.0.0rc6"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
