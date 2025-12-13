@@ -1,14 +1,15 @@
 # FILE: src/jnkn/graph/visualize.py
 """
-Visualization Engine v3.1 (Stable)
+Visualization Engine v3.3
 
 A professional-grade Miller Columns interface for exploring dependency graphs.
 
 Key Features:
 - Bi-directional Traversal: Switch between Impact (Downstream) and Dependency (Upstream).
-- Diff Visualization: Highlights added, removed, and modified artifacts.
-- Rich Inspector: Confidence scores, line numbers, and file paths.
-- Global Search: Rapid access to specific nodes.
+- Global Search: Fuzzy find artifacts and jump to them in the graph.
+- Diff Context: Visual highlights for Added, Removed, and Modified nodes.
+- Rich Inspector: Tabbed view for Details, Upstream, and Downstream dependencies.
+- Neighborhood Mesh: Force-directed graph view for analyzing local complexity.
 """
 
 import json
@@ -25,6 +26,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jnkn Impact Browser</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         /* ============================================================
            DESIGN SYSTEM
@@ -58,9 +60,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             --color-info-bg: rgba(59, 130, 246, 0.1);
             
             /* Diff colors */
-            --diff-added: rgba(34, 197, 94, 0.1);
-            --diff-removed: rgba(239, 68, 68, 0.1);
-            --diff-modified: rgba(245, 158, 11, 0.1);
+            --diff-added-bg: rgba(34, 197, 94, 0.15);
+            --diff-added-border: #22c55e;
+            --diff-removed-bg: rgba(239, 68, 68, 0.15);
+            --diff-removed-border: #ef4444;
+            --diff-mod-bg: rgba(245, 158, 11, 0.15);
+            --diff-mod-border: #f59e0b;
             
             /* Accent */
             --accent: #3b82f6;
@@ -75,6 +80,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             /* Typography */
             --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, sans-serif;
             --font-mono: "SF Mono", "Fira Code", monospace;
+            
+            /* Spacing */
+            --radius-md: 6px;
         }
 
         * { box-sizing: border-box; }
@@ -91,9 +99,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             overflow: hidden;
         }
 
-        /* ============================================================
-           HEADER
-           ============================================================ */
+        /* HEADER */
         .header {
             height: 56px;
             border-bottom: 1px solid var(--border-subtle);
@@ -180,10 +186,35 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: var(--text-tertiary);
             font-size: 12px;
         }
+        
+        /* Search Results Dropdown */
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            margin-top: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        
+        .search-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .search-item:hover { background: var(--bg-hover); }
+        .search-item small { color: var(--text-tertiary); display: block; font-size: 11px; }
 
-        /* ============================================================
-           MILLER COLUMNS
-           ============================================================ */
+        /* MILLER COLUMNS */
         .main-container {
             flex: 1;
             display: flex;
@@ -225,9 +256,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 8px;
         }
 
-        /* ============================================================
-           ITEMS
-           ============================================================ */
+        /* ITEMS */
         .item {
             display: flex;
             align-items: center;
@@ -243,13 +272,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .item.active { background: var(--bg-active); border-color: var(--border-default); }
         
         /* Diff States */
-        .item.diff-added { background: var(--diff-added); border-left: 3px solid var(--color-success); }
-        .item.diff-removed { background: var(--diff-removed); border-left: 3px solid var(--color-danger); opacity: 0.7; }
-        .item.diff-modified { background: var(--diff-modified); border-left: 3px solid var(--color-warning); }
+        .item.diff-added { background: var(--diff-added-bg); border-left: 3px solid var(--diff-added-border); }
+        .item.diff-removed { background: var(--diff-removed-bg); border-left: 3px solid var(--diff-removed-border); opacity: 0.7; }
+        .item.diff-modified { background: var(--diff-mod-bg); border-left: 3px solid var(--diff-mod-border); }
         
         .item-icon { margin-right: 10px; font-size: 16px; }
         .item-content { flex: 1; min-width: 0; }
-        .item-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
         .item-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
         
         .badge {
@@ -265,136 +294,86 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .badge.static { background: rgba(113, 113, 122, 0.2); color: #a1a1aa; }
         .badge.low-conf { background: var(--color-warning-bg); color: var(--color-warning); }
 
-        /* ============================================================
-           INSPECTOR
-           ============================================================ */
+        /* INSPECTOR */
         .inspector {
-            width: 400px;
-            min-width: 400px;
+            width: 420px;
+            min-width: 420px;
             background: var(--bg-elevated);
             border-left: 1px solid var(--border-subtle);
-            padding: 0;
-            overflow-y: auto;
             display: none;
             flex-direction: column;
         }
         
         .inspector-header {
-            padding: 20px 20px 10px 20px;
+            padding: 20px;
             border-bottom: 1px solid var(--border-subtle);
         }
-
-        .inspector-body {
-            padding: 20px;
-            flex: 1;
-        }
         
-        .inspector-title { font-size: 18px; font-weight: 600; margin-bottom: 5px; word-break: break-all; }
+        .inspector-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; word-break: break-all; }
         .inspector-subtitle { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); }
         
-        .section { margin-bottom: 24px; }
-        .section-header { 
-            font-size: 11px; font-weight: 600; text-transform: uppercase; 
-            color: var(--text-tertiary); margin-bottom: 12px; letter-spacing: 0.5px;
+        .action-bar { display: flex; gap: 8px; margin-top: 16px; }
+        .btn {
+            flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-default);
+            background: var(--bg-surface); color: var(--text-secondary); cursor: pointer;
+            font-size: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px;
         }
-        
-        .prop-row { display: flex; margin-bottom: 8px; font-size: 13px; }
-        .prop-label { width: 100px; color: var(--text-tertiary); flex-shrink: 0; }
-        .prop-value { flex: 1; color: var(--text-secondary); word-break: break-all; }
-        
-        /* Confidence Meter */
-        .confidence-meter {
-            background: var(--bg-surface);
-            border: 1px solid var(--border-default);
-            border-radius: 6px;
-            padding: 12px;
-        }
-        
-        .confidence-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 12px;
-        }
-        
-        .confidence-bar-bg {
-            height: 6px;
-            background: var(--bg-active);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-        
-        .confidence-bar-fill {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.3s ease;
-        }
-        
-        /* Actions */
-        .btn-action {
-            width: 100%;
-            padding: 10px;
-            background: var(--accent);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        .btn-action:hover { background: var(--accent-hover); }
-        
-        /* Risk Card */
-        .risk-card {
-            padding: 12px;
-            border-radius: 6px;
-            border: 1px solid transparent;
-            font-size: 13px;
-            margin-bottom: 16px;
-        }
-        .risk-card.critical {
-            background: var(--color-danger-bg);
-            border-color: rgba(239, 68, 68, 0.3);
-            color: #fca5a5;
-        }
+        .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+        .btn-primary:hover { background: var(--accent-hover); }
 
-        /* Search Results Dropdown */
-        .search-results {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            width: 100%;
-            background: var(--bg-elevated);
-            border: 1px solid var(--border-default);
-            border-radius: 6px;
-            margin-top: 4px;
-            max-height: 300px;
-            overflow-y: auto;
-            display: none;
-            z-index: 1000;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        /* TABS */
+        .tabs { display: flex; border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); }
+        .tab {
+            flex: 1; padding: 12px; text-align: center; font-size: 12px; font-weight: 600;
+            color: var(--text-tertiary); cursor: pointer; border-bottom: 2px solid transparent;
         }
+        .tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
         
-        .search-item {
-            padding: 8px 12px;
-            cursor: pointer;
-            font-size: 13px;
-            border-bottom: 1px solid var(--border-subtle);
-        }
-        
-        .search-item:hover { background: var(--bg-hover); }
-        .search-item small { color: var(--text-tertiary); display: block; font-size: 11px; }
+        .tab-content { padding: 20px; flex: 1; overflow-y: auto; display: none; }
+        .tab-content.active { display: block; }
 
+        /* DETAILS LIST */
+        .detail-row { display: flex; margin-bottom: 12px; font-size: 13px; }
+        .detail-label { width: 100px; color: var(--text-tertiary); flex-shrink: 0; }
+        .detail-value { flex: 1; color: var(--text-secondary); word-break: break-all; }
+        
+        /* Dependency List Item in Tabs */
+        .dep-list-item {
+            padding: 8px; border-radius: 4px; margin-bottom: 4px; background: var(--bg-surface);
+            font-size: 12px; display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer;
+        }
+        .dep-list-item:hover { background: var(--bg-hover); }
+
+        /* MODAL (Force Directed Graph) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8); z-index: 1000;
+            display: none; align-items: center; justify-content: center;
+        }
+        .modal-content {
+            width: 90vw; height: 90vh; background: var(--bg-base);
+            border-radius: 8px; border: 1px solid var(--border-default);
+            display: flex; flex-direction: column;
+        }
+        .modal-header {
+            padding: 16px; border-bottom: 1px solid var(--border-subtle);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        #mesh-container { flex: 1; overflow: hidden; background: #050505; }
+        
+        /* D3 Graph Styles */
+        .node circle { stroke: #fff; stroke-width: 1.5px; cursor: pointer; }
+        .link { stroke: #555; stroke-opacity: 0.6; }
+        .node text { font-size: 10px; fill: #aaa; pointer-events: none; }
     </style>
 </head>
 <body>
     <header class="header">
         <div class="brand">
             <div class="brand-logo">J</div>
-            <span>Jnkn</span>
+            <span>Jnkn Impact Browser</span>
         </div>
         
         <div class="mode-toggle">
@@ -415,9 +394,43 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     
     <main class="main-container">
         <div class="columns-wrapper" id="columnsWrapper"></div>
+        
         <aside class="inspector" id="inspector">
-            </aside>
+            <div class="inspector-header">
+                <div class="inspector-title" id="insp-title">Select an item</div>
+                <div class="inspector-subtitle" id="insp-id"></div>
+                
+                <div class="action-bar">
+                    <button class="btn btn-primary" id="btn-editor" onclick="openEditor()">
+                        <span>📝</span> Editor
+                    </button>
+                    <button class="btn" onclick="openMeshModal()">
+                        <span>🕸️</span> Neighborhood
+                    </button>
+                </div>
+            </div>
+            
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('details')">Details</div>
+                <div class="tab" id="tab-up-count" onclick="switchTab('upstream')">Upstream (0)</div>
+                <div class="tab" id="tab-down-count" onclick="switchTab('downstream')">Downstream (0)</div>
+            </div>
+            
+            <div id="view-details" class="tab-content active"></div>
+            <div id="view-upstream" class="tab-content"></div>
+            <div id="view-downstream" class="tab-content"></div>
+        </aside>
     </main>
+
+    <div class="modal-overlay" id="meshModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Neighborhood View</h3>
+                <button class="btn" style="width: auto;" onclick="closeMeshModal()">Close</button>
+            </div>
+            <div id="mesh-container"></div>
+        </div>
+    </div>
 
     <script>
         // DATA
@@ -429,7 +442,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             nodeMap: {},
             outgoingEdges: {}, // Source -> [Edges]
             incomingEdges: {}, // Target -> [Edges]
-            selectedPath: []   // Array of Node IDs
+            currentNode: null
         };
 
         // INITIALIZATION
@@ -461,10 +474,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 btn.classList.toggle('active', btn.innerText.toLowerCase().includes(mode));
             });
             
-            // Reset view when mode changes to avoid confusion
+            // If we have a selection, try to re-render flow from root
+            // But simpler is just reset to root to avoid confusion
             renderRootColumn();
         };
 
+        // Search
         window.handleSearch = function(query) {
             const resultsDiv = document.getElementById('searchResults');
             if (query.length < 2) {
@@ -496,40 +511,44 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             
             const node = state.nodeMap[nodeId];
             if (node) {
-                // Reset columns and show just this node info
+                // Reset flow and show this node
                 renderRootColumn(); 
-                showInspector(node);
-                // In a future version, we could "pathfind" from root to this node
+                
+                // Simulate selection
+                state.currentNode = node;
+                updateInspector(node);
+                
+                // Try to expand the category in the root column that contains this node
+                const groups = {
+                    'Infrastructure': node.type.includes('infra') || node.id.startsWith('infra:'),
+                    'Configuration': node.type.includes('env') || node.type.includes('config') || node.id.startsWith('env:'),
+                    'Data': node.type.includes('data') || node.id.startsWith('data:'),
+                };
+                
+                let category = 'Code'; // Default
+                for(let k in groups) if(groups[k]) category = k;
+                
+                // Highlight the category if possible (requires finding DOM element)
+                // For now, just showing the inspector is a huge win
             }
         };
 
-        function removeColumnsAfter(index) {
-            const wrapper = document.getElementById('columnsWrapper');
-            while (wrapper.children.length > index + 1) {
-                wrapper.removeChild(wrapper.lastChild);
-            }
-        }
-
         // ============================================================
-        // COLUMN RENDERING
+        // MILLER COLUMNS LOGIC
         // ============================================================
         function renderRootColumn() {
             const wrapper = document.getElementById('columnsWrapper');
             wrapper.innerHTML = ''; // Clear all
             
-            // Group nodes by type
-            const groups = {
-                'Infrastructure': [],
-                'Configuration': [],
-                'Code': [],
-                'Data': []
-            };
+            // Group by Domain
+            const groups = { 'Infrastructure': [], 'Configuration': [], 'Code': [], 'Data': [] };
             
             rawData.nodes.forEach(n => {
-                const type = n.type || '';
-                if (type.includes('infra')) groups['Infrastructure'].push(n);
-                else if (type.includes('env') || type.includes('config')) groups['Configuration'].push(n);
-                else if (type.includes('data')) groups['Data'].push(n);
+                const t = (n.type || '').toLowerCase();
+                const id = n.id.toLowerCase();
+                if (t.includes('infra') || id.startsWith('infra:')) groups['Infrastructure'].push(n);
+                else if (t.includes('env') || t.includes('config') || id.startsWith('env:')) groups['Configuration'].push(n);
+                else if (t.includes('data') || id.startsWith('data:')) groups['Data'].push(n);
                 else groups['Code'].push(n);
             });
             
@@ -537,16 +556,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             
             Object.keys(groups).forEach(key => {
                 if (groups[key].length === 0) return;
-                
                 const item = document.createElement('div');
                 item.className = 'item';
                 item.innerHTML = `
-                    <span class="item-icon">${getIconForCategory(key)}</span>
-                    <div class="item-content">
-                        <div class="item-title">${key}</div>
-                        <div class="item-meta">${groups[key].length} items</div>
-                    </div>
-                    <span>›</span>
+                    <span class="item-icon">${getCategoryIcon(key)}</span>
+                    <div class="item-content"><div class="item-title">${key}</div></div>
+                    <div class="item-meta">${groups[key].length}</div>
+                    <span style="margin-left:8px; color:#666;">›</span>
                 `;
                 
                 // Root items are always at index 0
@@ -575,14 +591,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 const item = createNodeItem(node);
                 item.onclick = () => {
                     highlightItem(item);
-                    showInspector(node);
+                    state.currentNode = node;
+                    updateInspector(node);
                     renderConnections(node, myColIndex);
                 };
                 col.querySelector('.column-list').appendChild(item);
             });
             
             document.getElementById('columnsWrapper').appendChild(col);
-            col.scrollIntoView({behavior: 'smooth'});
+            col.scrollIntoView({behavior: 'smooth', inline: 'end'});
         }
 
         function renderConnections(node, parentColIndex) {
@@ -608,6 +625,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const col = createColumn(title, connections.length);
             const myColIndex = parentColIndex + 1;
             
+            // Sort by confidence
             connections.sort((a, b) => (b.edge.confidence || 0) - (a.edge.confidence || 0));
             
             connections.forEach(({node, edge}) => {
@@ -616,7 +634,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 
                 item.onclick = () => {
                     highlightItem(item);
-                    showInspector(node, edge);
+                    state.currentNode = node;
+                    updateInspector(node, edge);
                     renderConnections(node, myColIndex);
                 };
                 
@@ -624,7 +643,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             });
             
             document.getElementById('columnsWrapper').appendChild(col);
-            col.scrollIntoView({behavior: 'smooth'});
+            col.scrollIntoView({behavior: 'smooth', inline: 'end'});
         }
 
         // ============================================================
@@ -646,6 +665,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         function createNodeItem(node, edge) {
             const div = document.createElement('div');
             
+            // Diff Highlighting
             let classes = 'item';
             if (node.metadata?.change_type === 'added') classes += ' diff-added';
             if (node.metadata?.change_type === 'removed') classes += ' diff-removed';
@@ -676,112 +696,259 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         function highlightItem(item) {
-            // Find parent list, remove active from siblings
-            const parentList = item.parentElement;
-            Array.from(parentList.children).forEach(child => child.classList.remove('active'));
+            const list = item.parentElement;
+            Array.from(list.children).forEach(c => c.classList.remove('active'));
             item.classList.add('active');
         }
 
-        // ============================================================
-        // INSPECTOR & DETAILS
-        // ============================================================
-        function showInspector(node, edge = null) {
-            const inspector = document.getElementById('inspector');
-            const filePath = node.path || node.metadata?.file || 'N/A';
-            const line = node.metadata?.line || node.line || 1;
-            
-            // Confidence calculation
-            const confidence = edge ? (edge.confidence || 1.0) : 1.0;
-            const confPercent = Math.round(confidence * 100);
-            
-            let confColor = 'var(--color-success)';
-            if (confidence < 0.8) confColor = 'var(--color-warning)';
-            if (confidence < 0.5) confColor = 'var(--color-danger)';
-
-            let html = `
-                <div class="inspector-header">
-                    <div class="inspector-title">${node.name}</div>
-                    <div class="inspector-subtitle">${node.id}</div>
-                </div>
-                
-                <div class="inspector-body">
-            `;
-
-            // Risk Assessment
-            if (confidence < 0.5) {
-                html += `
-                    <div class="risk-card critical">
-                        <strong>⚠️ Low Confidence Match</strong><br>
-                        This dependency was inferred with only ${confPercent}% confidence.
-                        Verify it before relying on it.
-                    </div>
-                `;
+        function removeColumnsAfter(index) {
+            const wrapper = document.getElementById('columnsWrapper');
+            while (wrapper.children.length > index + 1) {
+                wrapper.removeChild(wrapper.lastChild);
             }
-
-            // Confidence Meter (Only if showing an edge connection)
-            if (edge) {
-                html += `
-                    <div class="section">
-                        <div class="section-header">Connection Strength</div>
-                        <div class="confidence-meter">
-                            <div class="confidence-header">
-                                <span>Confidence</span>
-                                <span style="color:${confColor}; font-weight:bold;">${confPercent}%</span>
-                            </div>
-                            <div class="confidence-bar-bg">
-                                <div class="confidence-bar-fill" style="width: ${confPercent}%; background: ${confColor}"></div>
-                            </div>
-                            <div style="font-size:11px; color:var(--text-tertiary); margin-top:6px;">
-                                ${edge.metadata?.explanation || 'Matched via static token analysis.'}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Metadata
-            html += `
-                <div class="section">
-                    <div class="section-header">Properties</div>
-                    <div class="prop-row">
-                        <span class="prop-label">Type</span>
-                        <span class="prop-value">${node.type}</span>
-                    </div>
-                    <div class="prop-row">
-                        <span class="prop-label">File</span>
-                        <span class="prop-value">${filePath}</span>
-                    </div>
-                    <div class="prop-row">
-                        <span class="prop-label">Line</span>
-                        <span class="prop-value">${line}</span>
-                    </div>
-                </div>
-            `;
-
-            // Actions
-            if (node.path) {
-                html += `
-                    <button class="btn-action" onclick="openVsCode('${node.path}', ${line})">
-                        <span>📝</span> Open in Editor
-                    </button>
-                `;
-            }
-
-            html += `</div>`; // Close body
-            
-            inspector.innerHTML = html;
-            inspector.style.display = 'flex';
         }
 
-        function openVsCode(path, line) {
-            const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-            window.location.href = `vscode://file/${cleanPath}:${line}`;
+        // ============================================================
+        // INSPECTOR LOGIC
+        // ============================================================
+        function updateInspector(node, contextEdge = null) {
+            document.getElementById('inspector').style.display = 'flex';
+            
+            // Header
+            document.getElementById('insp-title').textContent = node.name;
+            document.getElementById('insp-id').textContent = node.id;
+            
+            // Editor Button
+            const btnEditor = document.getElementById('btn-editor');
+            if (node.path) {
+                btnEditor.disabled = false;
+                btnEditor.title = node.path;
+            } else {
+                btnEditor.disabled = true;
+                btnEditor.title = "No file path available";
+            }
+
+            // Update Counts for Tabs
+            const upEdges = state.incomingEdges[node.id] || [];
+            const downEdges = state.outgoingEdges[node.id] || [];
+            
+            document.getElementById('tab-up-count').textContent = `Upstream (${upEdges.length})`;
+            document.getElementById('tab-down-count').textContent = `Downstream (${downEdges.length})`;
+
+            // Render Details Tab
+            const detailsHtml = `
+                <div class="detail-row">
+                    <span class="detail-label">Type</span>
+                    <span class="detail-value">${node.type}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">File</span>
+                    <span class="detail-value">${node.path || '-'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Line</span>
+                    <span class="detail-value">${node.metadata?.line || '-'}</span>
+                </div>
+                ${contextEdge ? `
+                <div style="margin-top: 20px; padding: 12px; background: var(--bg-surface); border-radius: 6px; border: 1px solid var(--border-default);">
+                    <div style="font-size: 11px; font-weight: 600; color: var(--text-tertiary); margin-bottom: 8px;">CONNECTION STRENGTH</div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;">
+                        <span>Confidence</span>
+                        <strong>${Math.round((contextEdge.confidence || 1) * 100)}%</strong>
+                    </div>
+                    <div style="height: 6px; background: var(--bg-active); border-radius: 3px; overflow: hidden;">
+                        <div style="height: 100%; width: ${(contextEdge.confidence || 1) * 100}%; background: var(--accent);"></div>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 11px; color: var(--text-tertiary);">
+                        ${contextEdge.metadata?.explanation || 'Link detected via static analysis.'}
+                    </div>
+                </div>
+                ` : ''}
+                
+                ${node.metadata?.change_type ? `
+                <div style="margin-top: 20px; padding: 10px; background: var(--bg-active); border-radius: 6px;">
+                    <strong>Change Detected</strong><br>
+                    Status: <span style="text-transform:uppercase; font-size:11px;">${node.metadata.change_type}</span>
+                </div>
+                ` : ''}
+            `;
+            document.getElementById('view-details').innerHTML = detailsHtml;
+
+            // Render Upstream List
+            renderTabList('view-upstream', upEdges, 'source_id');
+            // Render Downstream List
+            renderTabList('view-downstream', downEdges, 'target_id');
+            
+            // Reset to details tab
+            switchTab('details');
+        }
+
+        function renderTabList(elementId, edges, key) {
+            const container = document.getElementById(elementId);
+            if (edges.length === 0) {
+                container.innerHTML = '<div style="color:var(--text-tertiary); text-align:center; padding:20px;">No dependencies</div>';
+                return;
+            }
+            
+            const html = edges.map(e => {
+                const otherNode = state.nodeMap[e[key]];
+                if (!otherNode) return '';
+                return `
+                    <div class="dep-list-item" onclick="jumpToNode('${otherNode.id}')">
+                        <div>
+                            <span style="margin-right: 6px;">${getNodeIcon(otherNode.type)}</span>
+                            <strong>${otherNode.name}</strong>
+                        </div>
+                        <div style="font-size: 10px; color: var(--text-tertiary);">${e.type}</div>
+                    </div>
+                `;
+            }).join('');
+            container.innerHTML = html;
+        }
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            // Handle specialized ID for count tabs
+            let tabBtn;
+            if (tabName === 'upstream') tabBtn = document.getElementById('tab-up-count');
+            else if (tabName === 'downstream') tabBtn = document.getElementById('tab-down-count');
+            else tabBtn = document.querySelector(`.tab:nth-child(1)`);
+            
+            if (tabBtn) tabBtn.classList.add('active');
+            document.getElementById(`view-${tabName}`).classList.add('active');
+        }
+
+        function openEditor() {
+            if (state.currentNode && state.currentNode.path) {
+                const path = state.currentNode.path.startsWith('/') ? state.currentNode.path.substring(1) : state.currentNode.path;
+                const line = state.currentNode.metadata?.line || 1;
+                window.location.href = `vscode://file/${path}:${line}`;
+            }
+        }
+
+        // ============================================================
+        // MESH VISUALIZATION (Force Directed)
+        // ============================================================
+        function openMeshModal() {
+            if (!state.currentNode) return;
+            document.getElementById('meshModal').style.display = 'flex';
+            renderMesh(state.currentNode);
+        }
+
+        function closeMeshModal() {
+            document.getElementById('meshModal').style.display = 'none';
+            document.getElementById('mesh-container').innerHTML = ''; // Clear D3
+        }
+
+        function renderMesh(centerNode) {
+            const container = document.getElementById('mesh-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            // 1. Collect neighborhood (Depth 1)
+            const nodes = new Set([centerNode]);
+            const links = [];
+            
+            const up = state.incomingEdges[centerNode.id] || [];
+            const down = state.outgoingEdges[centerNode.id] || [];
+            
+            [...up, ...down].forEach(e => {
+                const src = state.nodeMap[e.source_id];
+                const tgt = state.nodeMap[e.target_id];
+                if(src && tgt) {
+                    nodes.add(src);
+                    nodes.add(tgt);
+                    links.push({ source: src.id, target: tgt.id, type: e.type });
+                }
+            });
+
+            const graphNodes = Array.from(nodes).map(n => ({ id: n.id, group: getGroup(n.type), name: n.name }));
+            
+            // 2. D3 Setup
+            const svg = d3.select("#mesh-container").append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .attr("viewBox", [0, 0, width, height]);
+
+            const simulation = d3.forceSimulation(graphNodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2));
+
+            const link = svg.append("g")
+                .attr("stroke", "#555")
+                .selectAll("line")
+                .data(links)
+                .join("line");
+
+            const node = svg.append("g")
+                .selectAll("g")
+                .data(graphNodes)
+                .join("g")
+                .call(drag(simulation));
+
+            // Node Circles
+            node.append("circle")
+                .attr("r", d => d.id === centerNode.id ? 10 : 6)
+                .attr("fill", d => getColor(d.group))
+                .attr("stroke", d => d.id === centerNode.id ? "#fff" : "none");
+
+            // Labels
+            node.append("text")
+                .text(d => d.name)
+                .attr("x", 8)
+                .attr("y", 3)
+                .style("font-size", "10px")
+                .style("fill", "#ccc");
+
+            simulation.on("tick", () => {
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                node
+                    .attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+        }
+
+        // D3 Helpers
+        function drag(simulation) {
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+            return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+        }
+
+        function getColor(group) {
+            const colors = { infra: '#f59e0b', config: '#22c55e', code: '#3b82f6', data: '#a855f7' };
+            return colors[group] || '#777';
+        }
+        function getGroup(type) {
+            if (type.includes('infra')) return 'infra';
+            if (type.includes('env')) return 'config';
+            if (type.includes('data')) return 'data';
+            return 'code';
         }
 
         // ============================================================
         // UTILS
         // ============================================================
-        function getIconForCategory(cat) {
+        function getCategoryIcon(cat) {
             const map = {'Infrastructure': '☁️', 'Configuration': '🔧', 'Code': '💻', 'Data': '📊'};
             return map[cat] || '📦';
         }
