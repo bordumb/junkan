@@ -25,6 +25,9 @@ from ...parsing.engine import ScanConfig, create_default_engine
 # Initialize console for pretty logs in CI
 console = Console(stderr=True)
 
+# Unique marker to identify comments posted by this tool
+SIGNATURE = ""
+
 
 @click.command()
 @click.option("--token", required=True, help="GitHub Token")
@@ -155,7 +158,7 @@ def _generate_markdown(report: Dict[str, Any], fail_threshold: str) -> str:
     emoji = "🚫" if is_blocked else "⚠️" if (stats["critical"] + stats["high"] > 0) else "✅"
     title = "Impact Check Failed" if is_blocked else "Impact Analysis"
 
-    body = f"### {emoji} Jnkn {title}\n\n"
+    body = f"{SIGNATURE}\n### {emoji} Jnkn {title}\n\n"
     body += "| Metric | Count |\n|---|---|\n"
     body += f"| 📄 Files Changed | {stats['files']} |\n"
     body += f"| 🔴 Critical Risks | {stats['critical']} |\n"
@@ -212,7 +215,8 @@ def _post_to_github(token: str, body: str):
         with urllib.request.urlopen(req) as resp:
             comments = json.load(resp)
             for c in comments:
-                if "" in c.get("body", ""):  # TODO: Unique signature
+                # FIX: Only update comments that we created (checked by signature)
+                if SIGNATURE in c.get("body", ""):
                     comment_id = c["id"]
                     break
     except Exception as e:
