@@ -210,18 +210,20 @@ def _post_to_github(token: str, body: str):
     }
 
     comment_id = None
+    # 1. Try to find existing comment
     try:
         req = urllib.request.Request(api_url, headers=headers)
         with urllib.request.urlopen(req) as resp:
             comments = json.load(resp)
             for c in comments:
-                # FIX: Only update comments that we created (checked by signature)
                 if SIGNATURE in c.get("body", ""):
                     comment_id = c["id"]
                     break
     except Exception as e:
-        console.print(f"⚠️  Failed to list comments: {e}")
+        # Don't fail the build if listing fails, just try to post new
+        console.print(f"[dim]⚠️  Failed to list comments: {e}[/dim]")
 
+    # 2. Prepare Request
     data = json.dumps({"body": body}).encode("utf-8")
 
     if comment_id:
@@ -233,6 +235,9 @@ def _post_to_github(token: str, body: str):
         method = "POST"
         action = "Posted"
 
+    console.print(f"[dim]Attempting to {method} comment to: {url}[/dim]")
+
+    # 3. Execute
     try:
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         with urllib.request.urlopen(req) as resp:
@@ -240,5 +245,17 @@ def _post_to_github(token: str, body: str):
                 console.print(f"✅ [green]{action} PR comment[/green]")
             else:
                 console.print(f"⚠️  Failed to post comment: HTTP {resp.status}")
+    except urllib.error.HTTPError as e:
+        console.print(f"❌ [red]HTTP Error {e.code}: {e.reason}[/red]")
+        console.print(f"   [dim]URL: {url}[/dim]")
+        if e.code == 404 and method == "POST":
+            console.print(
+                "   [yellow]Hint: A 404 on POST usually means the GITHUB_TOKEN lacks 'write' permission.[/yellow]"
+            )
+            console.print("   [yellow]Ensure your workflow includes:[/yellow]")
+            console.print("   [yellow]permissions:[/yellow]")
+            console.print("   [yellow]  pull-requests: write[/yellow]")
+        elif e.code == 404:
+            console.print("   [yellow]Hint: The PR or Issue might not exist or be accessible.[/yellow]")
     except Exception as e:
         console.print(f"❌ [red]Error posting comment: {e}[/red]")
