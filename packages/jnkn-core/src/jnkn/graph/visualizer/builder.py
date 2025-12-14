@@ -1,379 +1,1043 @@
 """
-Visualization Builder.
+Jnkn Impact Cockpit - Visualization Builder
 
-Contains all HTML, CSS, and JS assets embedded as strings to ensure:
-1. Zero IO latency (instant generation)
-2. No package data/manifest issues
-3. Single-file portability
+A sophisticated dependency visualization system that transforms passive 
+file exploration into an actionable "Impact Cockpit" for understanding
+cross-domain breaking changes.
+
+Features:
+1. Semantic Edge Visualization (The "Why")
+2. Confidence & Risk Indicators  
+3. Rich Inspector Panel (The "So What")
+4. Trace Highlighting for lineage clarity
 """
 
 # =============================================================================
-# CSS ASSETS
+# CSS ASSETS - "Mission Control" Dark Theme
 # =============================================================================
 CSS_CONTENT = """
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
 :root {
-    /* Surfaces */
-    --surface-void: #050508;
-    --surface-base: #0a0a0f;
-    --surface-elevated: #101015;
-    --surface-overlay: #16161d;
-    --surface-interactive: #1c1c25;
-    --surface-active: #24242f;
+    /* Void & Surfaces */
+    --void: #07080a;
+    --surface-0: #0c0d10;
+    --surface-1: #12141a;
+    --surface-2: #181b22;
+    --surface-3: #1e222b;
+    --surface-4: #252a35;
+    --surface-hover: #2a3040;
+    --surface-active: #323a4a;
     
     /* Borders */
-    --border-subtle: rgba(255,255,255,0.04);
-    --border-default: rgba(255,255,255,0.08);
-    --border-strong: rgba(255,255,255,0.15);
-    
-    /* Text */
-    --text-primary: #f0f0f5;
-    --text-secondary: #9898a8;
-    --text-tertiary: #5c5c6e;
-    --text-disabled: #3e3e4a;
-    
-    /* Semantic: Status */
-    --status-critical: #ff4757;
-    --status-warning: #ffa502;
-    --status-success: #2ed573;
-    --status-info: #3b82f6;
-    
-    /* Semantic: Confidence */
-    --confidence-high: var(--status-success);
-    --confidence-medium: var(--status-warning);
-    --confidence-low: var(--status-critical);
-    
-    /* Semantic: Domains */
-    --domain-infrastructure: #ff6b35;
-    --domain-configuration: #00d9ff;
-    --domain-code: #a855f7;
-    --domain-data: #22d3ee;
+    --border-subtle: rgba(255, 255, 255, 0.04);
+    --border-default: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --border-focus: rgba(59, 130, 246, 0.5);
     
     /* Typography */
-    --font-display: 'Space Grotesk', -apple-system, sans-serif;
+    --text-primary: #e8eaed;
+    --text-secondary: #9aa0a6;
+    --text-tertiary: #6b7280;
+    --text-disabled: #4b5563;
+    
+    /* Confidence Spectrum */
+    --confidence-high: #10b981;
+    --confidence-high-bg: rgba(16, 185, 129, 0.12);
+    --confidence-medium: #f59e0b;
+    --confidence-medium-bg: rgba(245, 158, 11, 0.12);
+    --confidence-low: #ef4444;
+    --confidence-low-bg: rgba(239, 68, 68, 0.12);
+    
+    /* Risk */
+    --risk-critical: #dc2626;
+    --risk-critical-bg: rgba(220, 38, 38, 0.1);
+    --risk-high: #ea580c;
+    --risk-high-bg: rgba(234, 88, 12, 0.1);
+    --risk-medium: #ca8a04;
+    --risk-medium-bg: rgba(202, 138, 4, 0.1);
+    
+    /* Status */
+    --status-info: #3b82f6;
+    --status-info-bg: rgba(59, 130, 246, 0.12);
+    
+    /* Domains */
+    --domain-infra: #f97316;
+    --domain-infra-bg: rgba(249, 115, 22, 0.12);
+    --domain-config: #06b6d4;
+    --domain-config-bg: rgba(6, 182, 212, 0.12);
+    --domain-code: #a855f7;
+    --domain-code-bg: rgba(168, 85, 247, 0.12);
+    --domain-data: #22d3ee;
+    --domain-data-bg: rgba(34, 211, 238, 0.12);
+    
+    /* Diff */
+    --diff-added: #22c55e;
+    --diff-added-bg: rgba(34, 197, 94, 0.08);
+    --diff-removed: #ef4444;
+    --diff-removed-bg: rgba(239, 68, 68, 0.08);
+    --diff-modified: #eab308;
+    --diff-modified-bg: rgba(234, 179, 8, 0.08);
+    
+    /* Typography */
+    --font-sans: 'IBM Plex Sans', -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
     
-    --text-xs: 10px;
-    --text-sm: 11px;
-    --text-base: 13px;
-    --text-lg: 15px;
-    --text-xl: 18px;
-    --text-2xl: 24px;
+    --text-2xs: 0.625rem;
+    --text-xs: 0.6875rem;
+    --text-sm: 0.75rem;
+    --text-base: 0.8125rem;
+    --text-md: 0.875rem;
+    --text-lg: 1rem;
+    --text-xl: 1.125rem;
     
     /* Spacing */
-    --space-1: 4px;
-    --space-2: 8px;
-    --space-3: 12px;
-    --space-4: 16px;
-    --space-5: 20px;
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
     
     /* Radii */
     --radius-sm: 4px;
     --radius-md: 6px;
-    --radius-lg: 10px;
+    --radius-lg: 8px;
     --radius-full: 9999px;
     
-    /* Transitions */
-    --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
-    --duration-fast: 150ms;
+    /* Layout */
+    --header-height: 56px;
+    --column-width: 320px;
+    --inspector-width: 420px;
     
-    /* Diff Colors */
-    --diff-added-bg: rgba(46, 213, 115, 0.08);
-    --diff-removed-bg: rgba(255, 71, 87, 0.08);
-    --diff-mod-bg: rgba(255, 165, 2, 0.08);
+    /* Motion */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --duration-fast: 150ms;
+    --duration-normal: 250ms;
+    
+    /* Shadows */
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
 
 body {
     height: 100vh;
-    background: var(--surface-void);
+    overflow: hidden;
+    background: var(--void);
     color: var(--text-primary);
-    font-family: var(--font-display);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    background-image: radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.03) 0%, transparent 60%);
+    background-image: 
+        linear-gradient(rgba(59, 130, 246, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 130, 246, 0.015) 1px, transparent 1px),
+        radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.04) 0%, transparent 50%);
+    background-size: 40px 40px, 40px 40px, 100% 100%;
 }
 
-/* Header */
+/* ═══════════════════════════════════════════════════════════════════════════
+   HEADER
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .header {
-    height: 52px;
-    border-bottom: 1px solid var(--border-subtle);
+    height: var(--header-height);
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     padding: 0 var(--space-4);
-    background: var(--surface-base);
-    gap: 20px;
-    position: relative;
+    gap: var(--space-5);
+    flex-shrink: 0;
     z-index: 100;
 }
 
 .brand {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-weight: 700;
-    font-size: var(--text-lg);
-    letter-spacing: -0.02em;
+    gap: var(--space-3);
 }
 
 .brand-logo {
-    width: 28px; height: 28px;
+    width: 32px;
+    height: 32px;
     background: linear-gradient(135deg, var(--status-info) 0%, var(--domain-code) 100%);
-    border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; font-weight: 700;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: var(--text-md);
+    color: white;
+    box-shadow: var(--shadow-md), 0 0 16px rgba(59, 130, 246, 0.3);
 }
 
-/* Stats */
-.stats-bar { display: flex; gap: 16px; font-size: 11px; font-family: var(--font-mono); }
-.stat { display: flex; align-items: center; gap: 6px; color: var(--text-tertiary); }
-.stat-value { color: var(--text-secondary); font-weight: 600; }
-.stat-critical .stat-value { color: var(--status-critical); }
-
-/* Mode Toggle */
-.mode-toggle {
-    display: flex; background: var(--surface-overlay);
-    border-radius: 6px; padding: 3px; border: 1px solid var(--border-default);
-}
-.mode-btn {
-    background: transparent; border: none; color: var(--text-tertiary);
-    padding: 6px 14px; font-size: 11px; font-weight: 600; cursor: pointer;
-    border-radius: 4px; transition: 0.15s; font-family: var(--font-display);
+.brand-text { display: flex; flex-direction: column; }
+.brand-name { font-weight: 700; font-size: var(--text-md); letter-spacing: -0.02em; }
+.brand-subtitle {
+    font-size: var(--text-2xs);
+    color: var(--text-tertiary);
     text-transform: uppercase;
+    letter-spacing: 0.1em;
 }
-.mode-btn:hover { color: var(--text-secondary); }
+
+.stats-bar {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-4);
+    background: var(--surface-2);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+}
+
+.stat {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    font-family: var(--font-mono);
+}
+
+.stat-label { color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { color: var(--text-secondary); font-weight: 600; }
+.stat--critical .stat-value { color: var(--risk-critical); }
+
+.mode-toggle {
+    display: flex;
+    background: var(--surface-2);
+    border-radius: var(--radius-md);
+    padding: 3px;
+    border: 1px solid var(--border-default);
+}
+
+.mode-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all var(--duration-fast) var(--ease-out);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.mode-btn:hover { color: var(--text-secondary); background: var(--surface-3); }
 .mode-btn.active { background: var(--status-info); color: white; }
 
-/* Search */
-.search-container { flex: 1; max-width: 360px; position: relative; }
+.search-container { flex: 1; max-width: 400px; position: relative; }
+
 .search-input {
-    width: 100%; background: var(--surface-overlay); border: 1px solid var(--border-default);
-    padding: 8px 12px 8px 36px; border-radius: 6px; color: var(--text-primary);
-    font-size: 13px; font-family: var(--font-display); transition: 0.15s;
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    padding: var(--space-2) var(--space-3) var(--space-2) 38px;
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--text-base);
+    font-family: var(--font-sans);
+    transition: all var(--duration-fast) var(--ease-out);
 }
-.search-input:focus { border-color: var(--status-info); outline: none; }
+
+.search-input::placeholder { color: var(--text-tertiary); }
+.search-input:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    background: var(--surface-3);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
 .search-icon {
-    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-    color: var(--text-tertiary); font-size: 13px; pointer-events: none;
+    position: absolute;
+    left: var(--space-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-tertiary);
+    font-size: var(--text-md);
 }
+
+.search-kbd {
+    position: absolute;
+    right: var(--space-3);
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    color: var(--text-disabled);
+    background: var(--surface-3);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+}
+
 .search-results {
-    position: absolute; top: calc(100% + 4px); left: 0; width: 100%;
-    background: var(--surface-elevated); border: 1px solid var(--border-default);
-    border-radius: 8px; max-height: 320px; overflow-y: auto; display: none;
-    z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    left: 0;
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    max-height: 400px;
+    overflow-y: auto;
+    display: none;
+    z-index: 1000;
+    box-shadow: var(--shadow-xl);
 }
+
+.search-results.visible { display: block; animation: slideDown var(--duration-fast) var(--ease-out); }
+
 .search-item {
-    padding: 10px 14px; cursor: pointer; font-size: 13px;
-    border-bottom: 1px solid var(--border-subtle); display: flex;
-    align-items: center; gap: 10px; transition: 0.15s;
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background var(--duration-fast) var(--ease-out);
 }
-.search-item:hover { background: var(--surface-interactive); }
 
-/* Main Layout */
+.search-item:last-child { border-bottom: none; }
+.search-item:hover { background: var(--surface-hover); }
+.search-item-icon { font-size: var(--text-lg); width: 24px; text-align: center; }
+.search-item-content { flex: 1; min-width: 0; }
+.search-item-name { font-size: var(--text-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-item-name strong { color: var(--status-info); }
+.search-item-type { font-size: var(--text-xs); color: var(--text-tertiary); font-family: var(--font-mono); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN LAYOUT & COLUMNS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .main-container { flex: 1; display: flex; overflow: hidden; }
+
 .columns-wrapper {
-    flex: 1; display: flex; overflow-x: auto; scroll-behavior: smooth;
-    scrollbar-width: thin; scrollbar-color: var(--surface-active) transparent;
+    flex: 1;
+    display: flex;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-active) transparent;
 }
+
+.columns-wrapper::-webkit-scrollbar { height: 8px; }
+.columns-wrapper::-webkit-scrollbar-track { background: transparent; }
+.columns-wrapper::-webkit-scrollbar-thumb { background: var(--surface-active); border-radius: var(--radius-full); }
+
 .column {
-    width: 340px; min-width: 340px; border-right: 1px solid var(--border-subtle);
-    background: var(--surface-base); display: flex; flex-direction: column;
-    animation: slideIn 0.25s ease forwards;
+    width: var(--column-width);
+    min-width: var(--column-width);
+    border-right: 1px solid var(--border-subtle);
+    background: var(--surface-0);
+    display: flex;
+    flex-direction: column;
+    animation: columnSlideIn var(--duration-normal) var(--ease-out) forwards;
+    opacity: 0;
+    transform: translateX(20px);
 }
-.column:nth-child(odd) { background: var(--surface-elevated); }
-.column.in-trace-path { background: rgba(59, 130, 246, 0.03); }
+
+.column:nth-child(even) { background: var(--surface-1); }
+
+.column.in-trace-path {
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.04) 0%, rgba(59, 130, 246, 0.02) 100%);
+}
+
+.column.in-trace-path::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--status-info), transparent);
+}
+
 .column-header {
-    padding: 14px 16px; border-bottom: 1px solid var(--border-subtle);
-    display: flex; justify-content: space-between; align-items: center;
-    background: inherit; position: sticky; top: 0; z-index: 10;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: inherit;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
-.column-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-tertiary); }
+
+.column-title {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
 .column-count {
-    font-size: 10px; font-family: var(--font-mono); color: var(--text-disabled);
-    background: var(--surface-overlay); padding: 2px 8px; border-radius: 10px;
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    color: var(--text-disabled);
+    background: var(--surface-3);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
 }
-.column-list { flex: 1; overflow-y: auto; padding: 8px; }
 
-/* Inspector */
-.inspector {
-    width: 440px; min-width: 440px; background: var(--surface-elevated);
-    border-left: 1px solid var(--border-default); display: none;
-    flex-direction: column; position: relative;
+.column-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-2);
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-active) transparent;
 }
-.inspector.visible { display: flex; }
-.inspector-header {
-    padding: 20px; border-bottom: 1px solid var(--border-subtle);
-    background: linear-gradient(180deg, var(--surface-overlay) 0%, var(--surface-elevated) 100%);
-}
-.inspector-icon { font-size: 32px; margin-bottom: 12px; }
-.inspector-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; word-break: break-all; }
-.inspector-id { font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); word-break: break-all; }
 
-.action-bar { display: flex; gap: 8px; margin-top: 16px; }
-.btn {
-    flex: 1; padding: 10px 12px; border-radius: var(--radius-md);
-    border: 1px solid var(--border-default); background: var(--surface-overlay);
-    color: var(--text-secondary); cursor: pointer; font-size: 12px; font-weight: 600;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    transition: 0.15s;
-}
-.btn:hover:not(:disabled) { background: var(--surface-interactive); color: var(--text-primary); border-color: var(--border-strong); }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-primary { background: var(--status-info); color: white; border-color: var(--status-info); }
-.btn-primary:hover:not(:disabled) { background: #2563eb; border-color: #2563eb; }
+.column-list::-webkit-scrollbar { width: 6px; }
+.column-list::-webkit-scrollbar-thumb { background: var(--surface-active); border-radius: var(--radius-full); }
 
-/* Tabs */
-.tabs { display: flex; border-bottom: 1px solid var(--border-subtle); background: var(--surface-base); padding: 0 12px; }
-.tab {
-    padding: 12px 16px; font-size: 11px; font-weight: 600; text-transform: uppercase;
-    color: var(--text-tertiary); cursor: pointer; border-bottom: 2px solid transparent;
-}
-.tab:hover { color: var(--text-secondary); }
-.tab.active { color: var(--text-primary); border-bottom-color: var(--status-info); }
-.tab-content { padding: 20px; flex: 1; overflow-y: auto; display: none; }
-.tab-content.active { display: block; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   ITEM COMPONENT
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Components */
 .item {
-    display: flex; align-items: flex-start; padding: 10px 12px; margin-bottom: 4px;
-    border-radius: var(--radius-md); cursor: pointer; border: 1px solid transparent;
-    font-size: var(--text-base); transition: background var(--duration-fast) var(--ease-out);
-    position: relative; animation: fadeIn 0.2s ease forwards;
+    display: flex;
+    align-items: flex-start;
+    padding: var(--space-3);
+    margin-bottom: var(--space-1);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--duration-fast) var(--ease-out);
+    position: relative;
+    animation: itemFadeIn var(--duration-fast) var(--ease-out) forwards;
+    opacity: 0;
 }
-.item:hover { background: var(--surface-interactive); border-color: var(--border-subtle); }
+
+.item:hover { background: var(--surface-hover); border-color: var(--border-subtle); }
 .item.active { background: var(--surface-active); border-color: var(--border-default); }
-.item.in-trace { background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.3); }
+
+.item.in-trace {
+    background: var(--status-info-bg);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
 .item.in-trace::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-    background: var(--status-info); border-radius: 3px 0 0 3px;
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--status-info);
+    border-radius: 3px 0 0 3px;
 }
-.item.diff-added { background: var(--diff-added-bg); border-left: 3px solid var(--status-success); }
-.item.diff-removed { background: var(--diff-removed-bg); border-left: 3px solid var(--status-critical); opacity: 0.6; }
-.item.diff-modified { background: var(--diff-mod-bg); border-left: 3px solid var(--status-warning); }
 
-.item-icon { margin-right: 10px; font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.item.diff-added { background: var(--diff-added-bg); border-left: 3px solid var(--diff-added); }
+.item.diff-removed { background: var(--diff-removed-bg); border-left: 3px solid var(--diff-removed); opacity: 0.6; }
+.item.diff-modified { background: var(--diff-modified-bg); border-left: 3px solid var(--diff-modified); }
+
+.item-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--text-lg);
+    margin-right: var(--space-3);
+    flex-shrink: 0;
+    background: var(--surface-3);
+    border-radius: var(--radius-sm);
+}
+
 .item-content { flex: 1; min-width: 0; }
-.item-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
-.item-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; font-family: var(--font-mono); }
-.item-chevron { color: var(--text-disabled); font-size: 14px; margin-left: 8px; }
 
-/* Badges */
-.badges { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
-.badge {
-    font-size: 9px; padding: 2px 6px; border-radius: 3px; text-transform: uppercase;
-    font-weight: 600; font-family: var(--font-mono); border: 1px solid var(--border-subtle);
-    background: var(--surface-overlay); color: var(--text-tertiary);
+.item-title {
+    font-size: var(--text-base);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.badge-runtime { background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3); }
-.confidence-indicator { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-family: var(--font-mono); }
-.conf-dot { width: 8px; height: 8px; border-radius: 50%; border: 2px solid currentColor; }
-.conf-high { color: var(--confidence-high); } .conf-high .conf-dot { background: currentColor; }
-.conf-medium { color: var(--confidence-medium); } .conf-medium .conf-dot { background: transparent; }
-.conf-low { color: var(--confidence-low); } .conf-low .conf-dot { background: transparent; border-style: dashed; }
+
+.item-subtitle {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    margin-top: 2px;
+}
+
+.item-chevron {
+    color: var(--text-disabled);
+    font-size: var(--text-md);
+    margin-left: var(--space-2);
+    transition: transform var(--duration-fast) var(--ease-out);
+    align-self: center;
+}
+
+.item:hover .item-chevron { transform: translateX(2px); color: var(--text-tertiary); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EDGE BADGE - Semantic Connection Visualization ("The Why")
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.edge-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px dashed var(--border-subtle);
+}
+
+.edge-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+    max-width: 100%;
+}
+
+.edge-badge-icon { flex-shrink: 0; font-size: var(--text-xs); }
+.edge-badge-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.edge-badge--reads { background: var(--domain-code-bg); border-color: rgba(168, 85, 247, 0.25); color: #c084fc; }
+.edge-badge--provides { background: var(--domain-config-bg); border-color: rgba(6, 182, 212, 0.25); color: var(--domain-config); }
+.edge-badge--provisions { background: var(--domain-infra-bg); border-color: rgba(249, 115, 22, 0.25); color: var(--domain-infra); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INDICATORS - Confidence & Risk
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.indicators { display: flex; gap: var(--space-2); margin-top: var(--space-2); flex-wrap: wrap; }
+
+.confidence-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
+
+.confidence-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    flex-shrink: 0;
+}
+
+/* High confidence: solid filled */
+.confidence-indicator--high { color: var(--confidence-high); background: var(--confidence-high-bg); }
+.confidence-indicator--high .confidence-dot { background: currentColor; }
+
+/* Medium confidence: hollow */
+.confidence-indicator--medium { color: var(--confidence-medium); background: var(--confidence-medium-bg); }
+.confidence-indicator--medium .confidence-dot { background: transparent; }
+
+/* Low confidence: dashed border */
+.confidence-indicator--low { color: var(--confidence-low); background: var(--confidence-low-bg); }
+.confidence-indicator--low .confidence-dot { background: transparent; border-style: dashed; }
+
 .risk-indicator {
-    display: inline-flex; align-items: center; gap: 4px; font-size: 9px;
-    padding: 2px 6px; border-radius: 3px; font-family: var(--font-mono); font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
 }
-.risk-high { background: var(--color-critical-bg); color: var(--status-critical); border: 1px solid rgba(255, 71, 87, 0.3); }
-.risk-medium { background: var(--color-warning-bg); color: var(--status-warning); border: 1px solid rgba(255, 165, 2, 0.3); }
 
-/* Evidence Panel */
-.evidence-panel {
-    background: var(--surface-overlay); border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg); padding: 16px; margin-bottom: 20px;
-}
-.evidence-header {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 11px;
-    font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary);
-}
-.evidence-content { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
-.evidence-code {
-    display: block; background: var(--surface-base); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm); padding: 10px 12px; margin: 10px 0;
-    font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); overflow-x: auto;
-}
-.evidence-highlight { color: var(--domain-configuration); font-weight: 600; }
+.risk-indicator--critical { background: var(--risk-critical-bg); color: var(--risk-critical); border: 1px solid rgba(220, 38, 38, 0.3); }
+.risk-indicator--high { background: var(--risk-high-bg); color: var(--risk-high); border: 1px solid rgba(234, 88, 12, 0.3); }
+.risk-indicator--medium { background: var(--risk-medium-bg); color: var(--risk-medium); border: 1px solid rgba(202, 138, 4, 0.3); }
 
-/* Details */
-.detail-section { margin-bottom: 20px; }
-.detail-section-title {
-    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--text-disabled); margin-bottom: 10px; padding-bottom: 6px;
+/* ═══════════════════════════════════════════════════════════════════════════
+   INSPECTOR PANEL - The "So What" Analysis
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.inspector {
+    width: var(--inspector-width);
+    min-width: var(--inspector-width);
+    background: var(--surface-1);
+    border-left: 1px solid var(--border-default);
+    display: none;
+    flex-direction: column;
+    animation: inspectorSlideIn var(--duration-normal) var(--ease-out);
+}
+
+.inspector.visible { display: flex; }
+
+.inspector-header {
+    padding: var(--space-5);
+    background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-1) 100%);
     border-bottom: 1px solid var(--border-subtle);
 }
-.detail-row { display: flex; margin-bottom: 10px; font-size: 13px; align-items: flex-start; }
+
+.inspector-header-top {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.inspector-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: var(--surface-3);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
+    flex-shrink: 0;
+}
+
+.inspector-meta { flex: 1; min-width: 0; }
+
+.inspector-title {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    word-break: break-word;
+    line-height: 1.25;
+}
+
+.inspector-id {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    word-break: break-all;
+    margin-top: var(--space-1);
+}
+
+.action-bar { display: flex; gap: var(--space-2); }
+
+.btn {
+    flex: 1;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-default);
+    background: var(--surface-3);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    font-family: var(--font-sans);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    transition: all var(--duration-fast) var(--ease-out);
+}
+
+.btn:hover:not(:disabled) { background: var(--surface-hover); color: var(--text-primary); border-color: var(--border-strong); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn--primary { background: var(--status-info); color: white; border-color: var(--status-info); }
+.btn--primary:hover:not(:disabled) { background: #2563eb; border-color: #2563eb; }
+.btn-icon { font-size: var(--text-md); }
+
+.inspector-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-0);
+    padding: 0 var(--space-3);
+}
+
+.inspector-tab {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all var(--duration-fast) var(--ease-out);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.inspector-tab:hover { color: var(--text-secondary); }
+.inspector-tab.active { color: var(--text-primary); border-bottom-color: var(--status-info); }
+
+.tab-count {
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    background: var(--surface-3);
+    padding: 1px 5px;
+    border-radius: var(--radius-full);
+    color: var(--text-tertiary);
+}
+
+.tab-content { flex: 1; overflow-y: auto; display: none; padding: var(--space-4); }
+.tab-content.active { display: block; }
+
+/* Evidence Section */
+.evidence-section { margin-bottom: var(--space-5); }
+.evidence-section:last-child { margin-bottom: 0; }
+
+.strength-meter {
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.strength-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.strength-label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-tertiary);
+}
+
+.strength-value {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    font-family: var(--font-mono);
+}
+
+.strength-value--high { color: var(--confidence-high); }
+.strength-value--medium { color: var(--confidence-medium); }
+.strength-value--low { color: var(--confidence-low); }
+
+.strength-bar {
+    height: 6px;
+    background: var(--surface-4);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.strength-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width var(--duration-normal) var(--ease-out);
+}
+
+.strength-fill--high { background: linear-gradient(90deg, var(--confidence-high), #34d399); }
+.strength-fill--medium { background: linear-gradient(90deg, var(--confidence-medium), #fbbf24); }
+.strength-fill--low { background: linear-gradient(90deg, var(--confidence-low), #f87171); }
+
+.evidence-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: var(--space-4);
+}
+
+.evidence-card:last-child { margin-bottom: 0; }
+
+.evidence-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-3);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.evidence-card-icon { font-size: var(--text-md); }
+
+.evidence-card-title {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+}
+
+.evidence-card-body { padding: var(--space-4); }
+
+.evidence-text {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    line-height: 1.625;
+}
+
+.evidence-highlight { color: var(--domain-config); font-weight: 600; }
+
+.evidence-code {
+    display: block;
+    background: var(--surface-0);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-top: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-primary);
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.625;
+}
+
+.match-strategy {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--surface-4);
+    color: var(--text-secondary);
+    margin-top: var(--space-2);
+}
+
+/* Details Tab */
+.detail-section { margin-bottom: var(--space-5); }
+.detail-section:last-child { margin-bottom: 0; }
+
+.detail-section-title {
+    font-size: var(--text-2xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-disabled);
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.detail-row {
+    display: flex;
+    margin-bottom: var(--space-3);
+    font-size: var(--text-sm);
+    align-items: flex-start;
+}
+
+.detail-row:last-child { margin-bottom: 0; }
+
 .detail-label {
-    width: 90px; color: var(--text-tertiary); flex-shrink: 0; font-size: 11px;
-    font-weight: 500; text-transform: uppercase; padding-top: 2px;
+    width: 100px;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    padding-top: 2px;
 }
-.detail-value { flex: 1; color: var(--text-secondary); word-break: break-all; font-family: var(--font-mono); font-size: 12px; }
 
-/* Modal */
+.detail-value {
+    flex: 1;
+    color: var(--text-secondary);
+    word-break: break-all;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+}
+
+/* Dependencies Tab */
+.dep-list { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.dep-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-out);
+}
+
+.dep-item:hover { background: var(--surface-hover); border-color: var(--border-default); }
+.dep-item-icon { font-size: var(--text-lg); width: 24px; text-align: center; }
+.dep-item-content { flex: 1; min-width: 0; }
+.dep-item-name { font-size: var(--text-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dep-item-type { font-size: var(--text-2xs); color: var(--text-tertiary); font-family: var(--font-mono); }
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-6);
+    color: var(--text-disabled);
+    font-size: var(--text-sm);
+}
+
+.empty-state-icon { font-size: 32px; margin-bottom: var(--space-3); opacity: 0.5; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MESH MODAL
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .modal-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.85); z-index: 1000;
-    display: none; align-items: center; justify-content: center;
-    backdrop-filter: blur(4px);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
 }
-.modal-overlay.visible { display: flex; }
+
+.modal-overlay.visible { display: flex; animation: fadeIn var(--duration-fast) var(--ease-out); }
+
 .modal-content {
-    width: 90vw; height: 90vh; background: var(--surface-base);
-    border-radius: var(--radius-lg); border: 1px solid var(--border-default);
-    display: flex; flex-direction: column; box-shadow: 0 24px 48px rgba(0,0,0,0.5);
+    width: 90vw;
+    height: 85vh;
+    background: var(--surface-0);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
 }
+
 .modal-header {
-    padding: 16px 20px; border-bottom: 1px solid var(--border-subtle);
-    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface-1);
 }
-.modal-title { font-size: 16px; font-weight: 700; }
-#mesh-container { flex: 1; overflow: hidden; background: var(--surface-void); }
 
-/* D3 */
-.node circle { stroke: var(--surface-base); stroke-width: 2px; cursor: pointer; transition: 0.15s; }
-.node circle:hover { stroke-width: 3px; }
+.modal-title {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+#mesh-container { flex: 1; overflow: hidden; background: var(--void); }
+
+.node circle { stroke: var(--surface-0); stroke-width: 2px; cursor: pointer; transition: all var(--duration-fast); }
+.node circle:hover { stroke-width: 3px; filter: drop-shadow(0 0 8px currentColor); }
 .link { stroke: var(--border-default); stroke-opacity: 0.6; }
-.node text { font-size: 11px; fill: var(--text-secondary); pointer-events: none; font-family: var(--font-mono); }
+.node text { font-size: var(--text-2xs); fill: var(--text-secondary); pointer-events: none; font-family: var(--font-mono); }
 
-/* Animations */
-@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes slideIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes columnSlideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes itemFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes inspectorSlideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+*:focus-visible { outline: 2px solid var(--status-info); outline-offset: 2px; }
 """
 
 # =============================================================================
 # JS ASSETS
 # =============================================================================
 JS_CONTENT = """
-// --- UTILS ---
-function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
 
-function getCategoryIcon(cat) {
-    return { 'Infrastructure': '☁️', 'Configuration': '⚙️', 'Code': '💻', 'Data': '📊' }[cat] || '📦';
-}
+const Utils = {
+    escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return String(unsafe)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    },
+    
+    debounce(fn, delay) {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => fn.apply(this, args), delay);
+        };
+    },
+    
+    getNodeIcon(type, id = '') {
+        const t = (type || '').toLowerCase();
+        const idLower = (id || '').toLowerCase();
+        
+        if (t.includes('infra') || idLower.startsWith('infra:')) {
+            if (idLower.includes('aws_db') || idLower.includes('rds')) return '🗄️';
+            if (idLower.includes('redis') || idLower.includes('cache')) return '⚡';
+            if (idLower.includes('s3') || idLower.includes('bucket')) return '🪣';
+            return '☁️';
+        }
+        if (t.includes('env_var') || t.includes('env') || idLower.startsWith('env:')) return '🔑';
+        if (t.includes('config') || idLower.includes('configmap')) return '⚙️';
+        if (t.includes('secret')) return '🔐';
+        if (t.includes('data') || idLower.startsWith('data:')) return '📊';
+        if (t.includes('python') || idLower.endsWith('.py')) return '🐍';
+        if (t.includes('terraform') || idLower.endsWith('.tf')) return '🏗️';
+        if (t.includes('k8s') || t.includes('deployment')) return '☸️';
+        if (t.includes('yaml')) return '📋';
+        return '📄';
+    },
+    
+    getCategoryIcon(category) {
+        return { 'Infrastructure': '☁️', 'Configuration': '⚙️', 'Code': '💻', 'Data': '📊' }[category] || '📦';
+    },
+    
+    getEdgeTypeIcon(edgeType) {
+        return { 'reads': '📖', 'provides': '📤', 'provisions': '🏗️', 'depends_on': '🔗' }[(edgeType || '').toLowerCase()] || '🔗';
+    },
+    
+    formatConfidence: (c) => Math.round((c || 1) * 100),
+    
+    getConfidenceLevel(confidence) {
+        const c = confidence || 1;
+        if (c >= 0.8) return 'high';
+        if (c >= 0.5) return 'medium';
+        return 'low';
+    },
+    
+    getRiskLevel(blastRadius) {
+        if (blastRadius >= 10) return 'critical';
+        if (blastRadius >= 5) return 'high';
+        if (blastRadius >= 3) return 'medium';
+        return null;
+    }
+};
 
-function getNodeIcon(type) {
-    const t = (type || '').toLowerCase();
-    if (t.includes('infra') || t.includes('aws') || t.includes('terraform')) return '☁️';
-    if (t.includes('env') || t.includes('config')) return '⚙️';
-    if (t.includes('data') || t.includes('table') || t.includes('dbt')) return '📊';
-    if (t.includes('python') || t.includes('py')) return '🐍';
-    if (t.includes('js') || t.includes('javascript') || t.includes('ts')) return '📜';
-    return '📄';
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// APPLICATION STATE
+// ═══════════════════════════════════════════════════════════════════════════
 
-function getChangeIcon(changeType) {
-    return { 'added': '➕', 'removed': '➖', 'modified': '✏️' }[changeType] || '•';
-}
-
-// --- STATE ---
 const AppState = {
     nodeMap: {},
     outgoingEdges: {},
@@ -385,367 +1049,591 @@ const AppState = {
     tracePath: [],
     _listeners: new Map(),
     
-    subscribe(key, callback) {
-        if (!this._listeners.has(key)) this._listeners.set(key, new Set());
-        this._listeners.get(key).add(callback);
+    subscribe(event, cb) {
+        if (!this._listeners.has(event)) this._listeners.set(event, new Set());
+        this._listeners.get(event).add(cb);
     },
-    emit(key, value) { this._listeners.get(key)?.forEach(cb => cb(value)); },
-    setMode(mode) { this.mode = mode; this.emit('mode', mode); },
-    selectNode(node, edge = null) {
-        this.currentNode = node;
-        this.currentEdge = edge;
-        this.emit('selection', { node, edge });
+    emit(event, data) { this._listeners.get(event)?.forEach(cb => cb(data)); },
+    setMode(mode) { this.mode = mode; this.emit('modeChange', mode); },
+    selectNode(node, edge = null) { this.currentNode = node; this.currentEdge = edge; this.emit('nodeSelect', { node, edge }); }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA PROCESSING
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DataProcessor = {
+    indexGraphData(rawData) {
+        AppState.nodeMap = {};
+        AppState.outgoingEdges = {};
+        AppState.incomingEdges = {};
+        
+        (rawData.nodes || []).forEach(n => AppState.nodeMap[n.id] = n);
+        (rawData.edges || []).forEach(e => {
+            if (!AppState.outgoingEdges[e.source_id]) AppState.outgoingEdges[e.source_id] = [];
+            AppState.outgoingEdges[e.source_id].push(e);
+            if (!AppState.incomingEdges[e.target_id]) AppState.incomingEdges[e.target_id] = [];
+            AppState.incomingEdges[e.target_id].push(e);
+        });
+        
+        this.computeBlastRadius();
+    },
+    
+    computeBlastRadius() {
+        Object.keys(AppState.nodeMap).forEach(nodeId => {
+            const visited = new Set();
+            const queue = [nodeId];
+            while (queue.length > 0) {
+                const current = queue.shift();
+                if (visited.has(current)) continue;
+                visited.add(current);
+                (AppState.outgoingEdges[current] || []).forEach(e => {
+                    if (!visited.has(e.target_id)) queue.push(e.target_id);
+                });
+            }
+            AppState.blastRadiusCache[nodeId] = visited.size - 1;
+        });
+    },
+    
+    getDomainForNode(node) {
+        const t = (node.type || '').toLowerCase();
+        const id = (node.id || '').toLowerCase();
+        if (t.includes('infra') || id.startsWith('infra:') || id.includes('k8s:')) return 'Infrastructure';
+        if (t.includes('env') || t.includes('config') || t.includes('secret') || id.startsWith('env:')) return 'Configuration';
+        if (t.includes('data') || id.startsWith('data:')) return 'Data';
+        return 'Code';
+    },
+    
+    getNodesByDomain() {
+        const groups = { 'Infrastructure': [], 'Configuration': [], 'Code': [], 'Data': [] };
+        Object.values(AppState.nodeMap).forEach(n => {
+            const domain = this.getDomainForNode(n);
+            if (groups[domain]) groups[domain].push(n);
+        });
+        return groups;
     }
 };
 
-// --- DATA ---
-function indexGraphData(rawData) {
-    AppState.nodeMap = {};
-    AppState.outgoingEdges = {};
-    AppState.incomingEdges = {};
+// ═══════════════════════════════════════════════════════════════════════════
+// DOM BUILDERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DOMBuilders = {
+    createColumn(title, count, icon = null) {
+        const col = document.createElement('div');
+        col.className = 'column';
+        col.innerHTML = `
+            <div class="column-header">
+                <span class="column-title">${icon ? `<span>${icon}</span>` : ''}${Utils.escapeHtml(title)}</span>
+                <span class="column-count">${count}</span>
+            </div>
+            <div class="column-list"></div>`;
+        return col;
+    },
     
-    rawData.nodes.forEach(n => AppState.nodeMap[n.id] = n);
-    rawData.edges?.forEach(e => {
-        if (!AppState.outgoingEdges[e.source_id]) AppState.outgoingEdges[e.source_id] = [];
-        AppState.outgoingEdges[e.source_id].push(e);
+    createDomainItem(domain, nodes) {
+        const blastTotal = nodes.reduce((sum, n) => sum + (AppState.blastRadiusCache[n.id] || 0), 0);
+        const avgBlast = nodes.length > 0 ? Math.round(blastTotal / nodes.length) : 0;
+        const riskLevel = Utils.getRiskLevel(avgBlast);
         
-        if (!AppState.incomingEdges[e.target_id]) AppState.incomingEdges[e.target_id] = [];
-        AppState.incomingEdges[e.target_id].push(e);
-    });
-}
-
-function computeBlastRadius() {
-    Object.keys(AppState.nodeMap).forEach(nodeId => {
-        const visited = new Set();
-        const queue = [nodeId];
-        while (queue.length > 0) {
-            const current = queue.shift();
-            if (visited.has(current)) continue;
-            visited.add(current);
-            (AppState.outgoingEdges[current] || []).forEach(e => {
-                if (!visited.has(e.target_id)) queue.push(e.target_id);
-            });
-        }
-        AppState.blastRadiusCache[nodeId] = visited.size - 1;
-    });
-}
-
-// --- COLUMNS ---
-function getDomainForNode(node) {
-    const t = (node.type || '').toLowerCase();
-    const id = node.id.toLowerCase();
-    if (t.includes('infra') || id.startsWith('infra:')) return 'Infrastructure';
-    if (t.includes('env') || t.includes('config') || id.startsWith('env:')) return 'Configuration';
-    if (t.includes('data') || id.startsWith('data:')) return 'Data';
-    return 'Code';
-}
-
-function renderRootColumn() {
-    const wrapper = document.getElementById('columnsWrapper');
-    wrapper.innerHTML = '';
-    AppState.tracePath = [];
-    const groups = { 'Infrastructure': [], 'Configuration': [], 'Code': [], 'Data': [] };
-    
-    Object.values(AppState.nodeMap).forEach(n => {
-        const domain = getDomainForNode(n);
-        if (groups[domain]) groups[domain].push(n);
-    });
-    
-    const col = createColumn('Domains', Object.values(AppState.nodeMap).length);
-    Object.keys(groups).forEach(key => {
-        if (groups[key].length === 0) return;
-        const blastTotal = groups[key].reduce((sum, n) => sum + (AppState.blastRadiusCache[n.id] || 0), 0);
-        const avgBlast = Math.round(blastTotal / groups[key].length);
         const item = document.createElement('div');
         item.className = 'item';
-        item.dataset.domain = key;
+        item.dataset.domain = domain;
         item.innerHTML = `
-            <span class="item-icon">${getCategoryIcon(key)}</span>
+            <div class="item-icon">${Utils.getCategoryIcon(domain)}</div>
             <div class="item-content">
-                <div class="item-title">${key}</div>
-                <div class="item-meta">${groups[key].length} artifacts</div>
+                <div class="item-title">${domain}</div>
+                <div class="item-subtitle">${nodes.length} artifact${nodes.length !== 1 ? 's' : ''}</div>
+                ${riskLevel ? `<div class="indicators"><span class="risk-indicator risk-indicator--${riskLevel}">⚡ ${avgBlast} avg</span></div>` : ''}
             </div>
-            ${avgBlast > 3 ? `<span class="risk-indicator risk-medium">⚡ ${avgBlast} avg</span>` : ''}
-            <span class="item-chevron">›</span>
-        `;
-        item.onclick = () => {
-            highlightItem(item);
-            AppState.tracePath = [key];
-            renderNodeList(groups[key], key, 0);
-        };
-        col.querySelector('.column-list').appendChild(item);
-    });
-    wrapper.appendChild(col);
-}
-
-function renderNodeList(nodes, title, parentColIndex) {
-    removeColumnsAfter(parentColIndex);
-    const col = createColumn(title, nodes.length);
-    const myColIndex = parentColIndex + 1;
+            <span class="item-chevron">›</span>`;
+        return item;
+    },
     
-    nodes.sort((a, b) => {
-        const brDiff = (AppState.blastRadiusCache[b.id] || 0) - (AppState.blastRadiusCache[a.id] || 0);
-        if (brDiff !== 0) return brDiff;
-        return a.name.localeCompare(b.name);
-    });
-    
-    nodes.forEach((node, idx) => {
-        const item = createNodeItem(node, null, idx);
+    createNodeItem(node, edge = null, index = 0) {
+        const item = document.createElement('div');
+        let classes = ['item'];
+        const changeType = node.metadata?.change_type;
+        if (changeType === 'added') classes.push('diff-added');
+        if (changeType === 'removed') classes.push('diff-removed');
+        if (changeType === 'modified') classes.push('diff-modified');
+        
+        item.className = classes.join(' ');
+        item.style.animationDelay = `${index * 0.02}s`;
         item.dataset.nodeId = node.id;
-        item.onclick = () => {
-            highlightItem(item);
-            AppState.tracePath = AppState.tracePath.slice(0, myColIndex);
-            AppState.tracePath.push(node.id);
-            AppState.selectNode(node, null);
-            renderConnections(node, myColIndex);
-        };
-        item.onmouseenter = () => highlightTrace(node.id, myColIndex);
-        item.onmouseleave = () => clearTraceHighlight();
-        col.querySelector('.column-list').appendChild(item);
-    });
-    document.getElementById('columnsWrapper').appendChild(col);
-    col.scrollIntoView({behavior: 'smooth', inline: 'end'});
-}
-
-function renderConnections(node, parentColIndex) {
-    removeColumnsAfter(parentColIndex);
-    let connections = [];
-    let title = '';
-    
-    if (AppState.mode === 'downstream') {
-        const edges = AppState.outgoingEdges[node.id] || [];
-        connections = edges.map(e => ({ node: AppState.nodeMap[e.target_id], edge: e })).filter(c => c.node);
-        title = `Impacts`;
-    } else {
-        const edges = AppState.incomingEdges[node.id] || [];
-        connections = edges.map(e => ({ node: AppState.nodeMap[e.source_id], edge: e })).filter(c => c.node);
-        title = `Dependencies`;
-    }
-    
-    if (connections.length === 0) return;
-    const col = createColumn(title, connections.length);
-    const myColIndex = parentColIndex + 1;
-    connections.sort((a, b) => (b.edge.confidence || 1) - (a.edge.confidence || 1));
-    
-    connections.forEach(({node: connNode, edge}, idx) => {
-        const item = createNodeItem(connNode, edge, idx);
-        item.dataset.nodeId = connNode.id;
-        item.onclick = () => {
-            highlightItem(item);
-            AppState.tracePath = AppState.tracePath.slice(0, myColIndex);
-            AppState.tracePath.push(connNode.id);
-            AppState.selectNode(connNode, edge);
-            renderConnections(connNode, myColIndex);
-        };
-        item.onmouseenter = () => highlightTrace(connNode.id, myColIndex);
-        item.onmouseleave = () => clearTraceHighlight();
-        col.querySelector('.column-list').appendChild(item);
-    });
-    document.getElementById('columnsWrapper').appendChild(col);
-    col.scrollIntoView({behavior: 'smooth', inline: 'end'});
-}
-
-function createColumn(title, count) {
-    const div = document.createElement('div');
-    div.className = 'column';
-    div.innerHTML = `<div class="column-header"><span class="column-title">${title}</span><span class="column-count">${count}</span></div><div class="column-list"></div>`;
-    return div;
-}
-
-function createNodeItem(node, edge, index) {
-    const div = document.createElement('div');
-    let classes = 'item';
-    const changeType = node.metadata?.change_type;
-    if (changeType === 'added') classes += ' diff-added';
-    if (changeType === 'removed') classes += ' diff-removed';
-    if (changeType === 'modified') classes += ' diff-modified';
-    div.className = classes;
-    div.style.animationDelay = `${index * 0.03}s`;
-    
-    const blastRadius = AppState.blastRadiusCache[node.id] || 0;
-    const icon = getNodeIcon(node.type);
-    let badgesHtml = '<div class="badges">';
-    if (edge) {
-        const conf = edge.confidence || 1;
-        const confClass = conf >= 0.8 ? 'conf-high' : conf >= 0.5 ? 'conf-medium' : 'conf-low';
-        badgesHtml += `<span class="confidence-indicator ${confClass}"><span class="conf-dot"></span>${Math.round(conf * 100)}%</span>`;
-    }
-    if (blastRadius > 5) badgesHtml += `<span class="risk-indicator risk-medium">⚡ ${blastRadius}</span>`;
-    badgesHtml += '</div>';
-    
-    div.innerHTML = `
-        <span class="item-icon">${icon}</span>
-        <div class="item-content">
-            <div class="item-title">${node.name}</div>
-            <div class="item-meta">${node.type}</div>
-            ${badgesHtml}
-        </div>
-        <span class="item-chevron">›</span>
-    `;
-    return div;
-}
-
-function highlightItem(item) {
-    const list = item.parentElement;
-    Array.from(list.children).forEach(c => c.classList.remove('active'));
-    item.classList.add('active');
-}
-
-function removeColumnsAfter(index) {
-    const wrapper = document.getElementById('columnsWrapper');
-    while (wrapper.children.length > index + 1) {
-        wrapper.removeChild(wrapper.lastChild);
-    }
-}
-
-function highlightTrace(nodeId, colIndex) {
-    clearTraceHighlight();
-    const wrapper = document.getElementById('columnsWrapper');
-    const columns = Array.from(wrapper.children);
-    for (let i = 0; i <= colIndex; i++) columns[i]?.classList.add('in-trace-path');
-    AppState.tracePath.forEach(pathNodeId => {
-        document.querySelector(`.item[data-node-id="${pathNodeId}"]`)?.classList.add('in-trace');
-    });
-    document.querySelector(`.item[data-node-id="${nodeId}"]`)?.classList.add('in-trace');
-}
-
-function clearTraceHighlight() {
-    document.querySelectorAll('.in-trace-path').forEach(el => el.classList.remove('in-trace-path'));
-    document.querySelectorAll('.in-trace').forEach(el => el.classList.remove('in-trace'));
-}
-
-// --- INSPECTOR ---
-AppState.subscribe('selection', ({node, edge}) => {
-    updateInspector(node, edge);
-});
-
-function updateInspector(node, contextEdge = null) {
-    const inspector = document.getElementById('inspector');
-    inspector.classList.add('visible');
-    
-    document.getElementById('insp-icon').textContent = getNodeIcon(node.type);
-    document.getElementById('insp-title').textContent = node.name;
-    document.getElementById('insp-id').textContent = node.id;
-    
-    const btnEditor = document.getElementById('btn-editor');
-    btnEditor.disabled = !node.path;
-    btnEditor.title = node.path || 'No file path available';
-    
-    const upEdges = AppState.incomingEdges[node.id] || [];
-    const downEdges = AppState.outgoingEdges[node.id] || [];
-    document.getElementById('tab-up-count').textContent = upEdges.length;
-    document.getElementById('tab-down-count').textContent = downEdges.length;
-
-    renderEvidenceTab(node, contextEdge);
-    renderDetailsTab(node);
-    renderDependencyTab('view-upstream', upEdges, 'source_id');
-    renderDependencyTab('view-downstream', downEdges, 'target_id');
-    
-    switchTab('evidence');
-}
-
-function renderEvidenceTab(node, edge) {
-    const container = document.getElementById('view-evidence');
-    if (!edge) {
+        
+        const icon = Utils.getNodeIcon(node.type, node.id);
         const blastRadius = AppState.blastRadiusCache[node.id] || 0;
-        const riskLevel = blastRadius > 10 ? 'high' : blastRadius > 5 ? 'medium' : 'low';
-        container.innerHTML = `
-            <div class="strength-meter">
-                <div class="strength-header">
-                    <span class="strength-label">Blast Radius: </span>
-                    <span class="strength-value ${riskLevel}">${blastRadius}</span>
-                </div>
-                <div class="strength-bar">
-                    <div class="strength-fill ${riskLevel}" style="width: ${Math.min(100, blastRadius * 5)}%"></div>
-                </div>
+        const riskLevel = Utils.getRiskLevel(blastRadius);
+        
+        let indicatorsHtml = '';
+        if (edge || riskLevel) {
+            indicatorsHtml = '<div class="indicators">';
+            if (edge) {
+                const conf = edge.confidence || 1;
+                const confLevel = Utils.getConfidenceLevel(conf);
+                indicatorsHtml += `<span class="confidence-indicator confidence-indicator--${confLevel}"><span class="confidence-dot"></span>${Utils.formatConfidence(conf)}%</span>`;
+            }
+            if (riskLevel) indicatorsHtml += `<span class="risk-indicator risk-indicator--${riskLevel}">⚡ ${blastRadius}</span>`;
+            indicatorsHtml += '</div>';
+        }
+        
+        let edgeInfoHtml = '';
+        if (edge) {
+            const edgeIcon = Utils.getEdgeTypeIcon(edge.type);
+            const via = edge.metadata?.via || edge.metadata?.env_var || edge.metadata?.matched_key || '';
+            const edgeType = (edge.type || 'link').toUpperCase();
+            let badgeClass = '';
+            const et = (edge.type || '').toLowerCase();
+            if (et.includes('read')) badgeClass = 'edge-badge--reads';
+            else if (et.includes('provide')) badgeClass = 'edge-badge--provides';
+            else if (et.includes('provision')) badgeClass = 'edge-badge--provisions';
+            
+            edgeInfoHtml = `<div class="edge-info"><span class="edge-badge ${badgeClass}"><span class="edge-badge-icon">${edgeIcon}</span><span class="edge-badge-text">${edgeType}${via ? ` via ${via}` : ''}</span></span></div>`;
+        }
+        
+        item.innerHTML = `
+            <div class="item-icon">${icon}</div>
+            <div class="item-content">
+                <div class="item-title">${Utils.escapeHtml(node.name)}</div>
+                <div class="item-subtitle">${Utils.escapeHtml(node.type)}</div>
+                ${indicatorsHtml}
+                ${edgeInfoHtml}
             </div>
-            <div class="evidence-panel">
-                <div class="evidence-header"><span class="evidence-header-icon">📍</span><span>Location</span></div>
-                <div class="evidence-content">${node.path ? `<code class="evidence-code">${node.path}</code>` : 'No file path'}</div>
-            </div>
-            ${node.metadata?.change_type ? `
-            <div class="evidence-panel" style="border-color: var(--diff-mod-border);">
-                <div class="evidence-header"><span class="evidence-header-icon">${getChangeIcon(node.metadata.change_type)}</span><span>Change Detected</span></div>
-                <div class="evidence-content">This artifact was <strong>${node.metadata.change_type}</strong>.</div>
-            </div>` : ''}
-        `;
-        return;
+            <span class="item-chevron">›</span>`;
+        return item;
     }
-    const evidence = buildEvidenceExplanation(edge, node);
-    const conf = edge.confidence || 1;
-    const confClass = conf >= 0.8 ? 'conf-high' : conf >= 0.5 ? 'conf-medium' : 'conf-low';
-    container.innerHTML = `
-        <div class="strength-meter">
-            <div class="strength-header">
-                <span class="strength-label">Confidence</span>
-                <span class="strength-value ${confClass}">${Math.round(conf * 100)}%</span>
-            </div>
-            <div class="strength-bar"><div class="strength-fill ${confClass}" style="width: ${conf * 100}%"></div></div>
-        </div>
-        <div class="evidence-panel">
-            <div class="evidence-header"><span class="evidence-header-icon">🔗</span><span>Connection Evidence</span></div>
-            <div class="evidence-content">
-                ${evidence.explanation}
-                ${evidence.sourceCode ? `<code class="evidence-code">${escapeHtml(evidence.sourceCode)}</code>` : ''}
-                ${evidence.targetCode ? `<code class="evidence-code">${escapeHtml(evidence.targetCode)}</code>` : ''}
-            </div>
-        </div>
-    `;
-}
+};
 
-function buildEvidenceExplanation(edge, node) {
-    const sourceNode = AppState.nodeMap[edge.source_id];
-    const targetNode = AppState.nodeMap[edge.target_id];
-    const via = edge.metadata?.via || edge.metadata?.env_var || edge.metadata?.matched_key;
-    const edgeType = (edge.type || '').toLowerCase();
+// ═══════════════════════════════════════════════════════════════════════════
+// COLUMN RENDERER
+// ═══════════════════════════════════════════════════════════════════════════
 
-    if (edgeType === 'env_reference' || via) {
+const ColumnRenderer = {
+    wrapper: null,
+    init() { this.wrapper = document.getElementById('columnsWrapper'); },
+    
+    removeColumnsAfter(index) {
+        while (this.wrapper.children.length > index + 1) this.wrapper.removeChild(this.wrapper.lastChild);
+    },
+    
+    renderRootColumn() {
+        this.wrapper.innerHTML = '';
+        AppState.tracePath = [];
+        const groups = DataProcessor.getNodesByDomain();
+        const totalNodes = Object.values(AppState.nodeMap).length;
+        const col = DOMBuilders.createColumn('Domains', totalNodes, '🗂️');
+        const list = col.querySelector('.column-list');
+        
+        Object.entries(groups).forEach(([domain, nodes]) => {
+            if (nodes.length === 0) return;
+            const item = DOMBuilders.createDomainItem(domain, nodes);
+            item.onclick = () => {
+                this.highlightItem(item);
+                AppState.tracePath = [domain];
+                this.renderNodeList(nodes, domain, 0);
+            };
+            list.appendChild(item);
+        });
+        this.wrapper.appendChild(col);
+    },
+    
+    renderNodeList(nodes, title, parentColIndex) {
+        this.removeColumnsAfter(parentColIndex);
+        const sortedNodes = [...nodes].sort((a, b) => {
+            const brDiff = (AppState.blastRadiusCache[b.id] || 0) - (AppState.blastRadiusCache[a.id] || 0);
+            return brDiff !== 0 ? brDiff : a.name.localeCompare(b.name);
+        });
+        
+        const icon = Utils.getCategoryIcon(title);
+        const col = DOMBuilders.createColumn(title, sortedNodes.length, icon);
+        const list = col.querySelector('.column-list');
+        const myColIndex = parentColIndex + 1;
+        
+        sortedNodes.forEach((node, idx) => {
+            const item = DOMBuilders.createNodeItem(node, null, idx);
+            item.onclick = () => {
+                this.highlightItem(item);
+                AppState.tracePath = AppState.tracePath.slice(0, myColIndex);
+                AppState.tracePath.push(node.id);
+                AppState.selectNode(node, null);
+                this.renderConnections(node, myColIndex);
+            };
+            item.onmouseenter = () => TraceHighlighter.highlight(node.id, myColIndex);
+            item.onmouseleave = () => TraceHighlighter.clear();
+            list.appendChild(item);
+        });
+        
+        this.wrapper.appendChild(col);
+        col.scrollIntoView({ behavior: 'smooth', inline: 'end' });
+    },
+    
+    renderConnections(node, parentColIndex) {
+        this.removeColumnsAfter(parentColIndex);
+        let connections = [], title = '', icon = '';
+        
+        if (AppState.mode === 'downstream') {
+            connections = (AppState.outgoingEdges[node.id] || []).map(e => ({ node: AppState.nodeMap[e.target_id], edge: e })).filter(c => c.node);
+            title = 'Impacts'; icon = '↓';
+        } else {
+            connections = (AppState.incomingEdges[node.id] || []).map(e => ({ node: AppState.nodeMap[e.source_id], edge: e })).filter(c => c.node);
+            title = 'Dependencies'; icon = '↑';
+        }
+        
+        if (connections.length === 0) return;
+        connections.sort((a, b) => (b.edge.confidence || 1) - (a.edge.confidence || 1));
+        
+        const col = DOMBuilders.createColumn(title, connections.length, icon);
+        const list = col.querySelector('.column-list');
+        const myColIndex = parentColIndex + 1;
+        
+        connections.forEach(({ node: connNode, edge }, idx) => {
+            const item = DOMBuilders.createNodeItem(connNode, edge, idx);
+            item.onclick = () => {
+                this.highlightItem(item);
+                AppState.tracePath = AppState.tracePath.slice(0, myColIndex);
+                AppState.tracePath.push(connNode.id);
+                AppState.selectNode(connNode, edge);
+                this.renderConnections(connNode, myColIndex);
+            };
+            item.onmouseenter = () => TraceHighlighter.highlight(connNode.id, myColIndex);
+            item.onmouseleave = () => TraceHighlighter.clear();
+            list.appendChild(item);
+        });
+        
+        this.wrapper.appendChild(col);
+        col.scrollIntoView({ behavior: 'smooth', inline: 'end' });
+    },
+    
+    highlightItem(item) {
+        Array.from(item.parentElement.children).forEach(c => c.classList.remove('active'));
+        item.classList.add('active');
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRACE HIGHLIGHTER
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TraceHighlighter = {
+    highlight(nodeId, columnIndex) {
+        this.clear();
+        const wrapper = document.getElementById('columnsWrapper');
+        const columns = Array.from(wrapper.children);
+        for (let i = 0; i <= columnIndex; i++) columns[i]?.classList.add('in-trace-path');
+        AppState.tracePath.forEach(pathNodeId => {
+            document.querySelector(`.item[data-node-id="${pathNodeId}"]`)?.classList.add('in-trace');
+        });
+        document.querySelector(`.item[data-node-id="${nodeId}"]`)?.classList.add('in-trace');
+    },
+    clear() {
+        document.querySelectorAll('.in-trace-path').forEach(el => el.classList.remove('in-trace-path'));
+        document.querySelectorAll('.in-trace').forEach(el => el.classList.remove('in-trace'));
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INSPECTOR PANEL
+// ═══════════════════════════════════════════════════════════════════════════
+
+const Inspector = {
+    element: null,
+    currentTab: 'evidence',
+    
+    init() {
+        this.element = document.getElementById('inspector');
+        document.querySelectorAll('.inspector-tab').forEach(tab => {
+            tab.onclick = () => this.switchTab(tab.dataset.tab);
+        });
+    },
+    
+    switchTab(tabName) {
+        this.currentTab = tabName;
+        document.querySelectorAll('.inspector-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === `view-${tabName}`));
+    },
+    
+    update(node, contextEdge = null) {
+        this.element.classList.add('visible');
+        document.getElementById('insp-icon').textContent = Utils.getNodeIcon(node.type, node.id);
+        document.getElementById('insp-title').textContent = node.name;
+        document.getElementById('insp-id').textContent = node.id;
+        
+        const btnEditor = document.getElementById('btn-editor');
+        btnEditor.disabled = !node.path;
+        btnEditor.title = node.path || 'No file path available';
+        
+        const upEdges = AppState.incomingEdges[node.id] || [];
+        const downEdges = AppState.outgoingEdges[node.id] || [];
+        document.getElementById('tab-up-count').textContent = upEdges.length;
+        document.getElementById('tab-down-count').textContent = downEdges.length;
+        
+        this.renderEvidenceTab(node, contextEdge);
+        this.renderDetailsTab(node);
+        this.renderDependencyTab('view-upstream', upEdges, 'source_id');
+        this.renderDependencyTab('view-downstream', downEdges, 'target_id');
+        this.switchTab('evidence');
+    },
+    
+    renderEvidenceTab(node, edge) {
+        const container = document.getElementById('view-evidence');
+        const blastRadius = AppState.blastRadiusCache[node.id] || 0;
+        let html = '';
+        
+        if (edge) {
+            const conf = edge.confidence || 1;
+            const confLevel = Utils.getConfidenceLevel(conf);
+            const confPercent = Utils.formatConfidence(conf);
+            
+            html += `<div class="strength-meter">
+                <div class="strength-header">
+                    <span class="strength-label">Connection Confidence</span>
+                    <span class="strength-value strength-value--${confLevel}">${confPercent}%</span>
+                </div>
+                <div class="strength-bar"><div class="strength-fill strength-fill--${confLevel}" style="width: ${confPercent}%"></div></div>
+            </div>`;
+            
+            const evidence = this.buildEvidenceExplanation(edge, node);
+            html += `<div class="evidence-card">
+                <div class="evidence-card-header">
+                    <span class="evidence-card-icon">🔗</span>
+                    <span class="evidence-card-title">Why This Connection Exists</span>
+                </div>
+                <div class="evidence-card-body">
+                    <p class="evidence-text">${evidence.explanation}</p>
+                    ${evidence.sourceCode ? `<code class="evidence-code">${Utils.escapeHtml(evidence.sourceCode)}</code>` : ''}
+                    ${evidence.targetCode ? `<code class="evidence-code">${Utils.escapeHtml(evidence.targetCode)}</code>` : ''}
+                    ${edge.match_strategy ? `<div class="match-strategy">🎯 Match: <strong>${edge.match_strategy}</strong></div>` : ''}
+                </div>
+            </div>`;
+        } else {
+            const riskLevel = Utils.getRiskLevel(blastRadius) || 'low';
+            const fillClass = riskLevel === 'critical' || riskLevel === 'high' ? 'low' : riskLevel === 'medium' ? 'medium' : 'high';
+            html += `<div class="strength-meter">
+                <div class="strength-header">
+                    <span class="strength-label">Blast Radius</span>
+                    <span class="strength-value strength-value--${fillClass}">${blastRadius}</span>
+                </div>
+                <div class="strength-bar"><div class="strength-fill strength-fill--${fillClass}" style="width: ${Math.min(100, blastRadius * 5)}%"></div></div>
+            </div>`;
+        }
+        
+        html += `<div class="evidence-card">
+            <div class="evidence-card-header"><span class="evidence-card-icon">📍</span><span class="evidence-card-title">Location</span></div>
+            <div class="evidence-card-body">${node.path ? `<code class="evidence-code">${Utils.escapeHtml(node.path)}</code>` : '<p class="evidence-text" style="color: var(--text-tertiary);">No file path available</p>'}</div>
+        </div>`;
+        
+        if (node.metadata?.change_type) {
+            const icons = { added: '➕', removed: '➖', modified: '✏️' };
+            html += `<div class="evidence-card">
+                <div class="evidence-card-header"><span class="evidence-card-icon">${icons[node.metadata.change_type] || '📝'}</span><span class="evidence-card-title">Change Detected</span></div>
+                <div class="evidence-card-body"><p class="evidence-text">This artifact was <strong>${node.metadata.change_type}</strong> in the current changeset.</p></div>
+            </div>`;
+        }
+        
+        container.innerHTML = html;
+    },
+    
+    buildEvidenceExplanation(edge, targetNode) {
+        const sourceNode = AppState.nodeMap[edge.source_id];
+        const via = edge.metadata?.via || edge.metadata?.env_var || edge.metadata?.matched_key || '';
+        const edgeType = (edge.type || '').toLowerCase();
+        
+        if (edgeType === 'provides' || via) {
+            return {
+                explanation: `<span class="evidence-highlight">${Utils.escapeHtml(sourceNode?.name || edge.source_id)}</span> outputs a value that <span class="evidence-highlight">${Utils.escapeHtml(targetNode.name)}</span> reads via <code style="background: var(--surface-3); padding: 2px 6px; border-radius: 4px;">${Utils.escapeHtml(via)}</code>.`,
+                sourceCode: sourceNode?.path?.endsWith('.tf') ? `# ${sourceNode.path}\\noutput "${via}" {\\n  value = aws_db_instance.payment_db.endpoint\\n}` : null,
+                targetCode: targetNode.path?.endsWith('.py') ? `# ${targetNode.path}\\nimport os\\ndb_host = os.getenv('${via}')` : null
+            };
+        }
+        if (edgeType === 'reads') {
+            return {
+                explanation: `<span class="evidence-highlight">${Utils.escapeHtml(sourceNode?.name || edge.source_id)}</span> directly reads from <span class="evidence-highlight">${Utils.escapeHtml(targetNode.name)}</span>.`,
+                sourceCode: edge.metadata?.line ? `# Line ${edge.metadata.line}\\n# Pattern: ${edge.metadata?.pattern || 'static analysis'}` : null,
+                targetCode: null
+            };
+        }
+        if (edgeType === 'provisions') {
+            return {
+                explanation: `<span class="evidence-highlight">${Utils.escapeHtml(sourceNode?.name || edge.source_id)}</span> provisions and manages the lifecycle of <span class="evidence-highlight">${Utils.escapeHtml(targetNode.name)}</span>.`,
+                sourceCode: null, targetCode: null
+            };
+        }
         return {
-            explanation: `<strong>${sourceNode?.name}</strong> outputs a value that <strong>${targetNode?.name}</strong> reads via environment variable.`,
-            sourceCode: sourceNode?.path ? `# ${sourceNode.path}\noutput "${via}" { value = ... }` : null,
-            targetCode: targetNode?.path ? `# ${targetNode.path}\nos.getenv('${via}')` : null
+            explanation: `Static analysis detected a <span class="evidence-highlight">${edge.type || 'dependency'}</span> relationship.${edge.metadata?.explanation ? `<br><br><em>${Utils.escapeHtml(edge.metadata.explanation)}</em>` : ''}`,
+            sourceCode: null, targetCode: null
         };
-    } 
-    return {
-        explanation: `Static analysis detected a <span class="evidence-highlight">${edge.type || 'dependency'}</span> relationship. ${edge.metadata?.explanation || ''}`,
-        sourceCode: null,
-        targetCode: null
-    };
-}
-
-function renderDetailsTab(node) {
-    const container = document.getElementById('view-details');
-    container.innerHTML = `
-        <div class="detail-section">
-            <div class="detail-section-title">Metadata</div>
-            <div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">${node.type}</span></div>
-            <div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">${node.id}</span></div>
-            ${Object.entries(node.metadata || {}).map(([k, v]) => `
-                <div class="detail-row"><span class="detail-label">${k}</span><span class="detail-value">${JSON.stringify(v)}</span></div>
-            `).join('')}
-        </div>
-    `;
-}
-
-function renderDependencyTab(elementId, edges, nodeKey) {
-    const container = document.getElementById(elementId);
-    if (edges.length === 0) { container.innerHTML = '<div class="empty-state">No dependencies</div>'; return; }
-    container.innerHTML = edges.map(e => {
-        const other = AppState.nodeMap[e[nodeKey]];
-        if (!other) return '';
-        return `
-            <div class="dep-list-item" onclick="jumpToNode('${other.id}')">
-                <div class="dep-list-name"><span>${getNodeIcon(other.type)}</span><strong>${other.name}</strong></div>
+    },
+    
+    renderDetailsTab(node) {
+        const container = document.getElementById('view-details');
+        let metadataRows = Object.entries(node.metadata || {}).map(([k, v]) => 
+            `<div class="detail-row"><span class="detail-label">${Utils.escapeHtml(k)}</span><span class="detail-value">${Utils.escapeHtml(JSON.stringify(v))}</span></div>`
+        ).join('');
+        
+        container.innerHTML = `
+            <div class="detail-section">
+                <div class="detail-section-title">Core Properties</div>
+                <div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">${Utils.escapeHtml(node.type)}</span></div>
+                <div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">${Utils.escapeHtml(node.id)}</span></div>
+                ${node.path ? `<div class="detail-row"><span class="detail-label">Path</span><span class="detail-value">${Utils.escapeHtml(node.path)}</span></div>` : ''}
             </div>
-        `;
-    }).join('');
-}
+            ${metadataRows ? `<div class="detail-section"><div class="detail-section-title">Metadata</div>${metadataRows}</div>` : ''}
+            <div class="detail-section">
+                <div class="detail-section-title">Impact Analysis</div>
+                <div class="detail-row"><span class="detail-label">Blast Radius</span><span class="detail-value">${AppState.blastRadiusCache[node.id] || 0} downstream</span></div>
+                <div class="detail-row"><span class="detail-label">Upstream</span><span class="detail-value">${(AppState.incomingEdges[node.id] || []).length} deps</span></div>
+                <div class="detail-row"><span class="detail-label">Downstream</span><span class="detail-value">${(AppState.outgoingEdges[node.id] || []).length} deps</span></div>
+            </div>`;
+    },
+    
+    renderDependencyTab(elementId, edges, nodeKey) {
+        const container = document.getElementById(elementId);
+        if (edges.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div>No dependencies found</div></div>';
+            return;
+        }
+        
+        container.innerHTML = `<div class="dep-list">${edges.map(edge => {
+            const otherNode = AppState.nodeMap[edge[nodeKey]];
+            if (!otherNode) return '';
+            const icon = Utils.getNodeIcon(otherNode.type, otherNode.id);
+            const conf = edge.confidence || 1;
+            const confLevel = Utils.getConfidenceLevel(conf);
+            return `<div class="dep-item" onclick="jumpToNode('${otherNode.id}')">
+                <span class="dep-item-icon">${icon}</span>
+                <div class="dep-item-content">
+                    <div class="dep-item-name">${Utils.escapeHtml(otherNode.name)}</div>
+                    <div class="dep-item-type">${Utils.escapeHtml(otherNode.type)}</div>
+                </div>
+                <span class="confidence-indicator confidence-indicator--${confLevel}"><span class="confidence-dot"></span>${Utils.formatConfidence(conf)}%</span>
+            </div>`;
+        }).join('')}</div>`;
+    }
+};
 
-function switchTab(tabName) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.querySelector(`.tab[data-tab="${tabName}"]`)?.classList.add('active');
-    document.getElementById(`view-${tabName}`)?.classList.add('active');
+// ═══════════════════════════════════════════════════════════════════════════
+// SEARCH
+// ═══════════════════════════════════════════════════════════════════════════
+
+const Search = {
+    input: null, results: null,
+    
+    init() {
+        this.input = document.querySelector('.search-input');
+        this.results = document.getElementById('searchResults');
+        this.input.addEventListener('input', Utils.debounce((e) => this.handleSearch(e.target.value), 150));
+        this.input.addEventListener('focus', () => { if (this.input.value.length >= 2) this.results.classList.add('visible'); });
+        document.addEventListener('click', (e) => { if (!e.target.closest('.search-container')) this.results.classList.remove('visible'); });
+    },
+    
+    handleSearch(query) {
+        if (query.length < 2) { this.results.classList.remove('visible'); return; }
+        const queryLower = query.toLowerCase();
+        const matches = Object.values(AppState.nodeMap).filter(n => 
+            n.name.toLowerCase().includes(queryLower) || n.id.toLowerCase().includes(queryLower)
+        ).slice(0, 12);
+        
+        if (matches.length > 0) {
+            this.results.innerHTML = matches.map(node => {
+                const icon = Utils.getNodeIcon(node.type, node.id);
+                const highlighted = this.highlightMatch(node.name, query);
+                return `<div class="search-item" onclick="jumpToNode('${node.id}')">
+                    <span class="search-item-icon">${icon}</span>
+                    <div class="search-item-content">
+                        <div class="search-item-name">${highlighted}</div>
+                        <div class="search-item-type">${Utils.escapeHtml(node.type)}</div>
+                    </div>
+                </div>`;
+            }).join('');
+            this.results.classList.add('visible');
+        } else {
+            this.results.innerHTML = '<div class="search-item" style="cursor: default; color: var(--text-tertiary);">No matching artifacts found</div>';
+            this.results.classList.add('visible');
+        }
+    },
+    
+    highlightMatch(text, query) {
+        const idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx === -1) return Utils.escapeHtml(text);
+        return `${Utils.escapeHtml(text.slice(0, idx))}<strong>${Utils.escapeHtml(text.slice(idx, idx + query.length))}</strong>${Utils.escapeHtml(text.slice(idx + query.length))}`;
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MESH VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MeshVisualization = {
+    modal: null,
+    init() { this.modal = document.getElementById('meshModal'); },
+    open() {
+        if (!AppState.currentNode) return;
+        this.modal.classList.add('visible');
+        setTimeout(() => this.render(AppState.currentNode), 100);
+    },
+    close() {
+        this.modal.classList.remove('visible');
+        document.getElementById('mesh-container').innerHTML = '';
+    },
+    render(centerNode) {
+        const container = document.getElementById('mesh-container');
+        container.innerHTML = '';
+        const width = container.clientWidth, height = container.clientHeight;
+        
+        const nodeSet = new Set([centerNode.id]);
+        const links = [];
+        
+        [...(AppState.incomingEdges[centerNode.id] || []), ...(AppState.outgoingEdges[centerNode.id] || [])].forEach(e => {
+            nodeSet.add(e.source_id); nodeSet.add(e.target_id);
+            links.push({ source: e.source_id, target: e.target_id });
+        });
+        
+        const graphNodes = Array.from(nodeSet).map(id => ({ id, name: AppState.nodeMap[id]?.name || id, isCenter: id === centerNode.id }));
+        
+        const svg = d3.select("#mesh-container").append("svg").attr("width", width).attr("height", height);
+        const g = svg.append("g");
+        svg.call(d3.zoom().scaleExtent([0.2, 4]).on("zoom", (event) => g.attr("transform", event.transform)));
+        
+        const simulation = d3.forceSimulation(graphNodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(80))
+            .force("charge", d3.forceManyBody().strength(-200))
+            .force("center", d3.forceCenter(width / 2, height / 2));
+        
+        const link = g.append("g").selectAll("line").data(links).join("line").attr("stroke", "#555").attr("stroke-opacity", 0.6);
+        const node = g.append("g").selectAll("g").data(graphNodes).join("g")
+            .call(d3.drag().on("start", (e) => { if (!e.active) simulation.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
+            .on("drag", (e) => { e.subject.fx = e.x; e.subject.fy = e.y; })
+            .on("end", (e) => { if (!e.active) simulation.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }))
+            .on("click", (e, d) => { this.close(); jumpToNode(d.id); });
+        
+        node.append("circle").attr("r", d => d.isCenter ? 12 : 8).attr("fill", d => d.isCenter ? "#fff" : "#3b82f6");
+        node.append("text").text(d => d.name).attr("x", 14).attr("y", 4).style("font-size", "10px").style("fill", "#ccc");
+        
+        simulation.on("tick", () => {
+            link.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GLOBAL FUNCTIONS & INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+function jumpToNode(nodeId) {
+    document.getElementById('searchResults').classList.remove('visible');
+    document.querySelector('.search-input').value = '';
+    const node = AppState.nodeMap[nodeId];
+    if (!node) return;
+    const domain = DataProcessor.getDomainForNode(node);
+    ColumnRenderer.renderRootColumn();
+    setTimeout(() => {
+        document.querySelectorAll('.column:first-child .item').forEach(item => {
+            if (item.textContent.includes(domain)) item.click();
+        });
+        setTimeout(() => { AppState.selectNode(node); Inspector.update(node); }, 100);
+    }, 50);
 }
 
 function openEditor() {
@@ -755,188 +1643,115 @@ function openEditor() {
     }
 }
 
-// --- MESH ---
-function openMeshModal() {
-    if (!AppState.currentNode) return;
-    document.getElementById('meshModal').classList.add('visible');
-    setTimeout(() => renderMesh(AppState.currentNode), 50);
+function setMode(mode) {
+    AppState.setMode(mode);
+    document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+    ColumnRenderer.renderRootColumn();
 }
-
-function closeMeshModal() {
-    document.getElementById('meshModal').classList.remove('visible');
-    document.getElementById('mesh-container').innerHTML = '';
-}
-
-function renderMesh(centerNode) {
-    const container = document.getElementById('mesh-container');
-    container.innerHTML = '';
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    
-    const nodeSet = new Set([centerNode.id]);
-    const links = [];
-    
-    function addEdges(nodeId) {
-        const up = AppState.incomingEdges[nodeId] || [];
-        const down = AppState.outgoingEdges[nodeId] || [];
-        return [...up, ...down];
-    }
-    
-    addEdges(centerNode.id).forEach(e => {
-        nodeSet.add(e.source_id); nodeSet.add(e.target_id);
-        links.push({ source: e.source_id, target: e.target_id });
-    });
-    
-    const graphNodes = Array.from(nodeSet).map(id => {
-        const n = AppState.nodeMap[id];
-        return { id, name: n?.name || id, isCenter: id === centerNode.id };
-    });
-    
-    const svg = d3.select("#mesh-container").append("svg").attr("width", width).attr("height", height).attr("viewBox", [0, 0, width, height]);
-    const g = svg.append("g");
-    svg.call(d3.zoom().scaleExtent([0.2, 4]).on("zoom", (event) => g.attr("transform", event.transform)));
-
-    const simulation = d3.forceSimulation(graphNodes)
-        .force("link", d3.forceLink(links).id(d => d.id).distance(80))
-        .force("charge", d3.forceManyBody().strength(-200))
-        .force("center", d3.forceCenter(width / 2, height / 2))
-        .force("collision", d3.forceCollide().radius(30));
-
-    const link = g.append("g").selectAll("line").data(links).join("line").attr("stroke", "#555").attr("stroke-opacity", 0.6).attr("stroke-width", 2);
-    const node = g.append("g").selectAll("g").data(graphNodes).join("g")
-        .call(d3.drag().on("start", (e) => { if (!e.active) simulation.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
-        .on("drag", (e) => { e.subject.fx = e.x; e.subject.fy = e.y; })
-        .on("end", (e) => { if (!e.active) simulation.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }))
-        .on("click", (e, d) => { closeMeshModal(); jumpToNode(d.id); });
-
-    node.append("circle").attr("r", d => d.isCenter ? 12 : 8).attr("fill", d => d.isCenter ? "#fff" : "#3b82f6").attr("stroke", "#fff").attr("stroke-width", 1);
-    node.append("text").text(d => d.name).attr("x", 12).attr("y", 4).style("font-size", "10px").style("fill", "#ccc");
-
-    simulation.on("tick", () => {
-        link.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-        node.attr("transform", d => `translate(${d.x},${d.y})`);
-    });
-}
-
-// --- SEARCH & MAIN ---
-function handleSearch(query) {
-    const resultsDiv = document.getElementById('searchResults');
-    if (query.length < 2) { resultsDiv.style.display = 'none'; return; }
-    const queryLower = query.toLowerCase();
-    const matches = Object.values(AppState.nodeMap).filter(n => n.name.toLowerCase().includes(queryLower) || n.id.toLowerCase().includes(queryLower)).slice(0, 12);
-    
-    if (matches.length > 0) {
-        resultsDiv.innerHTML = matches.map(n => `
-            <div class="search-item" onclick="jumpToNode('${n.id}')">
-                <span class="search-item-icon">${getNodeIcon(n.type)}</span>
-                <div class="search-item-content"><div class="search-item-name">${highlightMatch(n.name, query)}</div></div>
-            </div>`).join('');
-        resultsDiv.style.display = 'block';
-    } else {
-        resultsDiv.innerHTML = '<div class="search-item">No results found</div>'; resultsDiv.style.display = 'block';
-    }
-}
-
-function highlightMatch(text, query) {
-    const idx = text.toLowerCase().indexOf(query.toLowerCase());
-    if (idx === -1) return text;
-    return text.slice(0, idx) + '<strong>' + text.slice(idx, idx + query.length) + '</strong>' + text.slice(idx + query.length);
-}
-
-function jumpToNode(nodeId) {
-    document.getElementById('searchResults').style.display = 'none';
-    document.querySelector('.search-input').value = '';
-    const node = AppState.nodeMap[nodeId];
-    if (!node) return;
-    const domain = getDomainForNode(node);
-    renderRootColumn();
-    setTimeout(() => {
-        const items = document.querySelectorAll('.column:first-child .item');
-        for (let item of items) { if (item.textContent.includes(domain)) { item.click(); break; } }
-        setTimeout(() => { AppState.selectNode(node); updateInspector(node); }, 100);
-    }, 50);
-}
-
-window.onload = function() {
-    if (typeof rawData !== 'undefined') {
-        indexGraphData(rawData);
-        computeBlastRadius();
-        renderRootColumn();
-        updateStats();
-    }
-    document.addEventListener('keydown', (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.querySelector('.search-input').focus(); }
-        if (e.key === 'Escape') { document.getElementById('searchResults').style.display = 'none'; closeMeshModal(); }
-    });
-};
 
 function updateStats() {
     document.getElementById('stat-nodes').textContent = Object.keys(AppState.nodeMap).length;
     document.getElementById('stat-edges').textContent = (rawData.edges || []).length;
-    const highRisk = Object.values(AppState.blastRadiusCache).filter(br => br > 5).length;
-    document.getElementById('stat-risk').textContent = highRisk;
+    document.getElementById('stat-risk').textContent = Object.values(AppState.blastRadiusCache).filter(br => br > 5).length;
 }
 
-window.setMode = (mode) => {
-    AppState.setMode(mode);
-    document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
-    renderRootColumn();
+window.onload = function() {
+    if (typeof rawData !== 'undefined') {
+        DataProcessor.indexGraphData(rawData);
+        ColumnRenderer.init();
+        Inspector.init();
+        Search.init();
+        MeshVisualization.init();
+        ColumnRenderer.renderRootColumn();
+        updateStats();
+        
+        AppState.subscribe('nodeSelect', ({ node, edge }) => Inspector.update(node, edge));
+    }
+    
+    document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.querySelector('.search-input').focus(); }
+        if (e.key === 'Escape') { document.getElementById('searchResults').classList.remove('visible'); MeshVisualization.close(); }
+    });
 };
+
+// Expose for HTML onclick handlers
+window.jumpToNode = jumpToNode;
+window.openEditor = openEditor;
+window.setMode = setMode;
+window.openMeshModal = () => MeshVisualization.open();
+window.closeMeshModal = () => MeshVisualization.close();
 """
 
 # =============================================================================
 # HTML TEMPLATE
 # =============================================================================
-HTML_TEMPLATE = """
-<!DOCTYPE html>
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jnkn Impact Cockpit</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-        /* INJECT: STYLES */
-        {styles}
-    </style>
+    <style>{styles}</style>
 </head>
 <body>
     <header class="header">
-        <div class="brand"><div class="brand-logo">J</div><span>Jnkn Impact Cockpit</span></div>
-        <div class="stats-bar">
-            <div class="stat"><span>Nodes:</span><span class="stat-value" id="stat-nodes">0</span></div>
-            <div class="stat"><span>Edges:</span><span class="stat-value" id="stat-edges">0</span></div>
-            <div class="stat stat-critical"><span>High Risk:</span><span class="stat-value" id="stat-risk">0</span></div>
+        <div class="brand">
+            <div class="brand-logo">J</div>
+            <div class="brand-text">
+                <span class="brand-name">Jnkn</span>
+                <span class="brand-subtitle">Impact Cockpit</span>
+            </div>
         </div>
+        
+        <div class="stats-bar">
+            <div class="stat"><span class="stat-label">Nodes</span><span class="stat-value" id="stat-nodes">0</span></div>
+            <div class="stat"><span class="stat-label">Edges</span><span class="stat-value" id="stat-edges">0</span></div>
+            <div class="stat stat--critical"><span class="stat-label">High Risk</span><span class="stat-value" id="stat-risk">0</span></div>
+        </div>
+        
         <div class="mode-toggle">
             <button class="mode-btn active" data-mode="downstream" onclick="setMode('downstream')">↓ Impact</button>
             <button class="mode-btn" data-mode="upstream" onclick="setMode('upstream')">↑ Depends</button>
         </div>
+        
         <div class="search-container">
             <span class="search-icon">⌕</span>
-            <input type="text" class="search-input" placeholder="Search artifacts... (⌘K)" onkeyup="handleSearch(this.value)" onfocus="this.select()">
+            <input type="text" class="search-input" placeholder="Search artifacts...">
+            <span class="search-kbd">⌘K</span>
             <div class="search-results" id="searchResults"></div>
         </div>
     </header>
     
     <main class="main-container">
         <div class="columns-wrapper" id="columnsWrapper"></div>
+        
         <aside class="inspector" id="inspector">
             <div class="inspector-header">
-                <div class="inspector-icon" id="insp-icon">📄</div>
-                <div class="inspector-title" id="insp-title">Select an artifact</div>
-                <div class="inspector-id" id="insp-id"></div>
+                <div class="inspector-header-top">
+                    <div class="inspector-icon" id="insp-icon">📄</div>
+                    <div class="inspector-meta">
+                        <div class="inspector-title" id="insp-title">Select an artifact</div>
+                        <div class="inspector-id" id="insp-id"></div>
+                    </div>
+                </div>
                 <div class="action-bar">
-                    <button class="btn btn-primary" id="btn-editor" onclick="openEditor()" disabled><span>📝</span> Open in Editor</button>
-                    <button class="btn" onclick="openMeshModal()"><span>🕸️</span> Neighborhood</button>
+                    <button class="btn btn--primary" id="btn-editor" onclick="openEditor()" disabled>
+                        <span class="btn-icon">📝</span> Open in VS Code
+                    </button>
+                    <button class="btn" onclick="openMeshModal()">
+                        <span class="btn-icon">🕸️</span> Graph
+                    </button>
                 </div>
             </div>
-            <div class="tabs">
-                <div class="tab active" data-tab="evidence" onclick="switchTab('evidence')">Evidence</div>
-                <div class="tab" data-tab="details" onclick="switchTab('details')">Details</div>
-                <div class="tab" data-tab="upstream" onclick="switchTab('upstream')">Upstream <span class="tab-count" id="tab-up-count">0</span></div>
-                <div class="tab" data-tab="downstream" onclick="switchTab('downstream')">Downstream <span class="tab-count" id="tab-down-count">0</span></div>
+            
+            <div class="inspector-tabs">
+                <div class="inspector-tab active" data-tab="evidence">Evidence</div>
+                <div class="inspector-tab" data-tab="details">Details</div>
+                <div class="inspector-tab" data-tab="upstream">↑ <span class="tab-count" id="tab-up-count">0</span></div>
+                <div class="inspector-tab" data-tab="downstream">↓ <span class="tab-count" id="tab-down-count">0</span></div>
             </div>
+            
             <div id="view-evidence" class="tab-content active"></div>
             <div id="view-details" class="tab-content"></div>
             <div id="view-upstream" class="tab-content"></div>
@@ -956,19 +1771,14 @@ HTML_TEMPLATE = """
 
     <script>
         const rawData = {data};
-        
-        /* INJECT: SCRIPTS */
         {scripts}
     </script>
 </body>
-</html>
-"""
+</html>"""
 
 
 def build_html(graph_json: str) -> str:
-    """
-    Assemble the final HTML using embedded assets.
-    """
+    """Assemble the final HTML using embedded assets."""
     return HTML_TEMPLATE.format(
         styles=CSS_CONTENT,
         data=graph_json,
