@@ -1,15 +1,25 @@
 #!/bin/bash
 set -e
 
-# Fetch the base ref so origin/main (or whatever base) exists
-# GITHUB_BASE_REF is automatically set by GitHub Actions for PRs
+# 1. FIX DUBIOUS OWNERSHIP
+# This must run before any other git command because the workspace 
+# is mounted from the host (runner) but we are running as root (container).
+git config --global --add safe.directory /github/workspace
+
+# 2. FETCH BASE REF
+# GITHUB_BASE_REF is set by Actions for Pull Requests (e.g., "main")
+# We need to fetch it so that 'git diff origin/main...HEAD' works.
 if [[ -n "$GITHUB_BASE_REF" ]]; then
     echo "📥 Fetching base ref: origin/$GITHUB_BASE_REF"
-    git -C /github/workspace fetch origin "$GITHUB_BASE_REF":refs/remotes/origin/"$GITHUB_BASE_REF" 2>/dev/null || {
+    
+    # Try fetching the specific branch to origin/BRANCH_NAME
+    # We suppress stderr to avoid confusing logs if it fails, but retry safely
+    git -C /github/workspace fetch origin "$GITHUB_BASE_REF":refs/remotes/origin/"$GITHUB_BASE_REF" --depth=1 2>/dev/null || {
         echo "⚠️  Fetch with refspec failed, trying simple fetch..."
-        git -C /github/workspace fetch origin "$GITHUB_BASE_REF" || true
+        git -C /github/workspace fetch origin "$GITHUB_BASE_REF" --depth=1
     }
 fi
 
-# Now run jnkn with all the arguments passed to this script
+# 3. RUN THE CLI
+# Pass all arguments through to the jnkn CLI
 exec jnkn "$@"
