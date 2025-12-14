@@ -200,8 +200,13 @@ class CheckEngine:
         """Heuristic checks based purely on filenames."""
         path = file.path.lower()
 
+        # SKIP: Tests and fixtures shouldn't trigger critical alerts
+        if any(x in path for x in ["/tests/", "/fixtures/", "/corpus/", "/test/"]):
+            return
+
         # Critical: Infrastructure Definitions
-        if path.endswith(".tf") or "terraform" in path:
+        # Check specific extensions, NOT just "terraform" in the path (which catches parser code)
+        if path.endswith((".tf", ".tfvars", ".hcl")):
             report.violations.append(
                 ApiViolation(
                     rule="INFRA_CHANGE",
