@@ -34,7 +34,7 @@ class LocalsExtractor:
 
                 node_id = f"infra:local.{local_name}"
 
-                # FIX: Use factory method to ensure path population
+                # Use factory method to ensure path population
                 yield ctx.create_config_node(
                     id=node_id,
                     name=local_name,

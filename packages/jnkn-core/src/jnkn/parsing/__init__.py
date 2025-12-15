@@ -38,8 +38,6 @@ from .base import (
     ParseResult,
 )
 from .engine import (
-    DEFAULT_SKIP_DIRS,
-    DEFAULT_SKIP_PATTERNS,
     ParserEngine,
     ParserRegistry,
     ScanConfig,
@@ -61,7 +59,4 @@ __all__ = [
     "ScanConfig",
     "ScanStats",
     "create_default_engine",
-    # Constants
-    "DEFAULT_SKIP_DIRS",
-    "DEFAULT_SKIP_PATTERNS",
 ]

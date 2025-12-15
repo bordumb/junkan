@@ -86,7 +86,7 @@ class TestModuleExtractor:
         assert var_edge.target_id == "infra:var:vpc_cidr"
         assert var_edge.metadata["input"] == "cidr_block"
         
-        # Check resource dependency
+        # Check resource dependency (ModuleExtractor currently uses colons for resources)
         res_edge = next(e for e in edges if "aws_db_instance" in e.target_id)
         assert res_edge.target_id == "infra:aws_db_instance:main"
 
@@ -103,8 +103,9 @@ class TestReferenceExtractor:
         
         assert len(results) == 1
         edge = results[0]
-        assert edge.source_id == "infra:aws_security_group:sg"
-        assert edge.target_id == "infra:aws_vpc:main"
+        # ReferenceExtractor uses dot notation for resources
+        assert edge.source_id == "infra:aws_security_group.sg"
+        assert edge.target_id == "infra:aws_vpc.main"
         assert edge.type == RelationshipType.DEPENDS_ON
         assert edge.metadata["attribute"] == "id"
 
@@ -124,7 +125,8 @@ class TestReferenceExtractor:
         assert var_edge.target_id == "infra:var:project_name"
         
         local_edge = next(e for e in results if "local" in e.target_id)
-        assert local_edge.target_id == "infra:local:common_tags"
+        # ReferenceExtractor uses dot notation for locals
+        assert local_edge.target_id == "infra:local.common_tags"
 
     def test_find_containing_block_logic(self):
         """Test the heuristic for finding the parent block ID."""
@@ -137,7 +139,8 @@ class TestReferenceExtractor:
         # Position of 'val'
         pos = text.find("val")
         block_id = extractor._find_containing_block(text, pos)
-        assert block_id == "infra:type:name"
+        # ReferenceExtractor uses dot notation for resources
+        assert block_id == "infra:type.name"
         
         # Test outside block
         assert extractor._find_containing_block(text, len(text)) is None

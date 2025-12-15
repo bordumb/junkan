@@ -30,7 +30,7 @@ class ModuleExtractor:
 
             module_id = f"infra:module:{module_name}"
 
-            # FIX: Use factory logic. Since INFRA_MODULE isn't a factory helper, use create_node.
+            # Use factory logic. Since INFRA_MODULE isn't a factory helper, use create_node.
             yield ctx.create_node(
                 id=module_id,
                 name=module_name,

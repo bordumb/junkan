@@ -203,7 +203,7 @@ def scan(
             # 8. Run Stitching (with pack integration)
             stitched_count = 0
             if graph.node_count > 0:
-                # FIX: Show stitching message by default (removed 'verbose' constraint)
+                # Show stitching message by default (removed 'verbose' constraint)
                 # This ensures the user knows cross-domain analysis is happening
                 if not as_json and not summary_only:
                     console.print("🧵 Stitching cross-domain dependencies...")

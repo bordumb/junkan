@@ -86,10 +86,10 @@ def review(min_confidence: float, max_confidence: float, graph_file: str):
         # Display Edge
         _print_edge_panel(edge, i + 1, len(edges_to_review))
 
-        # FIX: Print the menu BEFORE asking for input so the user knows what to do
+        # Print the menu BEFORE asking for input so the user knows what to do
         console.print("[dim][Y] Confirm   [N] Suppress   [S] Skip   [E] Explain   [Q] Quit[/dim]")
 
-        # FIX: More descriptive prompt text
+        # More descriptive prompt text
         choice = Prompt.ask(
             "Select action",
             choices=["y", "n", "s", "e", "q"],

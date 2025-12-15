@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, Generator, List, Set
 
+from .. import config as global_config
 from ..core.result import Err, Ok, Result
 from ..core.storage.base import StorageAdapter
 from ..core.types import Edge, Node, ScanMetadata
@@ -22,80 +23,15 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 
-# Default configurations
-DEFAULT_SKIP_DIRS: Set[str] = {
-    ".git",
-    ".jnkn",
-    "__pycache__",
-    "node_modules",
-    ".venv",
-    "venv",
-    "env",
-    ".env",
-    "dist",
-    "build",
-    "target",
-    "out",
-    "bin",
-    ".idea",
-    ".vscode",
-    "coverage",
-    "htmlcov",
-    # Add common test fixture dirs
-    "__snapshots__",
-    "__mocks__",
-    "fixtures",
-}
-
-# Updated patterns based on forensics report
-DEFAULT_SKIP_PATTERNS: Set[str] = {
-    # Compiled/Binary
-    "*.pyc",
-    "*.pyo",
-    "*.so",
-    "*.dll",
-    "*.exe",
-    # Minified / Source Maps
-    "*.min.js",
-    "*.min.css",
-    "*.map",
-    # Lockfiles
-    "*.lock",
-    "package-lock.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "poetry.lock",
-    "Gemfile.lock",
-    "composer.lock",
-    # Data / Assets
-    "*.svg",
-    "*.png",
-    "*.jpg",
-    "*.jpeg",
-    "*.ico",
-    "*.gif",
-    "*.lottie",
-    "*.csv",
-    "*.tsv",
-    "*.jsonl",
-    "*.ndjson",
-    # Test Artifacts
-    "*.snap",
-    "*.ambr",
-    ".test_durations",
-    # Logs
-    "*.log",
-}
-
-# Reduce max file size to 500KB to prevent parsing massive generated files
-MAX_FILE_SIZE = 500 * 1024
-
 
 @dataclass
 class ScanConfig:
     root_dir: Path = field(default_factory=lambda: Path.cwd())
-    skip_dirs: Set[str] = field(default_factory=lambda: DEFAULT_SKIP_DIRS.copy())
-    skip_patterns: Set[str] = field(default_factory=lambda: DEFAULT_SKIP_PATTERNS.copy())
+    skip_dirs: Set[str] = field(default_factory=lambda: global_config.IGNORE_DIRECTORIES.copy())
+    skip_patterns: Set[str] = field(
+        default_factory=lambda: global_config.IGNORE_FILE_PATTERNS.copy()
+    )
+
     file_extensions: Set[str] = field(default_factory=set)
     max_files: int = 0
     follow_symlinks: bool = False
@@ -107,6 +43,11 @@ class ScanConfig:
     def should_skip_file(self, file_path: Path) -> bool:
         from fnmatch import fnmatch
 
+        # 1. Check Binary Extensions (Fastest)
+        if global_config.is_binary_extension(file_path):
+            return True
+
+        # 2. Check Glob Patterns
         name = file_path.name
         return any(fnmatch(name, pattern) for pattern in self.skip_patterns)
 
@@ -238,7 +179,7 @@ class ParserEngine:
 
             # Check file size (Safeguard for "Whale" repos)
             try:
-                if file_path.stat().st_size > MAX_FILE_SIZE:
+                if file_path.stat().st_size > global_config.MAX_FILE_SIZE_BYTES:
                     self._logger.debug(f"Skipping large file: {file_path}")
                     stats.files_skipped += 1
                     continue

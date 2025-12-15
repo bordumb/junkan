@@ -31,7 +31,7 @@ class JavaImportExtractor:
             simple_name = full_import.split(".")[-1]
             line = ctx.get_line_number(match.start())
 
-            # FIX: Use factory method
+            # Use factory method
             yield ctx.create_code_entity_node(
                 name=simple_name,
                 line=line,

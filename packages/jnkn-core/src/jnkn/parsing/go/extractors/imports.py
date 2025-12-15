@@ -52,7 +52,7 @@ class GoImportExtractor:
             is_stdlib = not domain_in_root
             pkg_id = f"go:{imp}"
 
-            # FIX: Use factory method
+            # Use factory method
             yield ctx.create_code_entity_node(
                 name=parts[-1],
                 line=1,  # Approx

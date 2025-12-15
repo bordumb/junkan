@@ -21,7 +21,7 @@ class JinjaExtractor(BaseExtractor):
     ENV_VAR_PATTERN = re.compile(r"env_var\s*\(\s*['\"]([^'\"]+)['\"](?:,\s*[^)]*)?\s*\)")
 
     # Match var('key', default) anywhere
-    # FIX: Added negative lookbehind (?<![a-zA-Z0-9_]) to avoid matching 'env_var' as 'var'
+    # Added negative lookbehind (?<![a-zA-Z0-9_]) to avoid matching 'env_var' as 'var'
     VAR_PATTERN = re.compile(r"(?<![a-zA-Z0-9_])var\s*\(\s*['\"]([^'\"]+)['\"](?:,\s*[^)]*)?\s*\)")
 
     def can_extract(self, ctx: ExtractionContext) -> bool:

@@ -24,7 +24,7 @@ class DataSourceExtractor:
 
             node_id = f"infra:data.{data_type}.{data_name}"
 
-            # FIX: Use factory method to ensure path population
+            # Use factory method to ensure path population
             yield ctx.create_infra_node(
                 id=node_id,
                 name=data_name,

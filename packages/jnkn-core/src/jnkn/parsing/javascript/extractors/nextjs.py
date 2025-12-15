@@ -39,7 +39,7 @@ class NextJSExtractor:
             route_path = self._path_to_route(ctx.file_path)
             api_node_id = f"api:{route_path}"
 
-            # FIX: Use create_node directly instead of create_code_entity_node
+            # Use create_node directly instead of create_code_entity_node
             # This allows us to use the custom 'api:...' ID format required by tests
             # while still getting the 'path' field populated automatically.
             yield ctx.create_node(

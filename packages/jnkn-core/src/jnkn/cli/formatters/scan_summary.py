@@ -37,7 +37,7 @@ class ScanSummaryFormatter:
         """
         # Header
         self.console.print()
-        # FIX: Lowercase 'complete' to match integration tests
+        # Lowercase 'complete' to match integration tests
         self.console.print("✨ [bold green]Scan complete![/bold green]")
         self.console.print()
 

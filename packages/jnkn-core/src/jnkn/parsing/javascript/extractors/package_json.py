@@ -27,7 +27,7 @@ class PackageJsonExtractor:
             for dep_name, version in pkg.get(dep_type, {}).items():
                 dep_id = f"npm:{dep_name}"
 
-                # FIX: Use factory for dependency nodes.
+                # Use factory for dependency nodes.
                 # These are virtual, but referencing them in the graph via this file
                 # allows the user to click "Open in Editor" and go to package.json
                 yield ctx.create_code_entity_node(
@@ -53,7 +53,7 @@ class PackageJsonExtractor:
         for script_name, script_cmd in pkg.get("scripts", {}).items():
             script_id = f"script:{pkg_name}:{script_name}"
 
-            # FIX: Use factory
+            # Use factory
             yield ctx.create_node(
                 id=script_id,
                 name=script_name,

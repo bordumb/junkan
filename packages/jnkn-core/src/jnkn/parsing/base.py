@@ -203,7 +203,7 @@ class ExtractionContext:
         if line is not None:
             meta["line"] = line
 
-        # Fix: Ensure tokens is never None to satisfy Pydantic validation
+        # Ensure tokens is never None to satisfy Pydantic validation
         # Node model expects List[str], defaulting to empty list if None
         safe_tokens = tokens if tokens is not None else []
 

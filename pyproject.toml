@@ -4,9 +4,26 @@ version = "0.0.0"
 requires-python = ">=3.12"
 dependencies = []
 
-# CORRECT: 'members' belongs under [tool.uv.workspace]
+[tool.uv]
+package = false 
+
 [tool.uv.workspace]
 members = [
     "packages/jnkn-core",
     "packages/jnkn-ai"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.optional-dependencies]
+docs = [
+    "mkdocs-material",
+    "mkdocstrings-python",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-section-index",
+    "mkdocs-redirects",
+    "mike",
 ]

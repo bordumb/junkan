@@ -51,7 +51,7 @@ class VariableExtractor:
 
             var_id = f"infra:var:{var_name}"
 
-            # FIX: Use factory method for config/variables
+            # Use factory method for config/variables
             yield ctx.create_config_node(
                 id=var_id,
                 name=var_name,

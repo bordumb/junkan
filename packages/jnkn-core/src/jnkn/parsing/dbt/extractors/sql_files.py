@@ -35,7 +35,7 @@ class SQLFileExtractor:
         config_meta = {}
         if cm := self.CONFIG_PATTERN.search(ctx.text):
             config_str = cm.group(1)
-            # FIX: Parse materialized value dynamically
+            # Parse materialized value dynamically
             # Matches: materialized='table' or materialized="view"
             mat_match = re.search(r"materialized\s*=\s*['\"]([^'\"]+)['\"]", config_str)
             if mat_match:

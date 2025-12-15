@@ -46,7 +46,7 @@ class DbtColumnExtractor(BaseExtractor):
         model_name = ctx.file_path.stem
         model_node_id = f"data:model:{model_name}"
 
-        # FIX: Check if exp is not None before using it (runtime safety)
+        # Check if exp is not None before using it (runtime safety)
         if exp and isinstance(parsed, exp.Select):
             for expression in parsed.expressions:
                 if isinstance(expression, exp.Alias):

@@ -219,7 +219,7 @@ class KubernetesParser(LanguageParser):
         elif kind == "ConfigMap":
             node_type = NodeType.CONFIG_KEY
 
-        # FIX: Ensure path is set for the main resource node
+        # Ensure path is set for the main resource node
         yield Node(
             id=k8s_id,
             name=name,
@@ -297,7 +297,7 @@ class KubernetesParser(LanguageParser):
             for env_var in self._extract_env_vars(env_list):
                 env_id = f"env:{env_var.name}"
 
-                # FIX: Ensure path is set for env vars defined in K8s
+                # Ensure path is set for env vars defined in K8s
                 yield Node(
                     id=env_id,
                     name=env_var.name,
@@ -313,7 +313,7 @@ class KubernetesParser(LanguageParser):
 
                 if env_var.is_config_map_ref and env_var.config_map_name:
                     cm_id = f"k8s:{namespace}/configmap/{env_var.config_map_name}"
-                    # FIX: Virtual node for referenced ConfigMap - set path to current file
+                    # Virtual node for referenced ConfigMap - set path to current file
                     # This indicates "This file references this ConfigMap"
                     yield Node(
                         id=cm_id,
@@ -326,7 +326,7 @@ class KubernetesParser(LanguageParser):
 
                 if env_var.is_secret_ref and env_var.secret_name:
                     secret_id = f"k8s:{namespace}/secret/{env_var.secret_name}"
-                    # FIX: Virtual node for referenced Secret - set path to current file
+                    # Virtual node for referenced Secret - set path to current file
                     yield Node(
                         id=secret_id,
                         name=env_var.secret_name,
@@ -342,7 +342,7 @@ class KubernetesParser(LanguageParser):
                     cm_name = env_from["configMapRef"].get("name")
                     if cm_name:
                         cm_id = f"k8s:{namespace}/configmap/{cm_name}"
-                        # FIX: Virtual node with path
+                        # Virtual node with path
                         yield Node(
                             id=cm_id,
                             name=cm_name,
@@ -357,7 +357,7 @@ class KubernetesParser(LanguageParser):
                     secret_name = env_from["secretRef"].get("name")
                     if secret_name:
                         secret_id = f"k8s:{namespace}/secret/{secret_name}"
-                        # FIX: Virtual node with path
+                        # Virtual node with path
                         yield Node(
                             id=secret_id,
                             name=secret_name,

@@ -17,7 +17,7 @@ from pathlib import Path
 # Examples:
 # MASTER_INCLUDE_PATHS = ["src/jnkn/parsing"]
 #
-MASTER_INCLUDE_PATHS = []
+MASTER_INCLUDE_PATHS = ["packages"]
 
 # ------------------------------------------------------------
 # CONFIGURATION

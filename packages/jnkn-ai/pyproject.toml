@@ -1,13 +1,18 @@
 [project]
 name = "jnkn-ai"
-version = "0.1.0"
+version = "0.0.0-rc.1"
 description = "AI Context Server for Jnkn"
 requires-python = ">=3.12"
 dependencies = [
-    "jnkn",      # Depends on our local core package
+    "jnkn",
     "fastmcp",
-    "pydantic"
+    "pydantic",
+    "click",
+    "rich"
 ]
+
+[project.scripts]
+jnkn-ai = "jnkn_ai.cli:cli"
 
 [build-system]
 requires = ["hatchling"]
@@ -16,6 +21,5 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/jnkn_ai"]
 
-# Define source for local development
 [tool.uv.sources]
 jnkn = { workspace = true }
