@@ -20,7 +20,7 @@ The default minimum confidence threshold of **0.5** represents our precision/rec
 
 ```python
 class MatchConfig:
-    min_confidence: float = 0.5  # Default threshold
+    min_confidence: float = 0.3  # Default threshold
 ```
 
 At this threshold:

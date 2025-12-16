@@ -23,6 +23,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "rich>=13.7.0",
     "rustworkx>=0.17.1",
+    "watchdog>=6.0.0",
 ]
 
 # Essential for PyPI sidebar links

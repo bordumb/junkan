@@ -76,6 +76,7 @@ DEFAULT_IGNORE_DIRS = {
     "tests",
     "site",
     "docs",
+    "out"
 }
 
 DEFAULT_IGNORE_EXTENSIONS = {

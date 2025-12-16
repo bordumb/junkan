@@ -1,10 +1,17 @@
 """
-Demo Manager - Scaffolds a perfect example project.
+Demo Manager - Scaffolds a minimal example project.
 
-This module provides the logic to generate a demo repository structure
-that showcases Jnkan's cross-domain stitching capabilities. It creates
-files with intentional dependencies between Python, Terraform, and Kubernetes,
-initializes a git repo, and commits a breaking change to a feature branch.
+Creates a focused demo that tells one clear story:
+"A developer renames a Terraform output and jnkn catches it."
+
+The demo has just 3 files:
+- app.py: Python code that reads DATABASE_URL from environment
+- main.tf: Terraform that provisions RDS and outputs the connection string  
+- deployment.yaml: K8s deployment that wires them together
+
+The breaking change: Renaming the Terraform output from `database_url` 
+to `db_connection_string` - a common refactoring mistake that breaks
+production if not caught.
 """
 
 import logging
@@ -15,171 +22,169 @@ logger = logging.getLogger(__name__)
 
 
 class DemoManager:
-    """
-    Manages the creation of the demo environment.
-    """
+    """Manages the creation of the demo environment."""
 
-    # Python code that uses env vars
-    APP_PY = """
+    # =========================================================================
+    # Python Application
+    # =========================================================================
+    APP_PY = '''
+"""Payment processing service."""
 import os
-import logging
 
-# CRITICAL: This connects to the database provisioned in Terraform
-DB_HOST = os.getenv("PAYMENT_DB_HOST")
-DB_PORT = os.getenv("PAYMENT_DB_PORT", "5432")
-DB_USER = os.getenv("PAYMENT_DB_USER", "admin")
-DB_PASS = os.getenv("PAYMENT_DB_PASSWORD") # Secret
+# Database connection - provided by Terraform
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Redis Cache Connection
-CACHE_HOST = os.getenv("REDIS_PRIMARY_ENDPOINT")
-CACHE_PORT = os.getenv("REDIS_PORT", "6379")
+# Redis cache - provided by Terraform  
+REDIS_URL = os.getenv("REDIS_URL")
 
-# Feature Flags
-ENABLE_NEW_UI = os.getenv("FEATURE_NEW_UI", "false")
-MAX_RETRIES = os.getenv("APP_MAX_RETRIES", "3")
+# API key - provided by K8s Secret
+API_KEY = os.getenv("API_KEY")
 
-# S3 Bucket for reports
-REPORT_BUCKET = os.getenv("REPORT_BUCKET_NAME")
 
-def connect():
-    if not DB_HOST:
-        raise ValueError("Database host not configured!")
-    print(f"Connecting to {DB_HOST}:{DB_PORT}...")
-    print(f"Cache: {CACHE_HOST}")
-"""
+def main():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL not configured!")
+    
+    print(f"Connecting to database...")
+    print(f"Cache: {REDIS_URL}")
 
-    # V1: Safe Infrastructure (Matches APP_PY)
-    INFRA_TF_V1 = """
-resource "aws_db_instance" "payment_db" {
-  identifier = "payment-db-prod"
+
+if __name__ == "__main__":
+    main()
+'''
+
+    # =========================================================================
+    # Terraform Infrastructure - V1 (Working State)
+    # =========================================================================
+    TERRAFORM_V1 = '''
+# Payment service infrastructure
+
+resource "aws_db_instance" "main" {
+  identifier     = "payment-db"
+  engine         = "postgres"
   instance_class = "db.t3.micro"
-  allocated_storage = 20
-  engine = "postgres"
-  username = "dbadmin"
-  password = var.db_password
 }
 
 resource "aws_elasticache_cluster" "redis" {
-  cluster_id           = "payment-cache"
-  engine               = "redis"
-  node_type            = "cache.t3.micro"
-  num_cache_nodes      = 1
-  parameter_group_name = "default.redis3.2"
-  engine_version       = "3.2.10"
-  port                 = 6379
+  cluster_id = "payment-cache"
+  engine     = "redis"
 }
 
-resource "aws_s3_bucket" "reports" {
-  bucket = "payment-reports-prod-us-east-1"
+# ✅ This output matches DATABASE_URL in app.py
+output "database_url" {
+  value       = "postgres://${aws_db_instance.main.endpoint}/payments"
+  description = "PostgreSQL connection string"
 }
 
-# MATCH: 'payment_db_host' matches 'PAYMENT_DB_HOST' in app.py
-output "payment_db_host" {
-  value = aws_db_instance.payment_db.address
-  description = "The endpoint for the payment database"
+# ✅ This output matches REDIS_URL in app.py
+output "redis_url" {
+  value = "redis://${aws_elasticache_cluster.redis.cache_nodes.0.address}:6379"
 }
+'''
 
-output "payment_db_port" {
-  value = aws_db_instance.payment_db.port
-}
+    # =========================================================================
+    # Terraform Infrastructure - V2 (Breaking Change!)
+    # =========================================================================
+    TERRAFORM_V2_BREAKING = '''
+# Payment service infrastructure
 
-output "payment_db_user" {
-  value = aws_db_instance.payment_db.username
-}
-
-output "redis_primary_endpoint" {
-  value = aws_elasticache_cluster.redis.cache_nodes.0.address
-}
-
-output "redis_port" {
-  value = aws_elasticache_cluster.redis.port
-}
-
-output "report_bucket_name" {
-  value = aws_s3_bucket.reports.bucket
-}
-"""
-
-    # V2: Breaking Change (Renamed Output)
-    INFRA_TF_V2_BREAKING = """
-resource "aws_db_instance" "payment_db" {
-  identifier = "payment-db-prod"
+resource "aws_db_instance" "main" {
+  identifier     = "payment-db"
+  engine         = "postgres"
   instance_class = "db.t3.micro"
-  allocated_storage = 20
-  engine = "postgres"
-  username = "dbadmin"
-  password = var.db_password
 }
 
 resource "aws_elasticache_cluster" "redis" {
-  cluster_id           = "payment-cache"
-  engine               = "redis"
-  node_type            = "cache.t3.micro"
-  num_cache_nodes      = 1
-  parameter_group_name = "default.redis3.2"
-  engine_version       = "3.2.10"
-  port                 = 6379
+  cluster_id = "payment-cache"
+  engine     = "redis"
 }
 
-resource "aws_s3_bucket" "reports" {
-  bucket = "payment-reports-prod-us-east-1"
+# ❌ BREAKING CHANGE: Renamed from "database_url" to "db_connection_string"
+#    app.py still expects DATABASE_URL - this will cause a production outage!
+output "db_connection_string" {
+  value       = "postgres://${aws_db_instance.main.endpoint}/payments"
+  description = "PostgreSQL connection string"
 }
 
-# BREAKING CHANGE: Renamed output. 'PAYMENT_DB_HOST' in app.py will now fail to match.
-output "payment_database_endpoint" {
-  value = aws_db_instance.payment_db.address
-  description = "The endpoint for the payment database"
+# ✅ This output still matches REDIS_URL in app.py
+output "redis_url" {
+  value = "redis://${aws_elasticache_cluster.redis.cache_nodes.0.address}:6379"
 }
+'''
 
-output "payment_db_port" {
-  value = aws_db_instance.payment_db.port
-}
-
-output "payment_db_user" {
-  value = aws_db_instance.payment_db.username
-}
-
-output "redis_primary_endpoint" {
-  value = aws_elasticache_cluster.redis.cache_nodes.0.address
-}
-
-output "redis_port" {
-  value = aws_elasticache_cluster.redis.port
-}
-
-output "report_bucket_name" {
-  value = aws_s3_bucket.reports.bucket
-}
-"""
-
-    # Kubernetes manifest
-    K8S_YAML = """
+    # =========================================================================
+    # Kubernetes Deployment
+    # =========================================================================
+    K8S_DEPLOYMENT = '''
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: payment-service
+  namespace: default
 spec:
+  replicas: 3
   template:
     spec:
       containers:
         - name: app
-          image: my-app:latest
+          image: payment-service:latest
           env:
-            - name: PAYMENT_DB_HOST
+            # Wired to Terraform output (via external-secrets or similar)
+            - name: DATABASE_URL
+              value: "$(DATABASE_URL)"  # Placeholder - replaced at deploy time
+            
+            - name: REDIS_URL
+              value: "$(REDIS_URL)"
+            
+            # From K8s Secret
+            - name: API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: db-secrets
-                  key: host
-            - name: PAYMENT_DB_PORT
-              value: "5432"
-            - name: REDIS_PRIMARY_ENDPOINT
-              valueFrom:
-                configMapKeyRef:
-                  name: cache-config
-                  key: endpoint
-            - name: APP_MAX_RETRIES
-              value: "5"
-"""
+                  name: payment-secrets
+                  key: api-key
+'''
+
+    # =========================================================================
+    # README for the demo
+    # =========================================================================
+    README = '''
+# jnkn Demo: Catch Breaking Changes
+
+This demo shows how jnkn detects breaking changes across your stack.
+
+## The Scenario
+
+1. **main branch**: Everything works. Terraform outputs match what app.py expects.
+
+2. **feature/refactor-outputs branch**: A developer renamed `database_url` to 
+   `db_connection_string` in Terraform. Seems harmless, right?
+
+3. **The Problem**: `app.py` still expects `DATABASE_URL`. Without jnkn, this 
+   ships to production and causes an outage.
+
+## Try It
+
+1. Open `src/app.py` in VS Code
+2. Notice `DATABASE_URL` has a red squiggly line
+3. Hover over it to see: "Orphaned Environment Variable: no infrastructure provider"
+
+## The Fix
+
+Either:
+- Rename the Terraform output back to `database_url`
+- Update `app.py` to use `DB_CONNECTION_STRING`
+
+jnkn caught this before it hit production! 🎉
+
+## Development Workflow
+
+If using this demo to develop `jnkn` itself, run this to get setup:
+```bash
+python -m venv .venv
+.venv/bin/pip install -e /path/to/junkan/packages/jnkn-core
+.venv/bin/pip install -e /path/to/junkan/packages/jnkn-lsp
+```
+'''
 
     def __init__(self, root_dir: Path):
         self.root_dir = root_dir
@@ -187,66 +192,68 @@ spec:
     def _run_git(self, cwd: Path, args: list[str]) -> None:
         """Run a git command in the demo directory."""
         try:
-            subprocess.run(["git"] + args, cwd=cwd, check=True, capture_output=True)
+            subprocess.run(
+                ["git"] + args, 
+                cwd=cwd, 
+                check=True, 
+                capture_output=True,
+                text=True,
+            )
         except subprocess.CalledProcessError as e:
-            logger.warning(f"Git command failed: {e}")
+            logger.warning(f"Git command failed: {e.stderr}")
 
     def provision(self) -> Path:
         """
-        Create the demo project structure on disk.
+        Create the demo project structure.
 
-        1. Creates baseline files (V1)
-        2. Initializes git repo and commits to main
-        3. Creates feature branch
-        4. Overwrites with breaking change (V2) and commits
-        5. Returns path to demo directory
+        Returns the path to the demo directory, checked out on the 
+        feature branch with the breaking change.
         """
         demo_dir = self.root_dir / "jnkn-demo"
+        
+        # Clean up existing demo
         if demo_dir.exists():
             import shutil
-
             shutil.rmtree(demo_dir)
 
-        demo_dir.mkdir(exist_ok=True)
+        # Create directory structure
+        demo_dir.mkdir(parents=True)
+        (demo_dir / "src").mkdir()
+        (demo_dir / "terraform").mkdir()
+        (demo_dir / "k8s").mkdir()
 
-        # 1. Create Directories
-        src_dir = demo_dir / "src"
-        src_dir.mkdir(exist_ok=True)
-        tf_dir = demo_dir / "terraform"
-        tf_dir.mkdir(exist_ok=True)
-        k8s_dir = demo_dir / "k8s"
-        k8s_dir.mkdir(exist_ok=True)
+        # ---------------------------------------------------------------------
+        # Step 1: Create V1 (working state) and commit to main
+        # ---------------------------------------------------------------------
+        (demo_dir / "src" / "app.py").write_text(self.APP_PY.strip())
+        (demo_dir / "terraform" / "main.tf").write_text(self.TERRAFORM_V1.strip())
+        (demo_dir / "k8s" / "deployment.yaml").write_text(self.K8S_DEPLOYMENT.strip())
+        (demo_dir / "README.md").write_text(self.README.strip())
 
-        # 2. Write V1 Files (Safe State)
-        (src_dir / "app.py").write_text(self.APP_PY.strip())
-        (tf_dir / "main.tf").write_text(self.INFRA_TF_V1.strip())
-        (k8s_dir / "deployment.yaml").write_text(self.K8S_YAML.strip())
-
-        # 3. Initialize Git & Create Baseline
+        # Initialize git
         self._run_git(demo_dir, ["init", "--initial-branch=main"])
-        self._run_git(demo_dir, ["config", "user.email", "demo@jnkn.ai"])
-        self._run_git(demo_dir, ["config", "user.name", "Jnkn Demo"])
+        self._run_git(demo_dir, ["config", "user.email", "demo@jnkn.dev"])
+        self._run_git(demo_dir, ["config", "user.name", "jnkn Demo"])
         self._run_git(demo_dir, ["add", "."])
-        self._run_git(demo_dir, ["commit", "-m", "Initial commit: Safe state"])
+        self._run_git(demo_dir, ["commit", "-m", "Initial commit: working infrastructure"])
 
-        # 4. Create Feature Branch
-        self._run_git(demo_dir, ["checkout", "-b", "feature/breaking-change"])
-
-        # 5. Introduce Breaking Change
-        # Overwrite Terraform with V2 (Renamed output)
-        (tf_dir / "main.tf").write_text(self.INFRA_TF_V2_BREAKING.strip())
-
-        # Create CODEOWNERS for reviewer suggestions
-        (demo_dir / "CODEOWNERS").write_text(
-            """
-terraform/  @infra-team
-src/        @app-team
-k8s/        @platform-team
-        """.strip()
-        )
-
-        # Commit the breaking change
+        # ---------------------------------------------------------------------
+        # Step 2: Create feature branch with breaking change
+        # ---------------------------------------------------------------------
+        self._run_git(demo_dir, ["checkout", "-b", "feature/refactor-outputs"])
+        
+        # Introduce the breaking change
+        (demo_dir / "terraform" / "main.tf").write_text(self.TERRAFORM_V2_BREAKING.strip())
+        
         self._run_git(demo_dir, ["add", "."])
-        self._run_git(demo_dir, ["commit", "-m", "Refactor: Rename database output"])
+        self._run_git(demo_dir, ["commit", "-m", "refactor: rename database output for clarity"])
 
+        logger.info(f"✨ Demo created at: {demo_dir}")
+        logger.info("   Open in VS Code to see jnkn in action!")
+        
         return demo_dir
+
+
+def create_demo_manager(root_dir: Path) -> DemoManager:
+    """Factory function for creating a DemoManager."""
+    return DemoManager(root_dir)

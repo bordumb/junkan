@@ -64,9 +64,7 @@ class PenaltyResult:
 
 
 class ConfidenceResult(BaseModel):
-    """
-    Final result of a confidence calculation.
-    """
+    """Final result of a confidence calculation."""
 
     score: float = Field(ge=0.0, le=1.0)
     signals: List[Dict] = Field(default_factory=list)
@@ -80,9 +78,7 @@ class ConfidenceResult(BaseModel):
 
 
 class ConfidenceConfig(BaseModel):
-    """
-    Configuration for the confidence engine.
-    """
+    """Configuration for the confidence engine."""
 
     signal_weights: Dict[str, float] = Field(
         default_factory=lambda: {
@@ -112,8 +108,14 @@ class ConfidenceConfig(BaseModel):
     min_token_overlap_high: int = 3
     min_token_overlap_medium: int = 2
 
+    # Common tokens that are penalized when they're the ONLY match.
+    # IMPORTANT: Infrastructure-meaningful tokens (host, port, db, user, etc.)
+    # have been intentionally REMOVED from this list. These tokens are semantically
+    # significant in infrastructure contexts (DB_HOST, REDIS_PORT, etc.) and
+    # should contribute positively to matching confidence.
     common_tokens: Set[str] = Field(
         default_factory=lambda: {
+            # Truly generic programming terms
             "id",
             "name",
             "type",
@@ -127,15 +129,6 @@ class ConfidenceConfig(BaseModel):
             "path",
             "file",
             "dir",
-            "host",
-            "port",
-            "user",
-            "pass",
-            "password",
-            "token",
-            "secret",
-            "auth",
-            "credential",
             "src",
             "dst",
             "in",
@@ -152,13 +145,24 @@ class ConfidenceConfig(BaseModel):
             "obj",
             "item",
             "val",
-            "db",
             "api",
             "app",
             "env",
             "var",
             "msg",
             "num",
+            # NOTE: The following have been REMOVED because they are
+            # semantically meaningful in infrastructure naming:
+            # - "host"     (DB_HOST, CACHE_HOST, REDIS_HOST)
+            # - "port"     (DB_PORT, REDIS_PORT, API_PORT)
+            # - "user"     (DB_USER, SERVICE_USER)
+            # - "pass"     (DB_PASS - though deprecated naming)
+            # - "password" (DB_PASSWORD, SERVICE_PASSWORD)
+            # - "token"    (API_TOKEN, AUTH_TOKEN)
+            # - "secret"   (AWS_SECRET, API_SECRET)
+            # - "auth"     (AUTH_URL, AUTH_KEY)
+            # - "credential" (SERVICE_CREDENTIAL)
+            # - "db"       (DB_HOST, DB_PORT, PAYMENT_DB)
         }
     )
 
@@ -228,9 +232,7 @@ class ConfidenceConfig(BaseModel):
 
 
 class ConfidenceCalculator:
-    """
-    Engine for calculating match confidence scores.
-    """
+    """Engine for calculating match confidence scores."""
 
     def __init__(self, config: ConfidenceConfig | None = None):
         self.config = config or ConfidenceConfig()
@@ -420,6 +422,10 @@ class ConfidenceCalculator:
         """Evaluate negative penalties."""
         results = []
         source_norm = self._normalize(source_name)
+        target_norm = self._normalize(target_name)
+
+        # Check for exact/normalized match - used to skip ambiguity penalty
+        is_normalized_match = source_norm == target_norm
 
         if source_norm in self.config.generic_terms:
             results.append(
@@ -466,7 +472,11 @@ class ConfidenceCalculator:
                 )
             )
 
-        if alternative_match_count > 1:
+        # Ambiguity penalty: Skip for exact/normalized matches
+        # If the names match exactly (after normalization), ambiguity doesn't matter -
+        # we're confident this is the right match regardless of how many other
+        # candidates share some tokens.
+        if alternative_match_count > 1 and not is_normalized_match:
             raw_penalty = self.config.penalty_multipliers[PenaltyType.AMBIGUITY]
             multiplier = max(0.2, raw_penalty ** (alternative_match_count - 1))
             results.append(

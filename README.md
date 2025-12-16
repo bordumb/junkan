@@ -38,7 +38,7 @@ graph LR
 
 Jnkn is built on a split architecture to provide **stability for CI/CD** while enabling **intelligence for AI Agents**.
 
-| Component | **Jnkn Core** (`jnkn`) | **Jnkn AI** (`jnkn-ai`) |
+| Component | **Jnkn Core** (`jnkn`) | **Jnkn AI** (`jnkn-mcp`) |
 | :--- | :--- | :--- |
 | **Role** | **The Ground Truth** | **The Navigator** |
 | **Philosophy** | Deterministic, 100% Local, Strict | Probabilistic, Context-Aware, Flexible |
@@ -86,7 +86,7 @@ Jnkn exposes your repository's dependency graph via the **Model Context Protocol
 ### Setup
 
 ```bash
-pip install jnkn-ai
+pip install jnkn-mcp
 ```
 
 ### Capabilities
@@ -132,6 +132,12 @@ steps:
 ## Contributing
 
 We welcome contributions\! Please see our [Contributing Guide](https://bordumb.github.io/jnkn/community/contributing/) for details on how to set up your development environment.
+
+Installing from source:
+```bash
+uv pip install -e packages/jnkn-core
+uv pip install -e packages/jnkn-lsp
+```
 
 ## License
 

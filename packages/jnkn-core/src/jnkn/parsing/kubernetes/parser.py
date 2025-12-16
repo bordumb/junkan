@@ -44,15 +44,23 @@ class K8sEnvVar:
 
     @property
     def is_direct_value(self) -> bool:
+        """Check if this env var has a hardcoded value (not from external source)."""
         return self.value is not None
 
     @property
     def is_config_map_ref(self) -> bool:
+        """Check if this env var references a ConfigMap."""
         return self.config_map_name is not None
 
     @property
     def is_secret_ref(self) -> bool:
+        """Check if this env var references a Secret."""
         return self.secret_name is not None
+
+    @property
+    def has_external_source(self) -> bool:
+        """Check if this env var gets its value from an external source (Secret/ConfigMap)."""
+        return self.is_config_map_ref or self.is_secret_ref
 
 
 class KubernetesParser(LanguageParser):
@@ -285,7 +293,16 @@ class KubernetesParser(LanguageParser):
     def _process_workload(
         self, doc: Dict[str, Any], workload_id: str, namespace: str, file_path_str: str
     ):
-        """Extract env vars and volumes from workloads."""
+        """
+        Extract env vars and volumes from workloads.
+
+        For env vars:
+        - Creates ENV_VAR nodes for all env vars found
+        - Only creates PROVIDES edge from workload if the env var has an external
+          source (secretKeyRef or configMapKeyRef)
+        - Hardcoded values (value: "...") do NOT get PROVIDES edges, allowing
+          the stitcher to match them to Terraform outputs or other infra
+        """
         pod_spec = self._get_pod_spec(doc)
         if not pod_spec:
             return
@@ -297,20 +314,30 @@ class KubernetesParser(LanguageParser):
             for env_var in self._extract_env_vars(env_list):
                 env_id = f"env:{env_var.name}"
 
-                # Ensure path is set for env vars defined in K8s
+                # Always create the env var node (with path for LSP diagnostics)
                 yield Node(
                     id=env_id,
                     name=env_var.name,
                     type=NodeType.ENV_VAR,
                     path=file_path_str,
-                    metadata={"k8s_resource": workload_id},
-                )
-                yield Edge(
-                    source_id=workload_id,
-                    target_id=env_id,
-                    type=RelationshipType.PROVIDES,
+                    metadata={
+                        "k8s_resource": workload_id,
+                        "has_hardcoded_value": env_var.is_direct_value,
+                    },
                 )
 
+                # ONLY create PROVIDES edge if the env var has an external source
+                # (secretKeyRef or configMapKeyRef). Hardcoded values should NOT
+                # create a PROVIDES edge - they should be matched by the stitcher
+                # to Terraform outputs or other infrastructure.
+                if env_var.has_external_source:
+                    yield Edge(
+                        source_id=workload_id,
+                        target_id=env_id,
+                        type=RelationshipType.PROVIDES,
+                    )
+
+                # Link to ConfigMap if referenced
                 if env_var.is_config_map_ref and env_var.config_map_name:
                     cm_id = f"k8s:{namespace}/configmap/{env_var.config_map_name}"
                     # Virtual node for referenced ConfigMap - set path to current file
@@ -324,6 +351,7 @@ class KubernetesParser(LanguageParser):
                     )
                     yield Edge(source_id=env_id, target_id=cm_id, type=RelationshipType.READS)
 
+                # Link to Secret if referenced
                 if env_var.is_secret_ref and env_var.secret_name:
                     secret_id = f"k8s:{namespace}/secret/{env_var.secret_name}"
                     # Virtual node for referenced Secret - set path to current file
