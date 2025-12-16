@@ -175,6 +175,15 @@ Either:
 - Update `app.py` to use `DB_CONNECTION_STRING`
 
 jnkn caught this before it hit production! 🎉
+
+## Development Workflow
+
+If using this demo to develop `jnkn` itself, run this to get setup:
+```bash
+python -m venv .venv
+.venv/bin/pip install -e /path/to/junkan/packages/jnkn-core
+.venv/bin/pip install -e /path/to/junkan/packages/jnkn-lsp
+```
 '''
 
     def __init__(self, root_dir: Path):
