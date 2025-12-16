@@ -10,7 +10,9 @@ package = false
 [tool.uv.workspace]
 members = [
     "packages/jnkn-core",
-    "packages/jnkn-ai"
+    "packages/jnkn-mcp",
+    "packages/jnkn-lsp",
+
 ]
 
 [build-system]

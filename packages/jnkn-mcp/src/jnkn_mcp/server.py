@@ -25,7 +25,7 @@ from jnkn.core.types import NodeType
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("jnkn-ai")
+logger = logging.getLogger("jnkn-mcp")
 
 # Initialize MCP Server
 # Removed 'description' arg which caused TypeError in older fastmcp versions
@@ -335,6 +335,6 @@ def calculate_blast_radius(artifact_id: str) -> BlastRadiusResult:
         )
 
 
-# Entry point for running via `uv run jnkn-ai` or `python -m jnkn_ai.server`
+# Entry point for running via `uv run jnkn-mcp` or `python -m jnkn_mcp.server`
 if __name__ == "__main__":
     mcp.run()

@@ -59,7 +59,7 @@ def _generate_server_config(
                 "run",
                 "--directory",
                 str(repo_root),
-                "jnkn-ai",
+                "jnkn-mcp",
                 "start",
                 "--stdio",
                 "--db-path",
@@ -70,9 +70,9 @@ def _generate_server_config(
             "autoRestart": True,
         }
 
-    # Prod mode assumes 'jnkn-ai' is in the system PATH
+    # Prod mode assumes 'jnkn-mcp' is in the system PATH
     return {
-        "command": "jnkn-ai",
+        "command": "jnkn-mcp",
         "args": ["start", "--stdio", "--db-path", db_arg],
         "env": {},
         "disabled": False,

@@ -26,6 +26,7 @@ from .commands import (
     suppress,
     trace,
     visualize,
+    watch,
 )
 from .commands.initialize import init
 from .utils_telemetry import TelemetryGroup
@@ -50,6 +51,7 @@ def main():
 
 main.add_command(init)
 main.add_command(check.check)
+main.add_command(watch.watch)
 main.add_command(feedback.feedback)
 
 

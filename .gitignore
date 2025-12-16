@@ -29,5 +29,7 @@ jnkn.db
 all_repos.txt
 jnkn-demo
 site/
+node_modules/
+out/
 # Temporary scripts
 create
