@@ -12,17 +12,17 @@ import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Set, Tuple
 
 import click
 from pydantic import BaseModel, Field
 from rich.console import Console
 
 from ...analysis.blast_radius import BlastRadiusAnalyzer
-from ...analysis.top_findings import FindingType, TopFindingsExtractor
+from ...core.enhanced_stitching import EnhancedStitcher
 from ...core.manifest import ProjectManifest
+from ...core.mappings import MappingMatcher
 from ...core.resolver import DependencyResolver
-from ...core.stitching import Stitcher
 from ...core.storage.sqlite import SQLiteStorage
 from ...core.types import NodeType
 from ...parsing.engine import ScanConfig, create_default_engine
@@ -89,9 +89,16 @@ class CheckEngine:
     Performs risk assessment on changed files using the dependency graph.
     """
 
-    def __init__(self, graph_path: str = ".jnkn/jnkn.db"):
+    def __init__(
+        self, 
+        graph_path: str = ".jnkn/jnkn.db",
+        ignore_dirs: Optional[Set[str]] = None,
+    ):
         self.graph_path = graph_path
         self.graph = load_graph(graph_path)
+        self.ignore_dirs = ignore_dirs or set()
+        self.manifest: Optional[ProjectManifest] = None
+        self._mapping_matcher: Optional[MappingMatcher] = None
 
     def ensure_graph_exists(self, force_scan: bool = False):
         """
@@ -99,6 +106,11 @@ class CheckEngine:
         This enables the 'init -> check' workflow without an explicit 'scan' step.
         """
         if not force_scan and self.graph is not None and self.graph.node_count > 0:
+            # Still load manifest for ignore checking
+            root_dir = Path.cwd()
+            self.manifest = ProjectManifest.load(root_dir / "jnkn.toml")
+            if self.manifest.mappings:
+                self._mapping_matcher = MappingMatcher(self.manifest.mappings)
             return
 
         console.print("[dim]Graph not found or empty. Running auto-scan...[/dim]")
@@ -107,13 +119,22 @@ class CheckEngine:
         db_path = Path(self.graph_path)
         root_dir = Path.cwd()
 
+        # Load manifest
+        self.manifest = ProjectManifest.load(root_dir / "jnkn.toml")
+        if self.manifest.mappings:
+            self._mapping_matcher = MappingMatcher(self.manifest.mappings)
+
         # Initialize components
         engine = create_default_engine()
         storage = SQLiteStorage(db_path)
         storage.clear()
 
+        # Build skip_dirs set - combine defaults with user-specified
+        skip_dirs = SKIP_DIRS.copy()
+        skip_dirs.update(self.ignore_dirs)
+
         # 1. Resolve Dependencies (Phase 1)
-        scan_targets = [(root_dir, ProjectManifest.load(root_dir / "jnkn.toml").name)]
+        scan_targets = [(root_dir, self.manifest.name)]
 
         try:
             resolver = DependencyResolver(root_dir)
@@ -130,7 +151,7 @@ class CheckEngine:
 
             config = ScanConfig(
                 root_dir=target_path,
-                skip_dirs=SKIP_DIRS,
+                skip_dirs=skip_dirs,
                 incremental=False,
                 source_repo_name=repo_name,
             )
@@ -141,11 +162,21 @@ class CheckEngine:
                     f"[red]Scan failed for {repo_name}:[/red] {result.unwrap_err().message}"
                 )
 
-        # 3. Stitch
+        # 3. Stitch - use EnhancedStitcher if we have mappings
         graph = storage.load_graph()
-        stitcher = Stitcher()
-        new_edges = stitcher.stitch(graph)
-        storage.save_edges_batch(new_edges)
+        
+        if self.manifest.mappings:
+            stitcher = EnhancedStitcher(
+                mappings=self.manifest.mappings,
+                min_confidence=0.3,
+            )
+            stitch_result = stitcher.stitch(graph)
+            storage.save_edges_batch(stitch_result.edges)
+        else:
+            from ...core.stitching import Stitcher
+            stitcher = Stitcher()
+            new_edges = stitcher.stitch(graph)
+            storage.save_edges_batch(new_edges)
 
         # 4. Reload
         self.graph = storage.load_graph()
@@ -163,101 +194,142 @@ class CheckEngine:
             return report
 
         analyzer = BlastRadiusAnalyzer(self.graph)
-        findings_extractor = TopFindingsExtractor(self.graph)
 
         # 1. Check for global issues (like missing providers)
-        findings = findings_extractor.extract()
-
-        if findings.missing_providers > 0:
-            for finding in findings.findings:
-                # Check against enum value or string for robustness
-                is_missing = (
-                    finding.type == FindingType.MISSING_PROVIDER
-                    or finding.type == "missing_provider"
-                )
-
-                if is_missing:
-                    report.violations.append(
-                        ApiViolation(
-                            rule="MISSING_PROVIDER", severity="critical", message=finding.title
-                        )
-                    )
-                    report.critical_count += 1
-
-        for file in changes:
-            # 2. Resolve file to graph node
-            node_id = f"file://{file.path}"
-
-            # Safety Net: Explicitly check for orphans in this file
-            associated_nodes = [
-                n for n in self.graph.iter_nodes() if n.path and str(n.path).endswith(file.path)
-            ]
-
-            for node in associated_nodes:
-                if node.type == NodeType.ENV_VAR:
-                    out_edges = self.graph.get_out_edges(node.id)
-                    has_infra = any(e.target_id.startswith("infra:") for e in out_edges)
-                    if not has_infra:
-                        already_reported = any(
-                            v.message.startswith(node.name) for v in report.violations
-                        )
-                        if not already_reported:
-                            report.violations.append(
-                                ApiViolation(
-                                    rule="MISSING_PROVIDER",
-                                    severity="critical",
-                                    message=f"{node.name} has no infrastructure provider",
-                                )
-                            )
-                            report.critical_count += 1
-
-            if not self.graph.has_node(node_id):
-                self._analyze_single_file_heuristic(file, report)
+        # Get env vars without providers directly from graph
+        env_nodes = self.graph.get_nodes_by_type(NodeType.ENV_VAR)
+        
+        for node in env_nodes:
+            # Skip malformed env var names (parser false positives)
+            if not self._is_valid_env_var_name(node.name):
                 continue
-
-            # 3. Calculate Impact
-            impact = analyzer.calculate([node_id])
-            impact_count = impact.get("count", 0)
-
-            # 4. Apply Rules
-            if impact_count > 20:
+            
+            # Check if this env var is ignored via mappings
+            if self._mapping_matcher and self._mapping_matcher.is_ignored(node.id):
+                continue
+            
+            # Check if this node has any incoming 'provides' edges
+            in_edges = self.graph.get_in_edges(node.id)
+            has_provider = any(e.type.value == "provides" for e in in_edges)
+            
+            if not has_provider:
+                # Skip if in ignored directory
+                node_path = getattr(node, 'path', '') or ''
+                if self._should_ignore_path(node_path):
+                    continue
+                    
                 report.violations.append(
                     ApiViolation(
-                        rule="HIGH_BLAST_RADIUS",
-                        severity="high",
-                        message=f"{file.path} impacts {impact_count} downstream artifacts.",
+                        rule="MISSING_PROVIDER",
+                        severity="critical",
+                        message=f"{node.name} has no infrastructure provider",
                     )
                 )
-                report.high_count += 1
+                report.critical_count += 1
 
-            # Rule: Critical Node Modification
-            downstream = self.graph.get_descendants(node_id)
-            for target_id in downstream:
-                target = self.graph.get_node(target_id)
-                if target and target.type == NodeType.INFRA_RESOURCE:
+        # 2. If specific files changed, analyze their blast radius
+        for file in changes:
+            # Skip test files and ignored directories
+            if self._should_ignore_path(file.path):
+                continue
+
+            self._analyze_file_changes(file, analyzer, report)
+
+        return report
+
+    def _is_valid_env_var_name(self, name: str) -> bool:
+        """
+        Check if an env var name is valid (filter out parser false positives).
+        
+        Valid env var names:
+        - Are at least 3 characters
+        - Contain only alphanumeric chars and underscores
+        - Don't start with a number
+        - Are uppercase (convention)
+        """
+        if not name:
+            return False
+        
+        # Too short - likely false positive
+        if len(name) < 3:
+            return False
+        
+        # Contains invalid characters (backslash, $, {, }, etc.)
+        if any(c in name for c in r'\${}[]()'):
+            return False
+        
+        # Template syntax
+        if name.startswith('$') or name.startswith('{'):
+            return False
+        
+        # Too generic single words (common false positives)
+        generic_names = {'VAR', 'name', 'value', 'key', 'data', 'config', 'options'}
+        if name in generic_names:
+            return False
+        
+        # Should be uppercase with underscores (standard convention)
+        # Allow mixed case but flag pure lowercase as suspicious
+        if name.islower() and '_' not in name:
+            return False
+        
+        return True
+
+    def _should_ignore_path(self, path: str) -> bool:
+        """Check if a path should be ignored based on ignore_dirs."""
+        if not path:
+            return False
+            
+        path_lower = path.lower()
+        
+        # Split path into parts for flexible matching
+        path_parts = set(path_lower.replace("\\", "/").split("/"))
+        
+        # Check against ignore_dirs - match if ANY part of the path matches
+        for ignore_dir in self.ignore_dirs:
+            ignore_lower = ignore_dir.lower().strip("/")
+            # Match as a path component (not substring)
+            if ignore_lower in path_parts:
+                return True
+        
+        # Also ignore common test patterns
+        test_dir_names = {"tests", "test", "fixtures", "corpus", "__tests__", "e2e", "e2e_live"}
+        if path_parts & test_dir_names:  # Set intersection
+            return True
+            
+        return False
+
+    def _analyze_file_changes(
+        self, file: ChangedFile, analyzer: BlastRadiusAnalyzer, report: CheckReport
+    ):
+        """Analyze blast radius for a specific file change."""
+        # Find nodes in this file
+        file_path = file.path
+        
+        # Check if it's an infrastructure file
+        if file_path.endswith((".tf", ".tfvars")):
+            # Terraform change - check what depends on outputs from this file
+            affected = analyzer.analyze_file_impact(file_path)
+            if affected:
+                for node_id in affected[:5]:  # Limit to top 5
                     report.violations.append(
                         ApiViolation(
                             rule="INFRA_IMPACT",
-                            severity="critical",
-                            message=f"Change to {file.path} impacts infrastructure {target.name}",
+                            severity="high",
+                            message=f"Change to {file_path} affects {node_id}",
                         )
                     )
-                    report.critical_count += 1
-                    break
-
-        return report
+                    report.high_count += 1
 
     def _analyze_static(self, changes: List[ChangedFile], report: CheckReport):
         """Fallback analysis when no graph is available."""
         for file in changes:
+            if self._should_ignore_path(file.path):
+                continue
             self._analyze_single_file_heuristic(file, report)
 
     def _analyze_single_file_heuristic(self, file: ChangedFile, report: CheckReport):
         """Heuristic checks based purely on filenames."""
         path = file.path.lower()
-
-        if any(x in path for x in ["/tests/", "/fixtures/", "/corpus/", "/test/"]):
-            return
 
         if path.endswith((".tf", ".tfvars", ".hcl")):
             report.violations.append(
@@ -335,6 +407,12 @@ class _null_context:
     is_flag=True,
     help="Do NOT exit with error even if critical violations found",
 )
+@click.option(
+    "--ignore-dirs",
+    "ignore_dirs_str",
+    default="",
+    help="Comma-separated list of directories to ignore (e.g., 'tests,fixtures,examples')",
+)
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON (Standard Envelope)")
 @click.option("--format", "output_format", type=click.Choice(["text", "markdown"]), default="text")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress text output")
@@ -342,6 +420,7 @@ def check(
     diff_file: str | None,
     git_diff: Tuple[str, str] | None,
     ignore_critical: bool,
+    ignore_dirs_str: str,
     as_json: bool,
     output_format: str,
     quiet: bool,
@@ -351,12 +430,24 @@ def check(
 
     Compares changes against the dependency graph to detect breaking changes.
     Will automatically scan the codebase if no graph exists.
+
+    \b
+    Examples:
+        jnkn check
+        jnkn check --ignore-dirs "tests,fixtures,examples"
+        jnkn check --git-diff main HEAD
+        jnkn check --json
     """
     renderer = JsonRenderer("check")
     context_manager = renderer.capture() if as_json else _null_context()
     error_to_report = None
     api_response = None
     fail_on_critical = not ignore_critical  # Default to Safe (Fail on critical)
+
+    # Parse ignore_dirs
+    ignore_dirs: Set[str] = set()
+    if ignore_dirs_str:
+        ignore_dirs = {d.strip() for d in ignore_dirs_str.split(",") if d.strip()}
 
     with context_manager:
         try:
@@ -372,7 +463,8 @@ def check(
                 except Exception:
                     pass
 
-            engine = CheckEngine()
+            engine = CheckEngine(ignore_dirs=ignore_dirs)
+            
             # Force scan if we have no changes (e.g. fresh repo) to ensure graph is built
             if not changed_files and not engine.graph:
                 engine.ensure_graph_exists(force_scan=True)
@@ -436,7 +528,7 @@ def check(
                         )
                         console.print(f"  {icon} [{v.severity.upper()}] {v.message}")
                 else:
-                    console.print("\nAnalysis Complete: 0 violations found.")
+                    console.print("\n✅ Analysis Complete: 0 violations found.")
 
                 console.print(f"\nResult: [bold {color}]{api_response.result.value}[/bold {color}]")
 

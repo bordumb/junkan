@@ -1,0 +1,33 @@
+[project]
+name = "my-service"
+
+[scan]
+ignore_dirs = [
+    "node_modules",
+    "dist", 
+    "build",
+    "tests",
+    "__pycache__",
+    ".venv",
+    "vendor",
+]
+
+ignore_patterns = [
+    "*.test.ts",
+    "*.spec.py",
+    "*_test.go",
+]
+
+[mappings]
+# GitHub Actions injects these
+"env:GITHUB_REPOSITORY" = { ignore = true, reason = "Injected by GitHub Actions" }
+"env:GITHUB_EVENT_PATH" = { ignore = true, reason = "Injected by GitHub Actions" }
+"env:GITHUB_*" = { ignore = true, reason = "Injected by GitHub Actions" }
+
+# Node.js internals
+"env:NODE_DEBUG" = { ignore = true, reason = "Node.js internal" }
+"env:NODE_ENV" = { ignore = true, reason = "Runtime config" }
+
+# Telemetry (you manage these separately)
+"env:JNKN_POSTHOG_*" = { ignore = true, reason = "Telemetry config" }
+"env:POSTHOG_*" = { ignore = true, reason = "Telemetry config" }
