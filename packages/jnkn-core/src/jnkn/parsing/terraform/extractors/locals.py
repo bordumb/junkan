@@ -1,3 +1,5 @@
+"""Terraform Locals Extractor."""
+
 import re
 from typing import Generator, Union
 
@@ -6,13 +8,13 @@ from ...base import ExtractionContext
 
 
 class LocalsExtractor:
-    """Extract Terraform locals."""
+    """Extract Terraform locals blocks."""
 
     name = "terraform_locals"
-    priority = 50
+    priority = 80
 
-    # locals { ... }
-    LOCALS_BLOCK_PATTERN = re.compile(r"locals\s*\{([^}]*)\}", re.DOTALL)
+    LOCALS_BLOCK_PATTERN = re.compile(r"locals\s*\{([^}]+)\}", re.DOTALL)
+    LOCAL_ASSIGNMENT_PATTERN = re.compile(r"(\w+)\s*=")
 
     def can_extract(self, ctx: ExtractionContext) -> bool:
         return "locals" in ctx.text
@@ -22,19 +24,19 @@ class LocalsExtractor:
             block_content = block_match.group(1)
             block_start_line = ctx.get_line_number(block_match.start())
 
-            # Extract keys: name = value
-            for line_match in re.finditer(
-                r"^\s*([a-zA-Z0-9_\-]+)\s*=", block_content, re.MULTILINE
-            ):
+            for line_match in self.LOCAL_ASSIGNMENT_PATTERN.finditer(block_content):
                 local_name = line_match.group(1)
 
-                # Calculate approximate line number
+                # Skip if it looks like a nested attribute
+                if local_name in ("description", "type", "default", "value", "sensitive"):
+                    continue
+
                 local_offset = block_content[: line_match.start()].count("\n")
                 line = block_start_line + local_offset
 
-                node_id = f"infra:local.{local_name}"
+                # Use source_repo prefix for multi-repo support
+                node_id = f"{ctx.infra_prefix}:local.{local_name}"
 
-                # Use factory method to ensure path population
                 yield ctx.create_config_node(
                     id=node_id,
                     name=local_name,

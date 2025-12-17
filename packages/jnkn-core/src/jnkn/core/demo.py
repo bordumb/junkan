@@ -41,6 +41,9 @@ REDIS_URL = os.getenv("REDIS_URL")
 # API key - provided by K8s Secret
 API_KEY = os.getenv("API_KEY")
 
+# Monitoring - provided by shared platform module
+DD_API_ENDPOINT = os.getenv("DD_API_ENDPOINT")
+
 
 def main():
     if not DATABASE_URL:
@@ -48,6 +51,7 @@ def main():
 
     print(f"Connecting to database...")
     print(f"Cache: {REDIS_URL}")
+    print(f"Metrics endpoint: {DD_API_ENDPOINT}")
 
 
 if __name__ == "__main__":
@@ -137,6 +141,10 @@ spec:
             - name: REDIS_URL
               value: "$(REDIS_URL)"
 
+            # From shared platform module
+            - name: DD_API_ENDPOINT
+              value: "$(DD_API_ENDPOINT)"
+
             # From K8s Secret
             - name: API_KEY
               valueFrom:
@@ -154,8 +162,123 @@ name = "payment-service"
 version = "1.0.0"
 
 [dependencies]
-# Points to the sibling infrastructure directory
+# Local sibling repo - your team's infrastructure
 infrastructure = { path = "../infrastructure" }
+
+# Remote shared platform - company-wide base modules
+platform = { git = "https://github.com/jnkn-dev/jnkn-demo-platform.git", branch = "main" }
+
+[mappings]
+# Platform provides the monitoring endpoint
+"platform:output:datadog_api_endpoint" = "env:DD_API_ENDPOINT"
+
+# Ignore CI-injected variables (not from infrastructure)
+"env:CI_TOKEN" = { ignore = true, reason = "Injected by GitHub Actions" }
+"env:BUILD_NUMBER" = { ignore = true, reason = "Injected by CI pipeline" }
+
+[tool.jnkn.sources]
+# Uncomment to use a local checkout of platform for development:
+# platform = { path = "../platform-local" }
+"""
+
+    # =========================================================================
+    # Platform Terraform (for the remote GitHub repo)
+    # =========================================================================
+    PLATFORM_TERRAFORM = """
+# Shared platform infrastructure
+# This module is used across all services in the organization.
+#
+# Repository: github.com/jnkn-dev/jnkn-demo-platform
+
+# -----------------------------------------------------------------------------
+# Monitoring & Observability
+# -----------------------------------------------------------------------------
+
+variable "environment" {
+  description = "Deployment environment (dev, staging, prod)"
+  type        = string
+  default     = "dev"
+}
+
+variable "service_name" {
+  description = "Name of the service using this platform module"
+  type        = string
+}
+
+resource "datadog_monitor" "service_health" {
+  name    = "${var.service_name}-health-${var.environment}"
+  type    = "service check"
+  message = "Service ${var.service_name} is unhealthy!"
+
+  query = "\"process.up\".over(\"service:${var.service_name}\").by(\"host\").last(2).count_by_status()"
+}
+
+# ✅ This output is consumed by services via DD_API_ENDPOINT
+output "datadog_api_endpoint" {
+  value       = "https://api.datadoghq.com/api/v1"
+  description = "Datadog API endpoint for metrics submission"
+}
+
+# ✅ Standard logging endpoint
+output "log_aggregator_url" {
+  value       = "https://logs.internal.company.com/ingest"
+  description = "Central log aggregation endpoint"
+}
+
+# -----------------------------------------------------------------------------
+# Networking Defaults
+# -----------------------------------------------------------------------------
+
+output "vpc_id" {
+  value       = "vpc-shared-platform-001"
+  description = "Shared VPC for all services"
+}
+
+output "private_subnet_ids" {
+  value       = ["subnet-private-1a", "subnet-private-1b", "subnet-private-1c"]
+  description = "Private subnets for service deployment"
+}
+"""
+
+    # =========================================================================
+    # Platform README (for GitHub repo)
+    # =========================================================================
+    PLATFORM_README = """
+# jnkn Demo Platform
+
+Shared platform infrastructure for the jnkn demo.
+
+This repository demonstrates how jnkn tracks dependencies across remote Git repositories.
+
+## Outputs
+
+| Output | Environment Variable | Description |
+|--------|---------------------|-------------|
+| `datadog_api_endpoint` | `DD_API_ENDPOINT` | Datadog API for metrics |
+| `log_aggregator_url` | `LOG_URL` | Central logging endpoint |
+| `vpc_id` | - | Shared VPC ID |
+| `private_subnet_ids` | - | Private subnet IDs |
+
+## Usage with jnkn
+
+Add to your `jnkn.toml`:
+
+```toml
+[dependencies]
+platform = { git = "https://github.com/jnkn-dev/jnkn-demo-platform.git", branch = "main" }
+
+[mappings]
+"platform:output:datadog_api_endpoint" = "env:DD_API_ENDPOINT"
+```
+
+## Local Development
+
+To use a local checkout instead of fetching from GitHub:
+
+```toml
+[tool.jnkn.sources]
+platform = { path = "../platform-local" }
+```
 """
 
     # =========================================================================
@@ -175,6 +298,15 @@ This demo shows how jnkn detects breaking changes across your stack.
 
 3. **The Problem**: `app.py` still expects `DATABASE_URL`. Without jnkn, this
    ships to production and causes an outage.
+
+## Multi-Repository Support
+
+This demo includes:
+
+- **Local dependency**: `../infrastructure` - your team's Terraform
+- **Remote dependency**: `github.com/jnkn-dev/jnkn-demo-platform` - shared platform
+
+The `jnkn.toml` manifest declares both, and jnkn stitches them together.
 
 ## Try It
 
@@ -197,6 +329,7 @@ If using this demo to develop `jnkn` itself, run this to get setup:
 python -m venv .venv
 .venv/bin/pip install -e /path/to/junkan/packages/jnkn-core
 .venv/bin/pip install -e /path/to/junkan/packages/jnkn-lsp
+```
 """
 
     def __init__(self, root_dir: Path):
@@ -273,7 +406,9 @@ python -m venv .venv
 
         # APP REPO
         (app_dir / "src").mkdir()
+        (app_dir / "k8s").mkdir()
         (app_dir / "src" / "app.py").write_text(self.APP_PY.strip())
+        (app_dir / "k8s" / "deployment.yaml").write_text(self.K8S_DEPLOYMENT.strip())
         (app_dir / "jnkn.toml").write_text(self.JNKN_TOML.strip())
         (app_dir / "README.md").write_text(self.README.strip())
 
@@ -291,6 +426,9 @@ python -m venv .venv
         logger.info(f"   App:   {app_dir}")
         logger.info(f"   Infra: {infra_dir}")
         logger.info("   Dependencies linked via jnkn.toml in payment-service/")
+        logger.info("")
+        logger.info("   Note: Remote dependency 'platform' will be fetched from GitHub")
+        logger.info("         on first `jnkn install` or scan.")
 
         return app_dir
 
@@ -301,6 +439,55 @@ python -m venv .venv
         self._run_git(path, ["config", "user.name", "jnkn Demo"])
         self._run_git(path, ["add", "."])
         self._run_git(path, ["commit", "-m", message])
+
+    def export_platform_repo(self, output_dir: Path) -> Path:
+        """
+        Export the platform repo files for publishing to GitHub.
+
+        Args:
+            output_dir: Directory to create the platform repo structure.
+
+        Returns:
+            Path to the created platform repo directory.
+        """
+        platform_dir = output_dir / "jnkn-demo-platform"
+
+        if platform_dir.exists():
+            shutil.rmtree(platform_dir)
+
+        platform_dir.mkdir(parents=True)
+        (platform_dir / "terraform").mkdir()
+
+        (platform_dir / "terraform" / "main.tf").write_text(self.PLATFORM_TERRAFORM.strip())
+        (platform_dir / "README.md").write_text(self.PLATFORM_README.strip())
+
+        # Add a jnkn.toml for the platform itself
+        platform_toml = """
+[project]
+name = "jnkn-demo-platform"
+version = "1.0.0"
+description = "Shared platform infrastructure for jnkn demos"
+
+# No dependencies - this is a leaf module
+"""
+        (platform_dir / "jnkn.toml").write_text(platform_toml.strip())
+
+        # Add .gitignore
+        gitignore = """
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# jnkn
+.jnkn/
+jnkn.lock
+"""
+        (platform_dir / ".gitignore").write_text(gitignore.strip())
+
+        logger.info(f"✨ Platform repo exported to: {platform_dir}")
+        return platform_dir
 
 
 def create_demo_manager(root_dir: Path) -> DemoManager:

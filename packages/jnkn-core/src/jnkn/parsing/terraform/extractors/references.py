@@ -56,7 +56,7 @@ class ReferenceExtractor:
             source_id = self._find_containing_block(ctx.text, match.start())
 
             # Construct the ID of the referenced resource (Target)
-            target_id = f"infra:{res_type}.{res_name}"
+            target_id = f"{ctx.infra_prefix}:{res_type}.{res_name}"
 
             if source_id and source_id != target_id:
                 yield Edge(
@@ -70,7 +70,7 @@ class ReferenceExtractor:
         for match in self.VAR_REF.finditer(ctx.text):
             var_name = match.group(1)
             source_id = self._find_containing_block(ctx.text, match.start())
-            target_id = f"infra:var:{var_name}"
+            target_id = f"{ctx.infra_prefix}:var:{var_name}"
 
             if source_id:
                 yield Edge(
@@ -83,7 +83,7 @@ class ReferenceExtractor:
         for match in self.LOCAL_REF.finditer(ctx.text):
             local_name = match.group(1)
             source_id = self._find_containing_block(ctx.text, match.start())
-            target_id = f"infra:local.{local_name}"
+            target_id = f"{ctx.infra_prefix}:local.{local_name}"
 
             if source_id:
                 yield Edge(
@@ -96,7 +96,7 @@ class ReferenceExtractor:
         for match in self.MODULE_REF.finditer(ctx.text):
             mod_name, output_name = match.groups()
             source_id = self._find_containing_block(ctx.text, match.start())
-            target_id = f"infra:module:{mod_name}"
+            target_id = f"{ctx.infra_prefix}:module:{mod_name}"
 
             if source_id:
                 yield Edge(
@@ -149,12 +149,12 @@ class ReferenceExtractor:
         block_type, arg1, arg2 = last_match.groups()
 
         if block_type == "resource":
-            return f"infra:{arg1}.{arg2}"
+            return f"{ctx.infra_prefix}:{arg1}.{arg2}"
         elif block_type == "data":
-            return f"infra:data.{arg1}.{arg2}"
+            return f"{ctx.infra_prefix}:data.{arg1}.{arg2}"
         elif block_type == "module":
-            return f"infra:module:{arg1}"
+            return f"{ctx.infra_prefix}:module:{arg1}"
         elif block_type == "output":
-            return f"infra:output:{arg1}"
+            return f"{ctx.infra_prefix}:output:{arg1}"
 
         return None

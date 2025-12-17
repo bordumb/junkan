@@ -28,7 +28,7 @@ class ModuleExtractor:
             if sm := self.SOURCE_PATTERN.search(module_body):
                 source = sm.group(1)
 
-            module_id = f"infra:module:{module_name}"
+            module_id = f"{ctx.infra_prefix}:module:{module_name}"
 
             # Use factory logic. Since INFRA_MODULE isn't a factory helper, use create_node.
             yield ctx.create_node(
@@ -59,11 +59,11 @@ class ModuleExtractor:
                     ref_type, ref_name = parts[0], parts[1]
 
                     if ref_type == "var":
-                        ref_id = f"infra:var:{ref_name}"
+                        ref_id = f"{ctx.infra_prefix}:var:{ref_name}"
                     elif ref_type == "local":
-                        ref_id = f"infra:local:{ref_name}"
+                        ref_id = f"{ctx.infra_prefix}:local:{ref_name}"
                     else:
-                        ref_id = f"infra:{ref_type}:{ref_name}"
+                        ref_id = f"{ctx.infra_prefix}:{ref_type}:{ref_name}"
 
                     yield Edge(
                         source_id=module_id,

@@ -1,3 +1,5 @@
+"""Terraform Output Extractor."""
+
 import re
 from typing import Generator, Union
 
@@ -11,7 +13,6 @@ class OutputExtractor:
     name = "terraform_outputs"
     priority = 90
 
-    # output "name" { ... }
     OUTPUT_PATTERN = re.compile(r'output\s+"([^"]+)"\s*\{')
 
     def can_extract(self, ctx: ExtractionContext) -> bool:
@@ -22,9 +23,9 @@ class OutputExtractor:
             out_name = match.group(1)
             line = ctx.get_line_number(match.start())
 
-            node_id = f"infra:output:{out_name}"
+            # Use source_repo prefix for multi-repo support
+            node_id = f"{ctx.infra_prefix}:output:{out_name}"
 
-            # Use factory method to ensure path population
             yield ctx.create_config_node(
                 id=node_id,
                 name=out_name,

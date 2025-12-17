@@ -64,7 +64,6 @@ class TerraformParser(LanguageParser):
 
         file_id = f"file://{file_path}"
 
-        # Create the file node
         yield Node(
             id=file_id,
             name=file_path.name,
@@ -73,8 +72,14 @@ class TerraformParser(LanguageParser):
             metadata={"language": "hcl"},
         )
 
-        # Execute extractors
-        ctx = ExtractionContext(file_path=file_path, file_id=file_id, text=text, seen_ids=set())
+        # Pass source_repo from parser context to extraction context
+        ctx = ExtractionContext(
+            file_path=file_path,
+            file_id=file_id,
+            text=text,
+            seen_ids=set(),
+            source_repo=getattr(self.context, "source_repo", None),
+        )
 
         yield from self._extractors.extract_all(ctx)
 
@@ -108,7 +113,9 @@ class TerraformPlanParser(LanguageParser):
                 pass
         return False
 
-    def parse(self, file_path: Path, content: bytes) -> List[Union[Node, Edge]]:
+    def parse(
+        self, file_path: Path, content: bytes, ctx: ExtractionContext
+    ) -> List[Union[Node, Edge]]:
         results = []
         try:
             plan = json.loads(content)
@@ -126,7 +133,7 @@ class TerraformPlanParser(LanguageParser):
             if not res_type or not res_name:
                 continue
 
-            node_id = f"infra:{res_type}.{res_name}"
+            node_id = f"{ctx.infra_prefix}:{res_type}.{res_name}"
 
             node = Node(
                 id=node_id,

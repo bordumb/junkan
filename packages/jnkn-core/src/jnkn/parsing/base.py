@@ -44,15 +44,17 @@ class ParserContext:
         encoding: Default file encoding to use when decoding bytes.
     """
 
-    def __init__(self, root_dir: Path | None = None):
+    def __init__(self, root_dir: Path | None = None, source_repo: str | None = None):
         """
         Initialize parser context.
 
         Args:
             root_dir: The root directory for the scan. Defaults to cwd.
+            source_repo: The source repository name for multi-repo support.
         """
         self.root_dir = root_dir or Path.cwd()
         self.encoding = "utf-8"
+        self.source_repo = source_repo
 
 
 # =============================================================================
@@ -165,6 +167,12 @@ class ExtractionContext:
     text: str
     tree: Any | None = None
     seen_ids: Set[str] = field(default_factory=set)
+    source_repo: str | None = None
+
+    @property
+    def infra_prefix(self) -> str:
+        """Get the prefix to use for infrastructure node IDs."""
+        return self.source_repo or "infra"
 
     # -------------------------------------------------------------------------
     # Node Factory Methods

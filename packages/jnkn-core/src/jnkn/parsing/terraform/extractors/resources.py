@@ -1,7 +1,9 @@
+"""Terraform Resource Extractor."""
+
 import re
 from typing import Generator, Union
 
-from ....core.types import Edge, Node, RelationshipType
+from ....core.types import Edge, Node, NodeType, RelationshipType
 from ...base import ExtractionContext
 
 
@@ -11,7 +13,6 @@ class ResourceExtractor:
     name = "terraform_resources"
     priority = 100
 
-    # resource "type" "name" { ... }
     RESOURCE_PATTERN = re.compile(r'resource\s+"([^"]+)"\s+"([^"]+)"\s*\{')
 
     def can_extract(self, ctx: ExtractionContext) -> bool:
@@ -19,17 +20,23 @@ class ResourceExtractor:
 
     def extract(self, ctx: ExtractionContext) -> Generator[Union[Node, Edge], None, None]:
         for match in self.RESOURCE_PATTERN.finditer(ctx.text):
-            res_type, res_name = match.groups()
+            res_type = match.group(1)
+            res_name = match.group(2)
             line = ctx.get_line_number(match.start())
 
-            node_id = f"infra:{res_type}.{res_name}"
+            # Use source_repo prefix for multi-repo support
+            node_id = f"{ctx.infra_prefix}:{res_type}.{res_name}"
 
-            yield ctx.create_infra_node(
+            yield ctx.create_node(
                 id=node_id,
                 name=res_name,
+                type=NodeType.INFRA_RESOURCE,
                 line=line,
-                infra_type=res_type,
-                extra_metadata={"terraform_type": res_type},
+                tokens=[res_type, res_name],
+                metadata={
+                    "terraform_type": "resource",
+                    "resource_type": res_type,
+                },
             )
 
             yield Edge(

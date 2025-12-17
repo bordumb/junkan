@@ -139,6 +139,8 @@ class ParserEngine:
         if config is None:
             config = ScanConfig()
 
+        self._context.source_repo = config.source_repo_name
+
         start_time = time.perf_counter()
         stats = ScanStats()
 

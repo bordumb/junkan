@@ -12,14 +12,19 @@ import click
 from .commands import (
     action,
     blast_radius,
+    cache,
     check,
+    deps,
     diff,
     explain,
     feedback,
     graph,
     impact,
     ingest,
+    install,
     lint,
+    lock,
+    mappings,
     review,
     scan,
     stats,
@@ -110,6 +115,20 @@ main.add_command(diff.diff)
 ingest.ingest.hidden = True
 main.add_command(ingest.ingest)
 
+lock.lock.hidden = True
+main.add_command(lock.lock)
+
+install.install.hidden = True
+main.add_command(install.install)
+
+cache.cache.hidden = True
+main.add_command(cache.cache)
+
+mappings.mappings.hidden = True
+main.add_command(mappings.mappings)
+
+deps.deps.hidden = True
+main.add_command(deps.deps)
 
 if __name__ == "__main__":
     main()
