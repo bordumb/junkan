@@ -18,8 +18,8 @@ from ..graph import DependencyGraph
 from ..types import Edge, MatchStrategy, Node, NodeType, RelationshipType, ScanMetadata
 from .base import StorageAdapter
 
-# Bump schema version for new tables
-SCHEMA_VERSION = 3
+# Bump schema version to support source_repo column
+SCHEMA_VERSION = 4
 
 
 class SQLiteStorage(StorageAdapter):
@@ -167,6 +167,25 @@ class SQLiteStorage(StorageAdapter):
                 (datetime.now(timezone.utc).isoformat(),),
             )
 
+        # V4: Multi-Repo support (Source Repo tracking)
+        if from_version < 4:
+            # Add source_repo column to nodes
+            try:
+                conn.execute("ALTER TABLE nodes ADD COLUMN source_repo TEXT")
+            except sqlite3.OperationalError:
+                # Column might already exist if re-running migration on dev env
+                pass
+
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_source_repo ON nodes(source_repo)")
+
+            conn.execute(
+                """
+                INSERT INTO schema_version (version, applied_at, description)
+                VALUES (4, ?, 'Added source_repo column to nodes table')
+            """,
+                (datetime.now(timezone.utc).isoformat(),),
+            )
+
     def get_schema_version(self) -> int:
         with self._connection() as conn:
             return self._get_schema_version_internal(conn)
@@ -184,11 +203,12 @@ class SQLiteStorage(StorageAdapter):
 
         with self._connection() as conn:
             # 1. Upsert Nodes
+            # Ensure we handle source_repo from metadata
             conn.executemany(
                 """
                 INSERT OR REPLACE INTO nodes 
-                (id, name, type, path, language, file_hash, tokens, metadata, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, name, type, path, language, file_hash, tokens, metadata, created_at, source_repo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 [
                     (
@@ -201,6 +221,7 @@ class SQLiteStorage(StorageAdapter):
                         json.dumps(n.tokens),
                         json.dumps(n.metadata),
                         n.created_at.isoformat(),
+                        n.metadata.get("source_repo"),  # Extract source_repo from metadata
                     )
                     for n in nodes
                 ],
@@ -216,7 +237,6 @@ class SQLiteStorage(StorageAdapter):
             token_entries = []
             for node in nodes:
                 # Use tokens from the object, defaulting to computed ones if missing
-                # (though model_post_init handles this usually)
                 tokens = node.tokens or []
                 for token in tokens:
                     token_entries.append((token, node.id))
@@ -240,13 +260,16 @@ class SQLiteStorage(StorageAdapter):
     def load_all_nodes(self) -> List[Node]:
         nodes = []
         with self._connection() as conn:
-            # Removed the try/except block to allow surfacing validation errors
-            # (Section 2.1 of Architecture Review)
             for row in conn.execute("SELECT * FROM nodes").fetchall():
                 nodes.append(self._row_to_node(row))
         return nodes
 
     def _row_to_node(self, row: sqlite3.Row) -> Node:
+        metadata = json.loads(row["metadata"]) if row["metadata"] else {}
+        # Inject source_repo back into metadata if present in column but not json
+        if "source_repo" in row.keys() and row["source_repo"] and "source_repo" not in metadata:
+            metadata["source_repo"] = row["source_repo"]
+
         return Node(
             id=row["id"],
             name=row["name"],
@@ -255,7 +278,7 @@ class SQLiteStorage(StorageAdapter):
             language=row["language"],
             file_hash=row["file_hash"],
             tokens=json.loads(row["tokens"]) if row["tokens"] else [],
-            metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+            metadata=metadata,
             created_at=datetime.fromisoformat(row["created_at"]),
         )
 

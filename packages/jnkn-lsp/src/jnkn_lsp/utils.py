@@ -11,7 +11,7 @@ from pathlib import Path
 def uri_to_path(uri: str) -> Path:
     """
     Convert an LSP URI to a local file system path.
-    
+
     Handles decoding (e.g., %20 -> space) and file:// stripping.
 
     Args:

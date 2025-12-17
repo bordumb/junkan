@@ -19,12 +19,15 @@ from pydantic import BaseModel, Field
 from rich.console import Console
 
 from ...analysis.blast_radius import BlastRadiusAnalyzer
+from ...analysis.top_findings import FindingType, TopFindingsExtractor
+from ...core.manifest import ProjectManifest
+from ...core.resolver import DependencyResolver
 from ...core.stitching import Stitcher
 from ...core.storage.sqlite import SQLiteStorage
 from ...core.types import NodeType
 from ...parsing.engine import ScanConfig, create_default_engine
 from ..renderers import JsonRenderer
-from ..utils import load_graph
+from ..utils import SKIP_DIRS, load_graph
 
 logger = logging.getLogger(__name__)
 console = Console(stderr=True)  # Use stderr for logs to not pollute JSON output pipes
@@ -35,11 +38,6 @@ class CheckResultStatus(str, Enum):
     PASS = "PASS"
     BLOCKED = "BLOCKED"
     WARN = "WARN"
-
-
-class ApiChangedFile(BaseModel):
-    path: str
-    change_type: str
 
 
 class ApiViolation(BaseModel):
@@ -59,7 +57,6 @@ class CheckResponse(BaseModel):
     critical_count: int
     high_count: int
     violations: List[ApiViolation] = Field(default_factory=list)
-    details_url: str | None = None
 
 
 # --- Internal Domain Models ---
@@ -96,12 +93,12 @@ class CheckEngine:
         self.graph_path = graph_path
         self.graph = load_graph(graph_path)
 
-    def ensure_graph_exists(self):
+    def ensure_graph_exists(self, force_scan: bool = False):
         """
         Auto-scan capability: If graph is missing, build it on the fly.
         This enables the 'init -> check' workflow without an explicit 'scan' step.
         """
-        if self.graph is not None and self.graph.node_count > 0:
+        if not force_scan and self.graph is not None and self.graph.node_count > 0:
             return
 
         console.print("[dim]Graph not found or empty. Running auto-scan...[/dim]")
@@ -110,25 +107,47 @@ class CheckEngine:
         db_path = Path(self.graph_path)
         root_dir = Path.cwd()
 
-        # Run scan
+        # Initialize components
         engine = create_default_engine()
         storage = SQLiteStorage(db_path)
         storage.clear()
 
-        config = ScanConfig(root_dir=root_dir, incremental=False)
-        result = engine.scan_and_store(storage, config)
+        # 1. Resolve Dependencies (Phase 1)
+        scan_targets = [(root_dir, ProjectManifest.load(root_dir / "jnkn.toml").name)]
 
-        if result.is_err():
-            console.print(f"[red]Auto-scan failed:[/red] {result.unwrap_err().message}")
-            return
+        try:
+            resolver = DependencyResolver(root_dir)
+            resolution = resolver.resolve()
+            for dep in resolution.dependencies:
+                scan_targets.append((dep.path, dep.name))
+        except Exception as e:
+            console.print(f"[yellow]Warning: Dependency resolution failed: {e}[/yellow]")
 
-        # Run stitcher
+        # 2. Scan all targets
+        for target_path, repo_name in scan_targets:
+            if not target_path.exists():
+                continue
+
+            config = ScanConfig(
+                root_dir=target_path,
+                skip_dirs=SKIP_DIRS,
+                incremental=False,
+                source_repo_name=repo_name,
+            )
+            result = engine.scan_and_store(storage, config)
+
+            if result.is_err():
+                console.print(
+                    f"[red]Scan failed for {repo_name}:[/red] {result.unwrap_err().message}"
+                )
+
+        # 3. Stitch
         graph = storage.load_graph()
         stitcher = Stitcher()
         new_edges = stitcher.stitch(graph)
         storage.save_edges_batch(new_edges)
 
-        # Reload graph
+        # 4. Reload
         self.graph = storage.load_graph()
         storage.close()
         console.print(f"[dim]Auto-scan complete. Found {self.graph.node_count} nodes.[/dim]")
@@ -139,30 +158,68 @@ class CheckEngine:
 
         report = CheckReport(changed_files=changes)
 
-        # If no graph (even after auto-scan attempt), fallback to static
         if not self.graph:
             self._analyze_static(changes, report)
             return report
 
         analyzer = BlastRadiusAnalyzer(self.graph)
+        findings_extractor = TopFindingsExtractor(self.graph)
+
+        # 1. Check for global issues (like missing providers)
+        findings = findings_extractor.extract()
+
+        if findings.missing_providers > 0:
+            for finding in findings.findings:
+                # Check against enum value or string for robustness
+                is_missing = (
+                    finding.type == FindingType.MISSING_PROVIDER
+                    or finding.type == "missing_provider"
+                )
+
+                if is_missing:
+                    report.violations.append(
+                        ApiViolation(
+                            rule="MISSING_PROVIDER", severity="critical", message=finding.title
+                        )
+                    )
+                    report.critical_count += 1
 
         for file in changes:
-            # 1. Resolve file to graph node
-            # We use the file:// prefix convention
+            # 2. Resolve file to graph node
             node_id = f"file://{file.path}"
 
-            # If the file itself isn't a node (e.g. unknown type), skip deep analysis
+            # Safety Net: Explicitly check for orphans in this file
+            associated_nodes = [
+                n for n in self.graph.iter_nodes() if n.path and str(n.path).endswith(file.path)
+            ]
+
+            for node in associated_nodes:
+                if node.type == NodeType.ENV_VAR:
+                    out_edges = self.graph.get_out_edges(node.id)
+                    has_infra = any(e.target_id.startswith("infra:") for e in out_edges)
+                    if not has_infra:
+                        already_reported = any(
+                            v.message.startswith(node.name) for v in report.violations
+                        )
+                        if not already_reported:
+                            report.violations.append(
+                                ApiViolation(
+                                    rule="MISSING_PROVIDER",
+                                    severity="critical",
+                                    message=f"{node.name} has no infrastructure provider",
+                                )
+                            )
+                            report.critical_count += 1
+
             if not self.graph.has_node(node_id):
                 self._analyze_single_file_heuristic(file, report)
                 continue
 
-            # 2. Calculate Impact
-            # We check if this file affects anything downstream
+            # 3. Calculate Impact
             impact = analyzer.calculate([node_id])
             impact_count = impact.get("count", 0)
 
-            # 3. Apply Rules
-            # Rule: High Blast Radius
+            # 4. Apply Rules
             if impact_count > 20:
                 report.violations.append(
                     ApiViolation(
@@ -174,7 +231,6 @@ class CheckEngine:
                 report.high_count += 1
 
             # Rule: Critical Node Modification
-            # Check if this node provides for critical infrastructure
             downstream = self.graph.get_descendants(node_id)
             for target_id in downstream:
                 target = self.graph.get_node(target_id)
@@ -187,7 +243,7 @@ class CheckEngine:
                         )
                     )
                     report.critical_count += 1
-                    break  # One critical violation is enough to flag the file
+                    break
 
         return report
 
@@ -200,12 +256,9 @@ class CheckEngine:
         """Heuristic checks based purely on filenames."""
         path = file.path.lower()
 
-        # SKIP: Tests and fixtures shouldn't trigger critical alerts
         if any(x in path for x in ["/tests/", "/fixtures/", "/corpus/", "/test/"]):
             return
 
-        # Critical: Infrastructure Definitions
-        # Check specific extensions, NOT just "terraform" in the path (which catches parser code)
         if path.endswith((".tf", ".tfvars", ".hcl")):
             report.violations.append(
                 ApiViolation(
@@ -216,7 +269,6 @@ class CheckEngine:
             )
             report.critical_count += 1
 
-        # Critical: Data Schema
         elif "migrations" in path or "schema" in path or path.endswith(".sql"):
             report.violations.append(
                 ApiViolation(
@@ -228,76 +280,49 @@ class CheckEngine:
             report.high_count += 1
 
 
-# --- Git Utilities ---
-
-
 def get_changed_files_from_git(base_ref: str, head_ref: str) -> List[ChangedFile]:
-    """
-    Get changed files between two git refs using git diff.
-    """
+    """Get changed files between two git refs using git diff."""
     try:
-        # Run git diff --name-status
         result = subprocess.run(
             ["git", "diff", "--name-status", base_ref, head_ref],
             capture_output=True,
             text=True,
             check=True,
         )
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Git command failed: {e.stderr}")
+    except subprocess.CalledProcessError:
+        return []
 
     changes = []
     for line in result.stdout.splitlines():
         if not line.strip():
             continue
-
         parts = line.split("\t")
-        status = parts[0][0]  # First char (M, A, D, R)
-
-        if status == "R":  # Rename
+        status = parts[0][0]
+        if status == "R":
             if len(parts) >= 3:
-                old_path = parts[1]
-                new_path = parts[2]
-                changes.append(ChangedFile(path=new_path, change_type="RENAME", old_path=old_path))
+                changes.append(ChangedFile(path=parts[2], change_type="RENAME", old_path=parts[1]))
         else:
-            path = parts[1]
-            changes.append(ChangedFile(path=path, change_type=status))
-
+            changes.append(ChangedFile(path=parts[1], change_type=status))
     return changes
 
 
 def get_changed_files_from_diff_file(diff_path: str) -> List[ChangedFile]:
-    """
-    Parse a standard Unified Diff file to find changed filenames.
-    """
+    """Parse a standard Unified Diff file."""
     changes = []
     path = Path(diff_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Diff file not found: {diff_path}")
-
     content = path.read_text()
     diff_pattern = re.compile(r"^diff --git a/(.*?) b/(.*?)$", re.MULTILINE)
-
     for match in diff_pattern.finditer(content):
-        file_path = match.group(2)
-        changes.append(ChangedFile(path=file_path, change_type="MODIFIED"))
-
+        changes.append(ChangedFile(path=match.group(2), change_type="MODIFIED"))
     return changes
 
 
 class _null_context:
-    """Helper for non-capture mode."""
-
     def __enter__(self):
         pass
 
     def __exit__(self, *args):
         pass
-
-
-# =============================================================================
-# CLI Command
-# =============================================================================
 
 
 @click.command()
@@ -306,7 +331,9 @@ class _null_context:
 )
 @click.option("--git-diff", "git_diff", nargs=2, help="Git refs to compare (BASE HEAD)")
 @click.option(
-    "--fail-if-critical", is_flag=True, help="Exit with error if critical violations found"
+    "--ignore-critical",
+    is_flag=True,
+    help="Do NOT exit with error even if critical violations found",
 )
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON (Standard Envelope)")
 @click.option("--format", "output_format", type=click.Choice(["text", "markdown"]), default="text")
@@ -314,7 +341,7 @@ class _null_context:
 def check(
     diff_file: str | None,
     git_diff: Tuple[str, str] | None,
-    fail_if_critical: bool,
+    ignore_critical: bool,
     as_json: bool,
     output_format: str,
     quiet: bool,
@@ -326,41 +353,37 @@ def check(
     Will automatically scan the codebase if no graph exists.
     """
     renderer = JsonRenderer("check")
-
-    # Context handling: Capture stdout/stderr only if JSON output is requested
     context_manager = renderer.capture() if as_json else _null_context()
-
     error_to_report = None
     api_response = None
+    fail_on_critical = not ignore_critical  # Default to Safe (Fail on critical)
 
     with context_manager:
         try:
-            # 1. Acquire Changed Files
-            changed_files: List[ChangedFile] = []
-
+            changed_files = []
             if diff_file:
                 changed_files = get_changed_files_from_diff_file(diff_file)
             elif git_diff:
                 base, head = git_diff
                 changed_files = get_changed_files_from_git(base, head)
             else:
-                # Fallback: Try to compare HEAD against previous commit if nothing specified
                 try:
                     changed_files = get_changed_files_from_git("HEAD~1", "HEAD")
                 except Exception:
-                    changed_files = []
+                    pass
 
-            # 2. Run Analysis Engine
             engine = CheckEngine()
+            # Force scan if we have no changes (e.g. fresh repo) to ensure graph is built
+            if not changed_files and not engine.graph:
+                engine.ensure_graph_exists(force_scan=True)
+
             report = engine.analyze(changed_files)
 
-            # 3. Apply Failure Policy
-            if fail_if_critical and report.critical_count > 0:
+            if fail_on_critical and report.critical_count > 0:
                 report.result = CheckResult.BLOCKED
             elif report.high_count > 5:
                 report.result = CheckResult.WARN
 
-            # 4. Map to API Model
             api_violations = [
                 ApiViolation(rule=v.rule, severity=v.severity, message=v.message)
                 for v in report.violations
@@ -378,7 +401,6 @@ def check(
         except Exception as e:
             error_to_report = e
 
-    # Render Output
     if as_json:
         if error_to_report:
             renderer.render_error(error_to_report)
@@ -387,7 +409,6 @@ def check(
             renderer.render_success(api_response)
             sys.exit(api_response.exit_code)
     else:
-        # Legacy Text Output
         if error_to_report:
             if not quiet:
                 console.print(f"❌ [red]Error:[/red] {error_to_report}")
@@ -401,17 +422,22 @@ def check(
                 color = "yellow"
 
             if not quiet:
-                console.print(
-                    f"\n[bold]Analysis Complete:[/bold] {len(api_response.violations)} violations found."
-                )
-                for v in api_response.violations:
-                    icon = (
-                        "🔴" if v.severity == "critical" else "🟠" if v.severity == "high" else "⚪"
+                if api_response.violations:
+                    console.print(
+                        f"\n[bold]Analysis Complete:[/bold] {len(api_response.violations)} violations found."
                     )
-                    console.print(f"  {icon} [{v.severity.upper()}] {v.message}")
+                    for v in api_response.violations:
+                        icon = (
+                            "🔴"
+                            if v.severity == "critical"
+                            else "🟠"
+                            if v.severity == "high"
+                            else "⚪"
+                        )
+                        console.print(f"  {icon} [{v.severity.upper()}] {v.message}")
+                else:
+                    console.print("\nAnalysis Complete: 0 violations found.")
 
                 console.print(f"\nResult: [bold {color}]{api_response.result.value}[/bold {color}]")
 
             sys.exit(api_response.exit_code)
-
-        sys.exit(1)

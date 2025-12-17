@@ -6,6 +6,7 @@ This test validates the full user journey:
 2. scan (Discovery Mode)
 3. scan (Enforcement Mode transition)
 4. pack detection
+5. multi-repo initialization (Phase 1)
 """
 
 import shutil
@@ -13,6 +14,7 @@ import subprocess
 import os
 from pathlib import Path
 import pytest
+import time
 
 # Helper to run jnkn commands
 def run_jnkn(args, cwd, input_str=None):
@@ -40,8 +42,11 @@ def test_demo_flow_and_mode_transition(clean_workdir):
     Scenario: New user runs demo, scans, and transitions to enforcement.
     """
     # 1. Initialize Demo
-    # We pass 'y' for the telemetry prompt just in case, though --demo implies it
+    # We pass 'y' for the telemetry prompt just in case
     init_res = run_jnkn(["init", "--demo"], cwd=clean_workdir, input_str="y\n")
+    if init_res.returncode != 0:
+        print(f"Init stdout: {init_res.stdout}")
+        print(f"Init stderr: {init_res.stderr}")
     assert init_res.returncode == 0
     assert "Created demo project" in init_res.stdout
     
@@ -53,18 +58,45 @@ def test_demo_flow_and_mode_transition(clean_workdir):
     assert scan_res.returncode == 0
     assert "Mode: Discovery" in scan_res.stdout
     assert "YOUR ARCHITECTURE AT A GLANCE" in scan_res.stdout
-    # Should find at least some connections
     assert "Cross-Domain Connections" in scan_res.stdout
 
-    # 3. Simulate Review Completion
-    # We can't easily script the interactive TUI, so we cheat by
-    # manually flipping the mode in the config file or running a command
-    # that updates the state. 
-    # For E2E, we can verify that EXPLICIT mode switching works.
-    
+    # 3. Explicit Mode Switch (Simulating post-review state)
     scan_enforce = run_jnkn(["scan", "--mode", "enforcement"], cwd=demo_dir)
     assert scan_enforce.returncode == 0
     assert "Mode: Enforcement" in scan_enforce.stdout
+
+def test_multirepo_demo_init(clean_workdir):
+    """
+    Scenario: User initializes the new multi-repo demo (Phase 1).
+    """
+    # 1. Initialize Multi-Repo Demo
+    init_res = run_jnkn(["init", "--demo", "--multirepo"], cwd=clean_workdir, input_str="y\n")
+    
+    if init_res.returncode != 0:
+        print(f"Init stdout: {init_res.stdout}")
+        print(f"Init stderr: {init_res.stderr}")
+    assert init_res.returncode == 0
+    assert "Multi-repo demo created" in init_res.stdout
+    
+    # Check structure
+    app_dir = clean_workdir / "jnkn-demo" / "payment-service"
+    infra_dir = clean_workdir / "jnkn-demo" / "infrastructure"
+    
+    assert app_dir.exists()
+    assert infra_dir.exists()
+    assert (app_dir / "jnkn.toml").exists()
+    
+    # 2. Run Scan from App Dir (should resolve infra dependency)
+    scan_res = run_jnkn(["scan"], cwd=app_dir)
+    
+    if scan_res.returncode != 0:
+        print(f"Scan stdout: {scan_res.stdout}")
+        print(f"Scan stderr: {scan_res.stderr}")
+        
+    assert scan_res.returncode == 0
+    # Output should indicate parsing files in the dependency
+    assert "Parsed" in scan_res.stdout
+    assert "infrastructure" in scan_res.stdout # We logged repo names in scan command
 
 def test_framework_pack_detection(clean_workdir):
     """
@@ -82,7 +114,7 @@ def test_framework_pack_detection(clean_workdir):
     (project_dir / "infra/main.tf").touch()
 
     # Run Init and accept the pack (input="y")
-    init_res = run_jnkn(["init"], cwd=project_dir, input_str="y\ny\n") # Yes to pack, Yes to telemetry
+    init_res = run_jnkn(["init"], cwd=project_dir, input_str="y\ny\n") 
     
     assert init_res.returncode == 0
     assert "Detected project type: django-aws" in init_res.stdout
@@ -111,4 +143,6 @@ def test_json_output_contract(clean_workdir):
     import json
     data = json.loads(res.stdout)
     assert data["status"] == "success"
+    # Ensure data payload exists
+    assert "data" in data
     assert "nodes_found" in data["data"]

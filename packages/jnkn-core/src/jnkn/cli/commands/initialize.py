@@ -214,6 +214,7 @@ def _init_project(
 @click.command()
 @click.option("--force", is_flag=True, help="Overwrite existing configuration")
 @click.option("--demo", is_flag=True, help="Download example repo to try Jnkan instantly")
+@click.option("--multirepo", is_flag=True, help="Use multi-repo structure for demo")
 @click.option(
     "--telemetry/--no-telemetry",
     default=None,
@@ -232,6 +233,7 @@ def _init_project(
 def init(
     force: bool,
     demo: bool,
+    multirepo: bool,
     telemetry: bool | None,
     pack_name: str | None,
     list_packs: bool,
@@ -266,8 +268,12 @@ def init(
 
     if demo:
         console.print("[cyan]Provisioning demo environment...[/cyan]")
+
+        # Instantiate DemoManager with CWD to fix TypeError
         manager = DemoManager(Path.cwd())
-        demo_dir = manager.provision()
+
+        # Pass multirepo flag
+        demo_dir = manager.provision(multirepo=multirepo)
 
         console.print(f"📂 Created demo project at: [bold]{demo_dir}[/bold]")
 
@@ -278,9 +284,7 @@ def init(
 
         console.print("\n[bold green]Ready to go! Try these commands:[/bold green]")
         console.print(f"1. cd {demo_dir.name}")
-        console.print(
-            "2. [bold cyan]jnkn check[/bold cyan]"
-        )  # Updated to recommend check instead of scan
+        console.print("2. [bold cyan]jnkn check[/bold cyan]")
         return
 
     # Standard initialization

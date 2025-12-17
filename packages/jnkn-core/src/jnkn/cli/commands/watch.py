@@ -10,7 +10,6 @@ from pathlib import Path
 import click
 from rich.console import Console
 
-
 console = Console()
 
 
@@ -29,11 +28,7 @@ def watch(directory: str, db_path: str):
     like the LSP server or 'jnkn check' always see fresh data.
     """
     # Configure logging to ensure we see the watcher events
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(message)s",
-        datefmt="[%X]"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="[%X]")
 
     # Lazy import: Only import the watcher (and watchdog) when this command actually RUNS.
     from ..watcher import FileSystemWatcher
@@ -44,8 +39,8 @@ def watch(directory: str, db_path: str):
     # Ensure DB directory exists
     database_file.parent.mkdir(parents=True, exist_ok=True)
 
-    console.print(f"[bold green]Jnkn Auto-Watch[/bold green]")
+    console.print("[bold green]Jnkn Auto-Watch[/bold green]")
     console.print(f"Watching: [cyan]{root_dir}[/cyan]")
-    
+
     watcher = FileSystemWatcher(root_dir, database_file)
     watcher.start()

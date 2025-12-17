@@ -1,6 +1,6 @@
 """
 Scan Command - Parse codebase and build dependency graph.
-Enhanced with Discovery/Enforcement modes and manager-readable output.
+Enhanced with Multi-Repository Support and Discovery/Enforcement modes.
 """
 
 import json
@@ -13,8 +13,10 @@ from pydantic import BaseModel
 from rich.console import Console
 
 from ...analysis.top_findings import TopFindingsExtractor
+from ...core.manifest import ProjectManifest
 from ...core.mode import ScanMode, get_mode_manager
 from ...core.packs import detect_and_suggest_pack, load_pack
+from ...core.resolver import DependencyResolver
 from ...core.stitching import Stitcher
 from ...core.storage.sqlite import SQLiteStorage
 from ...parsing.engine import ScanConfig, create_default_engine
@@ -65,6 +67,7 @@ class _null_context:
 )
 @click.option("--pack", "pack_name", help="Use a specific framework pack")
 @click.option("--summary-only", is_flag=True, help="Show only summary, not full details")
+@click.option("--no-deps", is_flag=True, help="Ignore jnkn.toml dependencies")
 def scan(
     directory: str,
     output: str,
@@ -75,11 +78,13 @@ def scan(
     mode: str | None,
     pack_name: str | None,
     summary_only: bool,
+    no_deps: bool,
 ):
     """
     Scan directory and build dependency graph.
 
     Uses incremental scanning by default: only changed files are re-parsed.
+    Automatically resolves and scans dependencies defined in jnkn.toml.
 
     \b
     Modes:
@@ -91,7 +96,7 @@ def scan(
         jnkn scan                           # Scan current directory
         jnkn scan ./src --mode discovery    # Force discovery mode
         jnkn scan --pack django-aws         # Use Django+AWS framework pack
-        jnkn scan --summary-only            # Brief output
+        jnkn scan --no-deps                 # Ignore external dependencies
     """
     scan_path = Path(directory).absolute()
     renderer = JsonRenderer("scan")
@@ -132,12 +137,9 @@ def scan(
     else:
         output_path = Path(".jnkn/jnkn.db")
 
-    # If explicit JSON output requested via -o file.json, we'll need to export at the end
     export_to_json = output_path.suffix.lower() == ".json"
 
-    # We always use a DB for the scanning process
     if export_to_json:
-        # Use a temporary DB or default DB location for the scan
         db_path = output_path.with_suffix(".db")
     else:
         db_path = output_path
@@ -169,55 +171,84 @@ def scan(
             if force:
                 storage.clear()
 
-            # 5. Configure Scan
-            skip_dirs = SKIP_DIRS.copy()
-            config = ScanConfig(
-                root_dir=scan_path,
-                skip_dirs=skip_dirs,
-                incremental=not force,
-            )
+            # 5. Resolve Dependencies (Phase 1)
+            scan_targets = [(scan_path, ProjectManifest.load(scan_path / "jnkn.toml").name)]
 
-            # 6. Run Scan
+            if not no_deps:
+                try:
+                    resolver = DependencyResolver(scan_path)
+                    resolution = resolver.resolve()
+
+                    for dep in resolution.dependencies:
+                        if not as_json and not summary_only:
+                            console.print(f"   ➕ Dependency: [blue]{dep.name}[/blue] ({dep.path})")
+
+                        scan_targets.append((dep.path, dep.name))
+
+                except Exception as e:
+                    # Don't fail scan if resolving deps fails, just warn
+                    logger.warning(f"Dependency resolution failed: {e}")
+                    if not as_json:
+                        console.print(f"[yellow]⚠️  Dependency resolution failed: {e}[/yellow]")
+
+            # 6. Run Scan Loop
+            total_stats_scanned = 0
+            total_stats_failed = 0
+            total_stats_skipped = 0
+            total_stats_unchanged = 0
+            total_stats_time = 0.0
+
+            skip_dirs = SKIP_DIRS.copy()
+
             def progress(path: Path, current: int, total: int):
                 if not as_json and verbose and not summary_only:
                     console.print(f"   [{current}/{total}] {path.name}")
 
-            result = engine.scan_and_store(storage, config, progress_callback=progress)
+            for target_path, repo_name in scan_targets:
+                if not target_path.exists():
+                    continue
 
-            if result.is_err():
-                raise result.unwrap_err().cause or Exception(result.unwrap_err().message)
+                config = ScanConfig(
+                    root_dir=target_path,
+                    skip_dirs=skip_dirs,
+                    incremental=not force,
+                    source_repo_name=repo_name,
+                )
 
-            stats = result.unwrap()
+                result = engine.scan_and_store(storage, config, progress_callback=progress)
 
-            if not as_json and verbose and not summary_only:
-                if stats.files_scanned > 0:
-                    console.print(
-                        f"   Parsed {stats.files_scanned} files ({stats.files_unchanged} unchanged)"
-                    )
-                if stats.files_failed > 0:
-                    console.print(f"   [red]❌ Failed: {stats.files_failed} files[/red]")
+                if result.is_err():
+                    raise result.unwrap_err().cause or Exception(result.unwrap_err().message)
+
+                stats = result.unwrap()
+
+                # Accumulate stats
+                total_stats_scanned += stats.files_scanned
+                total_stats_failed += stats.files_failed
+                total_stats_skipped += stats.files_skipped
+                total_stats_unchanged += stats.files_unchanged
+                total_stats_time += stats.scan_time_ms
+
+                if not as_json and verbose and not summary_only:
+                    if stats.files_scanned > 0:
+                        console.print(f"   Parsed {stats.files_scanned} files in {repo_name}")
 
             # 7. Hydrate Graph for Stitching
             graph = storage.load_graph()
 
-            # 8. Run Stitching (with pack integration)
+            # 8. Run Stitching
             stitched_count = 0
             if graph.node_count > 0:
-                # Show stitching message by default (removed 'verbose' constraint)
-                # This ensures the user knows cross-domain analysis is happening
                 if not as_json and not summary_only:
                     console.print("🧵 Stitching cross-domain dependencies...")
 
-                # Create stitcher with mode-aware confidence
                 stitcher = Stitcher()
 
                 if active_pack:
                     stitcher.apply_pack(active_pack)
 
-                # Run the newly implemented stitch method
                 stitched_edges = stitcher.stitch(graph)
 
-                # Filter by mode confidence
                 filtered_edges = [
                     e for e in stitched_edges if (e.confidence or 0.5) >= min_confidence
                 ]
@@ -240,32 +271,29 @@ def scan(
                     nodes_found=graph.node_count,
                     edges_found=graph.edge_count,
                     stitched_count=stitched_count,
-                    files_parsed=stats.files_scanned + stats.files_unchanged,
-                    duration_sec=stats.scan_time_ms / 1000,
+                    files_parsed=total_stats_scanned + total_stats_unchanged,
+                    duration_sec=total_stats_time / 1000,
                     mode=current_mode,
                     findings_summary=findings_summary,
                     pack_name=active_pack_name,
                 )
 
-                # Check for low node count warning
                 if graph.node_count < 5:
                     echo_low_node_warning(graph.node_count)
 
-            # Handle JSON export if requested via -o file.json
             if export_to_json:
                 with open(output_path, "w") as f:
                     json.dump(graph.to_dict(), f, indent=2)
 
-            # Prepare API Response
             response_data = ScanSummaryResponse(
-                total_files=stats.files_scanned + stats.files_unchanged,
-                files_parsed=stats.files_scanned,
-                files_skipped=stats.files_skipped,
+                total_files=total_stats_scanned + total_stats_unchanged,
+                files_parsed=total_stats_scanned,
+                files_skipped=total_stats_skipped,
                 nodes_found=graph.node_count,
                 edges_found=graph.edge_count,
                 new_links_stitched=stitched_count,
                 output_path=str(output_path),
-                duration_sec=round(stats.scan_time_ms / 1000, 2),
+                duration_sec=round(total_stats_time / 1000, 2),
                 mode=current_mode.value,
                 pack=active_pack_name,
             )
@@ -275,7 +303,6 @@ def scan(
         except Exception as e:
             error_to_report = e
 
-    # Render output
     if as_json:
         if error_to_report:
             renderer.render_error(error_to_report)

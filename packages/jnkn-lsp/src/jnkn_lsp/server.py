@@ -112,10 +112,7 @@ def hover(ls: LanguageServer, params: HoverParams) -> Optional[Hover]:
     )
 
     return Hover(
-        contents=MarkupContent(
-            kind=MarkupKind.Markdown,
-            value=markdown_content
-        )
+        contents=MarkupContent(kind=MarkupKind.Markdown, value=markdown_content)
     )
 
 

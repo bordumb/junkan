@@ -21,24 +21,14 @@ logger = logging.getLogger(__name__)
 class TokenConfig:
     min_token_length: int = 3
     min_significant_tokens: int = 2
+    # Reduced blocked tokens to allow valid matches on common suffixes
     blocked_tokens: FrozenSet[str] = field(
         default_factory=lambda: frozenset(
             {
-                "id",
-                "db",
-                "host",
-                "url",
-                "key",
-                "name",
-                "type",
                 "data",
                 "info",
                 "config",
                 "setting",
-                "path",
-                "port",
-                "user",
-                "password",
                 "src",
                 "dst",
                 "in",
@@ -50,12 +40,34 @@ class TokenConfig:
                 "bool",
                 "list",
                 "dict",
+                "the",
+                "and",
+                "for",
+                "not",
+                "get",
+                "set",
+                "new",
+                "old",
+                "val",
+                "var",
             }
         )
     )
+    # Tokens that are low value but NOT blocked (still contribute slightly)
     low_value_tokens: FrozenSet[str] = field(
         default_factory=lambda: frozenset(
             {
+                "id",
+                "db",
+                "host",
+                "url",
+                "key",
+                "name",
+                "type",
+                "path",
+                "port",
+                "user",
+                "password",
                 "aws",
                 "gcp",
                 "azure",
@@ -140,15 +152,11 @@ class TokenMatcher:
     ) -> Tuple[List[str], float]:
         """
         Calculate overlap using only significant tokens.
-
-        This convenience method chains filtering and overlap calculation,
-        restoring the API expected by the tests.
         """
         sig1 = self.get_significant_tokens(tokens1)
         sig2 = self.get_significant_tokens(tokens2)
         return self.calculate_overlap(sig1, sig2)
 
-    # Additional helper methods specific to Python implementation
     def normalize(self, name: str) -> str:
         result = name.lower()
         for sep in ["_", ".", "-", "/", ":", " "]:
@@ -183,7 +191,6 @@ def load_config_from_yaml(path: Path) -> TokenConfig | None:
 def create_default_matcher(config_path: Path | None = None) -> TokenMatcherProtocol:
     """
     Factory that returns an object satisfying TokenMatcherProtocol.
-    Ideally, check a feature flag here to return Rust implementation later.
     """
     if config_path is None:
         config_path = Path(".jnkn/config.yaml")

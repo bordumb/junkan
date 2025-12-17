@@ -13,7 +13,8 @@ def storage(tmp_path):
     return SQLiteStorage(db_path)
 
 
-def test_schema_migration_v3(storage):
+def test_schema_migration_v4(storage):
+    """Verify schema migration to version 4 (Multi-Repo Support)."""
     # Check if new tables exist
     with storage._connection() as conn:
         tables = conn.execute(
@@ -25,22 +26,43 @@ def test_schema_migration_v3(storage):
             "SELECT name FROM sqlite_master WHERE type='view' AND name='high_confidence_edges'"
         ).fetchone()
         assert views is not None
+
+        # Check for V4 column: source_repo
+        columns = conn.execute("PRAGMA table_info(nodes)").fetchall()
+        column_names = [col[1] for col in columns]
+        assert "source_repo" in column_names
         
-    assert storage.get_schema_version() == 3
+    assert storage.get_schema_version() == 4
 
 
-def test_batch_node_save_with_tokens(storage):
+def test_batch_node_save_with_tokens_and_repo(storage):
     nodes = [
-        Node(id="1", name="A", type=NodeType.CODE_FILE, tokens=["t1", "common"]),
-        Node(id="2", name="B", type=NodeType.ENV_VAR, tokens=["t2", "common"]),
+        Node(
+            id="1", 
+            name="A", 
+            type=NodeType.CODE_FILE, 
+            tokens=["t1", "common"],
+            metadata={"source_repo": "app-repo"}
+        ),
+        Node(
+            id="2", 
+            name="B", 
+            type=NodeType.ENV_VAR, 
+            tokens=["t2", "common"],
+            metadata={"source_repo": "infra-repo"}
+        ),
     ]
     
     storage.save_nodes_batch(nodes)
     
     with storage._connection() as conn:
-        # Check nodes
+        # Check nodes count
         assert conn.execute("SELECT COUNT(*) as c FROM nodes").fetchone()["c"] == 2
         
+        # Check source_repo persistence
+        row_a = conn.execute("SELECT source_repo FROM nodes WHERE id='1'").fetchone()
+        assert row_a["source_repo"] == "app-repo"
+
         # Check token index
         tokens = conn.execute("SELECT * FROM token_index ORDER BY token").fetchall()
         assert len(tokens) == 4 # t1, t2, common, common
@@ -52,7 +74,6 @@ def test_batch_node_save_with_tokens(storage):
 def test_high_confidence_view(storage):
     # This requires creating edges manually via SQL or extending test setup
     # to mock Edge insertion if save_edge is not fully exercised here.
-    # Assuming save_edge works from base tests, we test the view logic.
     
     with storage._connection() as conn:
         conn.execute("""

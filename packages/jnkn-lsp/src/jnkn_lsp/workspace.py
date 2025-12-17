@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class WorkspaceManager:
     """
     Manages the Jnkn workspace lifecycle, ensuring the graph is ready and up-to-date.
-    
+
     Attributes:
         root_path (Path): The root directory of the workspace.
         watcher_process (Optional[subprocess.Popen]): The handle for the background watcher.
@@ -48,7 +48,7 @@ class WorkspaceManager:
     def setup(self) -> None:
         """
         Ensure the workspace is fully initialized and ready for queries.
-        
+
         This method is idempotent:
         1. If .jnkn is missing, it runs 'init' and 'scan'.
         2. If .jnkn exists but the DB is empty, it runs 'scan'.
@@ -62,7 +62,7 @@ class WorkspaceManager:
             self._run_cli_command("init", input_str="n\n")
             # Force a scan immediately after init to populate tables
             self._run_cli_command("scan")
-        
+
         # 2. Verify Data Integrity
         elif self._is_db_empty():
             logger.info("⚠️ Database exists but appears empty. Triggering full scan...")
@@ -80,7 +80,7 @@ class WorkspaceManager:
     def start_watcher(self) -> None:
         """
         Spawn the 'jnkn watch' command as a detached subprocess.
-        
+
         This keeps the graph synchronized as the user edits files.
         """
         if self.watcher_process and self.watcher_process.poll() is None:
@@ -89,13 +89,13 @@ class WorkspaceManager:
 
         logger.info("🚀 Starting background watcher...")
         cmd = self._get_cli_command("watch")
-        
+
         try:
             self.watcher_process = subprocess.Popen(
                 cmd,
                 cwd=str(self.root_path),
                 stdout=subprocess.DEVNULL,  # Redirect to avoid clogging LSP pipe
-                stderr=subprocess.PIPE,     # Capture errors if needed
+                stderr=subprocess.PIPE,  # Capture errors if needed
             )
             logger.info(f"Watcher started (PID: {self.watcher_process.pid})")
         except Exception as e:
@@ -129,21 +129,23 @@ class WorkspaceManager:
     def _is_db_empty(self) -> bool:
         """
         Check if the nodes table exists and has data.
-        
+
         Returns:
             bool: True if tables are missing or count is 0.
         """
         if not self._db_path.exists():
             return True
-            
+
         try:
             with sqlite3.connect(self._db_path) as conn:
                 cursor = conn.cursor()
                 # Check if table exists
-                cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='nodes'")
+                cursor.execute(
+                    "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='nodes'"
+                )
                 if cursor.fetchone()[0] == 0:
                     return True
-                
+
                 # Check if it has data
                 cursor.execute("SELECT count(*) FROM nodes")
                 count = cursor.fetchone()[0]
@@ -154,7 +156,7 @@ class WorkspaceManager:
     def _get_cli_command(self, subcommand: str) -> List[str]:
         """
         Resolve the correct command to run jnkn.
-        
+
         Tries to find the 'jnkn' executable in the same bin/ folder as python.
         Falls back to 'python -m jnkn' if needed.
         """
@@ -162,10 +164,10 @@ class WorkspaceManager:
         # This handles the uv/venv installation case correctly
         bin_dir = Path(sys.executable).parent
         jnkn_bin = bin_dir / "jnkn"
-        
+
         if jnkn_bin.exists():
             return [str(jnkn_bin), subcommand]
-            
+
         # Strategy 2: Windows might have jnkn.exe
         jnkn_exe = bin_dir / "jnkn.exe"
         if jnkn_exe.exists():
@@ -174,14 +176,16 @@ class WorkspaceManager:
         # Strategy 3: Fallback to module execution (might fail if __main__.py is missing)
         return [sys.executable, "-m", "jnkn", subcommand]
 
-    def _run_cli_command(self, command: str, args: List[str] = None, input_str: Optional[str] = None) -> None:
+    def _run_cli_command(
+        self, command: str, args: List[str] = None, input_str: Optional[str] = None
+    ) -> None:
         """
         Run a jnkn CLI command synchronously.
         """
         cmd = self._get_cli_command(command)
         if args:
             cmd.extend(args)
-            
+
         logger.info(f"Running command: {' '.join(cmd)}")
         try:
             result = subprocess.run(
@@ -191,7 +195,7 @@ class WorkspaceManager:
                 text=True,
                 check=True,
                 # ADD THIS: Feed the input to the command
-                input=input_str 
+                input=input_str,
             )
             logger.debug(f"Command output: {result.stdout}")
         except subprocess.CalledProcessError as e:

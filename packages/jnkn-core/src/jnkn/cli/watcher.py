@@ -114,10 +114,10 @@ class ParsingEventHandler(FileSystemEventHandler):
         # Since we are inside jnkn-core, we can access protected members if needed,
         # but ideally ParserEngine should expose `process_single_file`.
         # Assuming we added `parse_file_full` to ParserEngine public API as per previous dumps.
-        
+
         # Calculate hash for storage consistency
         from jnkn.core.types import ScanMetadata
-        
+
         try:
             file_hash = ScanMetadata.compute_hash(str(file_path))
         except Exception:
@@ -133,7 +133,7 @@ class ParsingEventHandler(FileSystemEventHandler):
 
         # Atomic Update: Delete old nodes for this file, then insert new ones
         self.storage.delete_nodes_by_file(str(file_path))
-        
+
         if result.nodes:
             self.storage.save_nodes_batch(result.nodes)
         if result.edges:
@@ -169,7 +169,7 @@ class ParsingEventHandler(FileSystemEventHandler):
     def _trigger_stitching(self) -> None:
         """
         Trigger a graph re-stitch.
-        
+
         Debounced to prevent thrashing during rapid saves.
         """
         now = time.time()
@@ -177,26 +177,26 @@ class ParsingEventHandler(FileSystemEventHandler):
             return
 
         logger.info("🧵 Re-stitching graph...")
-        
+
         try:
             # Reload fresh graph from DB
             graph = self.storage.load_graph()
-            
+
             # Run stitcher
             new_edges = self.stitcher.stitch(graph)
-            
+
             if new_edges:
                 self.storage.save_edges_batch(new_edges)
                 logger.info(f"   🔗 {len(new_edges)} new cross-domain links stitched")
             else:
                 logger.info("   ✨ Graph stable (No new links needed)")
-                
+
             # Explicit success message
             logger.info("✅ Graph synced.")
-            
+
         except Exception as e:
             logger.error(f"❌ Stitching failed: {e}")
-        
+
         self._last_stitch_time = time.time()
 
 
@@ -220,7 +220,7 @@ class FileSystemWatcher:
         self.storage = SQLiteStorage(self.db_path)
         engine = create_default_engine()
         stitcher = Stitcher()
-        
+
         # Load standard config defaults
         config = ScanConfig(root_dir=self.root_dir, incremental=True)
 
@@ -230,7 +230,7 @@ class FileSystemWatcher:
             storage=self.storage,
             config=config,
             stitcher=stitcher,
-            root_dir=self.root_dir
+            root_dir=self.root_dir,
         )
 
         # Setup Observer

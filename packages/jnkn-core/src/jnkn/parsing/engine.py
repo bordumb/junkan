@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ScanConfig:
+    """
+    Configuration for a scan operation.
+    """
+
     root_dir: Path = field(default_factory=lambda: Path.cwd())
     skip_dirs: Set[str] = field(default_factory=lambda: global_config.IGNORE_DIRECTORIES.copy())
     skip_patterns: Set[str] = field(
@@ -36,6 +40,9 @@ class ScanConfig:
     max_files: int = 0
     follow_symlinks: bool = False
     incremental: bool = True
+
+    # Tag nodes with their source repository (e.g., "infrastructure", "payment-service")
+    source_repo_name: str | None = None
 
     def should_skip_dir(self, dir_name: str) -> bool:
         return dir_name in self.skip_dirs
@@ -157,6 +164,17 @@ class ParserEngine:
 
         if config.incremental:
             for tracked_path in list(tracked_metadata.keys()):
+                # CRITICAL FIX: Only prune files that fall within the current root_dir.
+                # This prevents subsequent scans of other repos from deleting previous results.
+                try:
+                    path_obj = Path(tracked_path)
+                    # Check if tracked_path is inside config.root_dir
+                    if not path_obj.is_relative_to(config.root_dir):
+                        continue
+                except ValueError:
+                    # Path is not relative to root (e.g. diff drive or external), skip it
+                    continue
+
                 if tracked_path not in disk_paths:
                     # File was deleted or moved
                     try:
@@ -215,6 +233,11 @@ class ParserEngine:
 
             if result.success:
                 try:
+                    # Inject source_repo if configured
+                    if config.source_repo_name:
+                        for node in result.nodes:
+                            node.metadata["source_repo"] = config.source_repo_name
+
                     # Save new data
                     if result.nodes:
                         storage.save_nodes_batch(result.nodes)

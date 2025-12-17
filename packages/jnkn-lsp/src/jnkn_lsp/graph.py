@@ -57,18 +57,16 @@ class LspGraphManager:
         """
         # Use a regular connection (not URI mode=ro) to properly read WAL
         conn = sqlite3.connect(str(self.db_path), timeout=5.0)
-        
+
         # Set to read-only mode via PRAGMA (safer than file permissions)
         conn.execute("PRAGMA query_only = ON")
-        
+
         # Ensure we read the latest WAL data
         conn.execute("PRAGMA read_uncommitted = ON")
-        
+
         return conn
 
-    def get_hover_info(
-        self, file_path: str, line_number: int
-    ) -> dict[str, Any] | None:
+    def get_hover_info(self, file_path: str, line_number: int) -> dict[str, Any] | None:
         """
         Retrieve graph context for a specific line in a file.
 
@@ -102,7 +100,9 @@ class LspGraphManager:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 # Editor lines are 0-indexed, parsers store 1-indexed
-                cursor.execute(query, (RelationshipType.PROVIDES.value, file_path, line_number + 1))
+                cursor.execute(
+                    query, (RelationshipType.PROVIDES.value, file_path, line_number + 1)
+                )
                 row = cursor.fetchone()
 
                 if row:
@@ -163,7 +163,11 @@ class LspGraphManager:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 # Parameters: provides edge type, file path, then consumer node types
-                params = (RelationshipType.PROVIDES.value, file_path, *CONSUMER_NODE_TYPES)
+                params = (
+                    RelationshipType.PROVIDES.value,
+                    file_path,
+                    *CONSUMER_NODE_TYPES,
+                )
                 logger.info(f"Running orphan query with path: {file_path}")
                 cursor.execute(query, params)
                 rows = cursor.fetchall()
